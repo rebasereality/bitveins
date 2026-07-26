@@ -1,0 +1,159 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+@import "@xterm/xterm/css/xterm.css";
+@import "@fontsource-variable/inter";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root,
+.light {
+  font-family: "Inter Variable", Inter, "Segoe UI Variable", "Segoe UI", sans-serif;
+  color-scheme: light;
+  background: #f1f2f4;
+  color: #24262b;
+
+  --bitveins-sidebar-width: 192px;
+  --bitveins-topbar-height: 36px;
+  --bitveins-control-size: 24px;
+  --bitveins-ui-font-size: 12px;
+  --bitveins-ui-label-size: 11px;
+  --bitveins-ui-caption-size: 10px;
+  --bitveins-ui-micro-size: 9px;
+  --bitveins-ui-heading-size: 14px;
+  --bitveins-input-font-size: 16px;
+  --bitveins-input-line-height: 24px;
+  --bitveins-input-min-height: 56px;
+  --bitveins-prompt-font-family: "JetBrains Mono", "SFMono-Regular", "Cascadia Code", monospace;
+  --bitveins-accent-contrast: #ffffff;
+  --bitveins-app-bg: #f1f2f4;
+  --bitveins-shell-bg: #f1f2f4;
+  --bitveins-shell-panel: #f7f7f8;
+  --bitveins-shell-panel-solid: #ffffff;
+  --bitveins-shell-panel-muted: #e9eaed;
+  --bitveins-shell-border: #d5d7dc;
+  --bitveins-shell-border-strong: #c4c7ce;
+  --bitveins-shell-text: #24262b;
+  --bitveins-shell-text-muted: #656a74;
+  --bitveins-shell-text-subtle: #858b95;
+  --bitveins-shell-accent: #4f46e5;
+  --bitveins-shell-accent-strong: #4338ca;
+  --bitveins-shell-accent-soft: rgb(79 70 229 / 12%);
+  --bitveins-terminal-bg: #fafafb;
+  --bitveins-terminal-chrome: #f1f2f4;
+
+  --ui-text-dimmed: var(--ui-color-neutral-400);
+  --ui-text-muted: var(--ui-color-neutral-500);
+  --ui-text-toned: var(--ui-color-neutral-600);
+  --ui-text: var(--ui-color-neutral-800);
+  --ui-text-highlighted: var(--ui-color-neutral-950);
+  --ui-text-inverted: #ffffff;
+  --ui-bg: #ffffff;
+  --ui-bg-muted: var(--ui-color-neutral-100);
+  --ui-bg-elevated: #ffffff;
+  --ui-bg-accented: var(--ui-color-neutral-200);
+  --ui-bg-inverted: var(--ui-color-neutral-950);
+  --ui-border: var(--ui-color-neutral-200);
+  --ui-border-muted: var(--ui-color-neutral-200);
+  --ui-border-accented: var(--ui-color-neutral-300);
+  --ui-border-inverted: var(--ui-color-neutral-950);
+}
+
+.dark {
+  color-scheme: dark;
+  background: #1b1e23;
+  color: #eceef2;
+
+  --bitveins-accent-contrast: #111827;
+  --bitveins-app-bg: #1b1e23;
+  --bitveins-shell-bg: #1b1e23;
+  --bitveins-shell-panel: #181b20;
+  --bitveins-shell-panel-solid: #22262c;
+  --bitveins-shell-panel-muted: #22262c;
+  --bitveins-shell-border: #30343b;
+  --bitveins-shell-border-strong: #3b4049;
+  --bitveins-shell-text: #eceef2;
+  --bitveins-shell-text-muted: #a0a5ae;
+  --bitveins-shell-text-subtle: #747a84;
+  --bitveins-shell-accent: #818cf8;
+  --bitveins-shell-accent-strong: #a5b4fc;
+  --bitveins-shell-accent-soft: rgb(129 140 248 / 14%);
+  --bitveins-terminal-bg: #1c1f24;
+  --bitveins-terminal-chrome: #181b20;
+
+  --ui-text-dimmed: var(--ui-color-neutral-500);
+  --ui-text-muted: var(--ui-color-neutral-400);
+  --ui-text-toned: var(--ui-color-neutral-300);
+  --ui-text: var(--ui-color-neutral-200);
+  --ui-text-highlighted: #fff;
+  --ui-text-inverted: #ffffff;
+  --ui-bg: var(--ui-color-neutral-900);
+  --ui-bg-muted: var(--ui-color-neutral-800);
+  --ui-bg-elevated: var(--ui-color-neutral-800);
+  --ui-bg-accented: var(--ui-color-neutral-700);
+  --ui-bg-inverted: #fff;
+  --ui-border: var(--ui-color-neutral-800);
+  --ui-border-muted: var(--ui-color-neutral-700);
+  --ui-border-accented: var(--ui-color-neutral-700);
+  --ui-border-inverted: #fff;
+}
+
+html,
+body,
+#__nuxt {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--bitveins-app-bg);
+}
+
+body {
+  font-size: var(--bitveins-ui-font-size);
+}
+
+.bg-primary.text-inverted {
+  color: var(--bitveins-accent-contrast);
+}
+
+[data-bitveins-app],
+[data-settings-view] {
+  --text-xs: var(--bitveins-ui-font-size);
+  --text-xs--line-height: calc(var(--bitveins-ui-font-size) + 5px);
+  --text-sm: calc(var(--bitveins-ui-font-size) + 2px);
+  --text-sm--line-height: calc(var(--bitveins-ui-font-size) + 7px);
+  --text-base: calc(var(--bitveins-ui-font-size) + 4px);
+  --text-base--line-height: calc(var(--bitveins-ui-font-size) + 9px);
+  --text-lg: calc(var(--bitveins-ui-font-size) + 6px);
+  --text-lg--line-height: calc(var(--bitveins-ui-font-size) + 11px);
+}
+
+* {
+  box-sizing: border-box;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.xterm {
+  height: 100%;
+  padding: 0;
+}
+
+@media (min-width: 1024px) {
+  .xterm {
+    padding: 10px 12px 2px;
+  }
+}
+
+.xterm-viewport {
+  background-color: transparent !important;
+}
+
+.xterm-screen {
+  width: 100% !important;
+}

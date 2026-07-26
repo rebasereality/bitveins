@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+
+BITVEINS_EXECUTABLE=$(readlink -f "$0")
+BITVEINS_RELEASE_ROOT=$(CDPATH= cd -- "$(dirname -- "$BITVEINS_EXECUTABLE")/.." && pwd)
+export BITVEINS_RELEASE_ROOT
+
+exec "$BITVEINS_RELEASE_ROOT/runtime/bin/node" \
+  "$BITVEINS_RELEASE_ROOT/lib/cli.mjs" "$@"

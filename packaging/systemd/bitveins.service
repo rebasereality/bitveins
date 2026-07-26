@@ -1,0 +1,18 @@
+[Unit]
+Description=Bitveins Async Terminal
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=@HOME@
+Environment=NODE_ENV=production
+Environment=HOST=127.0.0.1
+EnvironmentFile=@ENVIRONMENT_FILE@
+ExecStart=@NODE@ @SERVER@
+Restart=on-failure
+RestartSec=5s
+KillMode=process
+
+[Install]
+WantedBy=default.target

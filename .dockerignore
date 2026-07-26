@@ -1,0 +1,10 @@
+.git
+.bitveins-build
+.nuxt
+.output
+coverage
+node_modules
+playwright-report
+test-results
+tests
+*.sqlite
