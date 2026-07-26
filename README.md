@@ -7,6 +7,15 @@ Bitveins is a single-user administrative tool: unlocking it grants the Unix
 permissions of the account running the service. It is not a multi-tenant
 sandbox.
 
+<p align="center">
+  <a href="https://rebasereality.com/bitveins/media/bitveins/overview-desktop.webp">
+    <img src="https://rebasereality.com/bitveins/media/bitveins/overview-desktop.webp" alt="Bitveins desktop overview" width="72%">
+  </a>
+  <a href="https://rebasereality.com/bitveins/media/bitveins/hero-mobile-codex.webp">
+    <img src="https://rebasereality.com/bitveins/media/bitveins/hero-mobile-codex.webp" alt="Bitveins mobile Codex session" width="24%">
+  </a>
+</p>
+
 ## Modes
 
 - **Async** is the default. Type in the native textarea and send a complete command or multi-line block with Enter. This is best for high-latency mobile links because local editing stays responsive.
