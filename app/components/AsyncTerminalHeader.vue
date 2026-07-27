@@ -22,6 +22,7 @@ const emit = defineEmits<{
   commitTmuxWindowRename: []
   cancelTmuxWindowRename: []
   createTmuxWindow: []
+  downloadActiveFile: []
   openMobileTree: []
   saveActiveFile: []
   selectFile: [path: string]
@@ -126,6 +127,19 @@ const editingWindowName = defineModel<string>('editingWindowName', { default: ''
           No open files
         </div>
       </div>
+
+      <UButton
+        v-if="activeOpenFile?.kind === 'text'"
+        aria-label="Download active file"
+        class="mb-1 size-6 shrink-0"
+        color="neutral"
+        icon="i-lucide-download"
+        size="xs"
+        square
+        title="Download active file"
+        variant="ghost"
+        @click="emit('downloadActiveFile')"
+      />
 
       <UButton
         v-if="activeOpenFile && activeOpenFile.isDirty"

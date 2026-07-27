@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { apiErrorMessage } from '~/utils/api-error'
+import { downloadRemotePath } from '~/utils/file-download'
 
 export function useFileDownloadModal() {
   const downloadModalOpen = ref(false)
@@ -18,16 +19,7 @@ export function useFileDownloadModal() {
     downloadError.value = null
     downloadLoading.value = true
     try {
-      await $fetch('/api/download', {
-        query: { check: 'true', path: downloadPath.value },
-      })
-      const url = `/api/download?path=${encodeURIComponent(downloadPath.value)}`
-      const link = document.createElement('a')
-      link.href = url
-      link.download = ''
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
+      await downloadRemotePath(downloadPath.value)
       downloadModalOpen.value = false
     }
     catch (err: unknown) {

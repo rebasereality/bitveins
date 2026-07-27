@@ -20,13 +20,13 @@ const modalOpen = defineModel<boolean>('modalOpen', { default: false })
 const dropzoneModalOpen = defineModel<boolean>('dropzoneModalOpen', { default: false })
 const renameModalOpen = defineModel<boolean>('renameModalOpen', { default: false })
 const downloadModalOpen = defineModel<boolean>('downloadModalOpen', { default: false })
+const downloadPath = defineModel<string>('downloadPath', { default: '' })
 
 const name = ref('')
 const path = ref('')
 const dropzoneName = ref('')
 const dropzonePath = ref('')
 const renameNextName = ref('')
-const downloadPath = ref('')
 
 function handleCreateSession(): void {
   emit('createSession', {

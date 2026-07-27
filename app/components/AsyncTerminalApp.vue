@@ -11,6 +11,7 @@ import { parseStoredExplorerViewMode, type ExplorerViewMode } from '~/utils/expl
 import { useTmuxWindows } from '~/composables/useTmuxWindows'
 import { useFileTreeModal } from '~/composables/useFileTreeModal'
 import { useExplorerDocuments } from '~/composables/useExplorerDocuments'
+import { useExplorerDownloads } from '~/composables/useExplorerDownloads'
 import { useTerminalContextMenu } from '~/composables/useTerminalContextMenu'
 import { useAppTransfers } from '~/composables/useAppTransfers'
 import AsyncTerminalHeader from '~/components/AsyncTerminalHeader.vue'
@@ -202,6 +203,11 @@ const {
   terminal,
 })
 
+const { downloadExplorerItem, downloadPath } = useExplorerDownloads(
+  sessions,
+  activeSession,
+)
+
 const {
   contextMenu,
   handleItemContextMenu,
@@ -210,6 +216,7 @@ const {
   sessions,
   activeSession,
   (node, cb) => deleteFileOrFolder(node, cb),
+  path => void downloadPath(path),
   node => void openFile(node),
   path => closeFile(path),
   path => closeOtherFiles(path),
@@ -429,6 +436,7 @@ watch(activeSession, () => {
           @close-tmux-window="closeTmuxWindow"
           @commit-tmux-window-rename="commitTmuxWindowRename"
           @create-tmux-window="createTmuxWindow"
+          @download-active-file="activeOpenFile && downloadExplorerItem(activeOpenFile.path)"
           @forget-all-path-link-roots="forgetAllPathLinkRoots"
           @forget-path-link-root="forgetPathLinkRoot"
           @open-mobile-tree="isMobileTreeOpen = true"

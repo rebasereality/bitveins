@@ -6,6 +6,7 @@ export function useTerminalContextMenu(
   sessions: Ref<Array<{ name: string, path: string }>>,
   activeSession: Ref<string | null>,
   deleteFileOrFolderFn: (node: ExplorerFileNode, cb?: () => void) => void,
+  downloadPathFn: (path: string) => void,
   openFileFn: (node: ExplorerFileNode) => void,
   closeFileFn: (path: string) => void,
   closeOtherFilesFn: (path: string) => void,
@@ -43,6 +44,7 @@ export function useTerminalContextMenu(
     const absolutePath = sessionPath ? (sessionPath.endsWith('/') ? `${sessionPath}${relativePath}` : `${sessionPath}/${relativePath}`) : relativePath
 
     const items = [
+      { label: 'Download', icon: 'i-lucide-download', click: () => downloadPathFn(absolutePath) },
       { label: 'Copy relative path', icon: 'i-lucide-copy', click: () => copyToClipboard(relativePath) },
       { label: 'Copy absolute path', icon: 'i-lucide-file-text', click: () => copyToClipboard(absolutePath) },
       { label: 'Delete', icon: 'i-lucide-trash-2', click: () => deleteFileOrFolderFn(node, reloadFileTreeFn) },
@@ -63,6 +65,7 @@ export function useTerminalContextMenu(
     const absolutePath = sessionPath ? (sessionPath.endsWith('/') ? `${sessionPath}${relativePath}` : `${sessionPath}/${relativePath}`) : relativePath
 
     const items = [
+      { label: 'Download', icon: 'i-lucide-download', click: () => downloadPathFn(absolutePath) },
       { label: 'Copy relative path', icon: 'i-lucide-copy', click: () => copyToClipboard(relativePath) },
       { label: 'Copy absolute path', icon: 'i-lucide-file-text', click: () => copyToClipboard(absolutePath) },
       { label: 'Close file', icon: 'i-lucide-x', click: () => closeFileFn(file.path) },
