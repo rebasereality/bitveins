@@ -14,13 +14,14 @@ describe('useExplorerDocuments', () => {
     vi.stubGlobal('confirm', vi.fn(() => true))
   })
 
-  it('opens text and image documents through metadata classification', async () => {
+  it('opens source previews and media documents through metadata classification', async () => {
     fetchStub
       .mockResolvedValueOnce({
         kind: 'text',
-        path: 'src/file.ts',
-        name: 'file.ts',
+        path: 'README.md',
+        name: 'README.md',
         size: 7,
+        previewKind: 'markdown',
       })
       .mockResolvedValueOnce({ content: 'content' })
       .mockResolvedValueOnce({
@@ -28,22 +29,49 @@ describe('useExplorerDocuments', () => {
         path: 'design/preview.png',
         name: 'preview.png',
         mediaType: 'image/png',
+        previewMediaType: 'image/png',
         size: 10,
+      })
+      .mockResolvedValueOnce({
+        kind: 'video',
+        path: 'demo.mp4',
+        name: 'demo.mp4',
+        mediaType: 'video/mp4',
+        size: 100,
+      })
+      .mockResolvedValueOnce({
+        kind: 'binary',
+        path: 'archive.bin',
+        name: 'archive.bin',
+        size: 20,
       })
     const explorer = useExplorerDocuments(ref('demo'))
 
-    await explorer.openPath('src/file.ts', undefined, 4, 2)
+    await explorer.openPath('README.md')
     await explorer.openFile({ name: 'preview.png', path: 'design/preview.png', isDir: false })
+    await explorer.openPath('demo.mp4')
+    await explorer.openPath('archive.bin')
 
     expect(explorer.openFiles.value).toMatchObject([
-      { kind: 'text', path: 'src/file.ts', line: 4, column: 2 },
+      {
+        kind: 'text',
+        path: 'README.md',
+        previewEnabled: true,
+        previewKind: 'markdown',
+      },
       {
         kind: 'image',
         path: 'design/preview.png',
         previewUrl: '/api/sessions/demo/files/image?path=design%2Fpreview.png',
       },
+      {
+        kind: 'video',
+        path: 'demo.mp4',
+        streamUrl: '/api/sessions/demo/files/video?path=demo.mp4',
+      },
+      { kind: 'binary', path: 'archive.bin' },
     ])
-    expect(explorer.activeFilePath.value).toBe('design/preview.png')
+    expect(explorer.activeFilePath.value).toBe('archive.bin')
   })
 
   it('updates positions on an existing text tab and never fetches directories', async () => {
@@ -84,5 +112,29 @@ describe('useExplorerDocuments', () => {
     vi.mocked(confirm).mockReturnValue(true)
     explorer.closeAllFiles()
     expect(explorer.openFiles.value).toHaveLength(0)
+  })
+
+  it('toggles Preview per source tab and opens line links in source mode', async () => {
+    fetchStub
+      .mockResolvedValueOnce({
+        kind: 'text',
+        path: 'README.md',
+        name: 'README.md',
+        previewKind: 'markdown',
+        size: 10,
+      })
+      .mockResolvedValueOnce({ content: '# Readme' })
+    const explorer = useExplorerDocuments(ref('demo'))
+
+    await explorer.openPath('README.md')
+    expect(explorer.activeOpenFile.value).toMatchObject({ previewEnabled: true })
+    explorer.toggleActiveFilePreview()
+    expect(explorer.activeOpenFile.value).toMatchObject({ previewEnabled: false })
+    explorer.toggleActiveFilePreview()
+    await explorer.openPath('README.md', undefined, 3, 1)
+    expect(explorer.activeOpenFile.value).toMatchObject({
+      line: 3,
+      previewEnabled: false,
+    })
   })
 })

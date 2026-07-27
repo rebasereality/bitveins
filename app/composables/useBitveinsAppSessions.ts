@@ -34,7 +34,9 @@ export function useBitveinsAppSessions(options: BitveinsAppSessionOptions) {
     terminal,
   } = options
   const sessions = ref<TmuxSession[]>([])
-  const loading = ref(false)
+  // The first request starts on mount, so the initial render is already a loading state.
+  // This prevents an empty-state flash during hydration.
+  const loading = ref(true)
   const error = ref<string | null>(null)
 
   async function refreshSessions(): Promise<void> {

@@ -28,9 +28,11 @@ export default defineEventHandler(async (event) => {
       await sessions.getSessionPath(sessionName),
       query.data.path,
     )
-    setHeader(event, 'Content-Type', image.metadata.mediaType)
-    setHeader(event, 'Content-Length', image.metadata.size)
-    setHeader(event, 'Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(image.metadata.name)}`)
+    setHeader(event, 'Content-Type', image.mediaType)
+    if (image.contentLength !== undefined) {
+      setHeader(event, 'Content-Length', image.contentLength)
+    }
+    setHeader(event, 'Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(image.name)}`)
     setHeader(event, 'Cache-Control', 'private, no-store')
     setHeader(event, 'X-Content-Type-Options', 'nosniff')
     setHeader(event, 'Content-Security-Policy', 'default-src \'none\'; sandbox')

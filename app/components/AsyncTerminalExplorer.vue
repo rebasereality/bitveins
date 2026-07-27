@@ -8,21 +8,34 @@ import type {
 } from '~/types/explorer'
 import { isTextDocument } from '~/types/explorer'
 import ExplorerImageViewer from '~/components/ExplorerImageViewer.vue'
+import ExplorerMarkdownViewer from '~/components/ExplorerMarkdownViewer.vue'
+import ExplorerSvgViewer from '~/components/ExplorerSvgViewer.vue'
+import ExplorerUnsupportedViewer from '~/components/ExplorerUnsupportedViewer.vue'
+import ExplorerVideoViewer from '~/components/ExplorerVideoViewer.vue'
 
 const CodeEditor = defineAsyncComponent(() => import('~/components/CodeEditor.vue'))
 
 defineProps<{
+  activeFilePath: string | null
   activeOpenFile: ExplorerDocument | null
   activeSession: string | null
   expandedPaths: string[]
+  openFiles: ExplorerDocument[]
 }>()
 
 const emit = defineEmits<{
+  closeFile: [path: string]
+  downloadActiveFile: []
   fileDblClick: [fileNode: ExplorerFileNode]
   fileDeleted: [path: string]
   fileContentChange: [payload: { file: ExplorerTextDocument, content: string }]
   itemContextMenu: [payload: { event: MouseEvent, node: ExplorerFileNode }]
+  openPath: [path: string]
+  returnToTerminal: []
   saveActiveFile: []
+  selectFile: [path: string]
+  tabContextMenu: [payload: { event: MouseEvent, file: ExplorerDocument }]
+  togglePreview: []
   updateExpandedPaths: [paths: string[]]
 }>()
 
@@ -61,9 +74,23 @@ defineExpose({
       />
     </div>
 
-    <div class="flex-1 h-full overflow-hidden flex flex-col">
+    <div class="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
+      <ExplorerTabBar
+        :active-file-path="activeFilePath"
+        :active-open-file="activeOpenFile"
+        :open-files="openFiles"
+        @close-file="emit('closeFile', $event)"
+        @download-active-file="emit('downloadActiveFile')"
+        @open-mobile-tree="isMobileTreeOpen = true"
+        @return-to-terminal="emit('returnToTerminal')"
+        @save-active-file="emit('saveActiveFile')"
+        @select-file="emit('selectFile', $event)"
+        @tab-context-menu="emit('tabContextMenu', $event)"
+        @toggle-preview="emit('togglePreview')"
+      />
+
       <CodeEditor
-        v-if="activeOpenFile && isTextDocument(activeOpenFile)"
+        v-if="activeOpenFile && isTextDocument(activeOpenFile) && !activeOpenFile.previewEnabled"
         :model-value="activeOpenFile.content"
         :file-path="activeOpenFile.path"
         :line="activeOpenFile.line"
@@ -72,8 +99,26 @@ defineExpose({
         @update:model-value="emit('fileContentChange', { file: activeOpenFile, content: $event })"
         @save="emit('saveActiveFile')"
       />
+      <ExplorerMarkdownViewer
+        v-else-if="activeOpenFile?.kind === 'text' && activeOpenFile.previewKind === 'markdown'"
+        :document="activeOpenFile"
+        :session-name="activeSession || ''"
+        @open-path="emit('openPath', $event)"
+      />
+      <ExplorerSvgViewer
+        v-else-if="activeOpenFile?.kind === 'text' && activeOpenFile.previewKind === 'svg'"
+        :document="activeOpenFile"
+      />
       <ExplorerImageViewer
         v-else-if="activeOpenFile?.kind === 'image'"
+        :document="activeOpenFile"
+      />
+      <ExplorerVideoViewer
+        v-else-if="activeOpenFile?.kind === 'video'"
+        :document="activeOpenFile"
+      />
+      <ExplorerUnsupportedViewer
+        v-else-if="activeOpenFile?.kind === 'binary'"
         :document="activeOpenFile"
       />
       <div

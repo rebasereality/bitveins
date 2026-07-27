@@ -15,9 +15,9 @@ export function useExplorerDocuments(activeSession: Ref<string | null>) {
 
   const activeOpenFile = computed(() => openFiles.value.find(f => f.path === activeFilePath.value) || null)
 
-  function imagePreviewUrl(sessionName: string, path: string): string {
+  function explorerMediaUrl(sessionName: string, path: string, media: 'image' | 'video'): string {
     const query = new URLSearchParams({ path })
-    return `/api/sessions/${encodeURIComponent(sessionName)}/files/image?${query.toString()}`
+    return `/api/sessions/${encodeURIComponent(sessionName)}/files/${media}?${query.toString()}`
   }
 
   async function openPath(path: string, name?: string, line?: number, column?: number): Promise<void> {
@@ -29,6 +29,9 @@ export function useExplorerDocuments(activeSession: Ref<string | null>) {
         existing.line = line
         existing.column = column
         existing.navigationToken += 1
+        if (line !== undefined || column !== undefined) {
+          existing.previewEnabled = false
+        }
       }
       activeFilePath.value = existing.path
       isMobileTreeOpen.value = false
@@ -48,8 +51,29 @@ export function useExplorerDocuments(activeSession: Ref<string | null>) {
           path: metadata.path,
           name: metadata.name,
           mediaType: metadata.mediaType,
+          previewMediaType: metadata.previewMediaType,
           size: metadata.size,
-          previewUrl: imagePreviewUrl(sessionName, metadata.path),
+          previewUrl: explorerMediaUrl(sessionName, metadata.path, 'image'),
+          isDirty: false,
+        })
+      }
+      else if (metadata.kind === 'video') {
+        openFiles.value.push({
+          kind: 'video',
+          path: metadata.path,
+          name: metadata.name,
+          mediaType: metadata.mediaType,
+          size: metadata.size,
+          streamUrl: explorerMediaUrl(sessionName, metadata.path, 'video'),
+          isDirty: false,
+        })
+      }
+      else if (metadata.kind === 'binary') {
+        openFiles.value.push({
+          kind: 'binary',
+          path: metadata.path,
+          name: metadata.name,
+          size: metadata.size,
           isDirty: false,
         })
       }
@@ -66,6 +90,9 @@ export function useExplorerDocuments(activeSession: Ref<string | null>) {
           originalContent: data.content,
           isDirty: false,
           navigationToken: 1,
+          previewEnabled: metadata.previewKind !== undefined && line === undefined && column === undefined,
+          previewKind: metadata.previewKind,
+          size: metadata.size,
           line,
           column,
         })
@@ -114,6 +141,12 @@ export function useExplorerDocuments(activeSession: Ref<string | null>) {
     file.isDirty = file.content !== file.originalContent
   }
 
+  function toggleActiveFilePreview(): void {
+    const file = activeOpenFile.value
+    if (!file || !isTextDocument(file) || !file.previewKind) return
+    file.previewEnabled = !file.previewEnabled
+  }
+
   async function saveActiveFile(): Promise<void> {
     if (!activeOpenFile.value || !activeSession.value) return
     const file = activeOpenFile.value
@@ -158,6 +191,7 @@ export function useExplorerDocuments(activeSession: Ref<string | null>) {
     closeOtherFiles,
     closeAllFiles,
     handleFileContentChange,
+    toggleActiveFilePreview,
     saveActiveFile,
     saveFileDirectly,
   }
