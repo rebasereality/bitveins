@@ -500,10 +500,9 @@ watch(activeSession, () => {
       </section>
 
       <CommandInput
-        v-if="viewMode === 'terminal'"
-        v-show="!settingsOpen && Boolean(activeSession)"
+        v-show="viewMode === 'terminal' && !settingsOpen && Boolean(activeSession)"
         ref="input"
-        :disabled="!activeSession || settingsOpen"
+        :disabled="!activeSession || settingsOpen || viewMode !== 'terminal'"
         :history-messages="historyMessageTexts"
         :input-mode="inputMode"
         :live-available="terminalConnected"
