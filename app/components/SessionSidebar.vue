@@ -43,6 +43,7 @@ const {
 
 const {
   downloadModalOpen,
+  downloadPath,
   downloadError,
   downloadLoading,
   openDownloadModal,
@@ -319,6 +320,7 @@ function openSettings(): void {
       v-model:dropzone-modal-open="dropzoneModalOpen"
       v-model:rename-modal-open="renameModalOpen"
       v-model:download-modal-open="downloadModalOpen"
+      v-model:download-path="downloadPath"
       :download-error="downloadError"
       :download-loading="downloadLoading"
       :dropzones="dropzones"

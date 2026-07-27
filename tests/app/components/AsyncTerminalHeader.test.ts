@@ -70,4 +70,42 @@ describe('AsyncTerminalHeader Explorer tabs', () => {
     await tabs[1]!.find('button[title="Close file"]').trigger('click')
     expect(closeFile).toHaveBeenCalledWith('preview.png')
   })
+
+  it('offers an active text-file download action', async () => {
+    const downloadActiveFile = vi.fn()
+    const activeFile = {
+      kind: 'text' as const,
+      path: 'one.ts',
+      name: 'one.ts',
+      content: '',
+      originalContent: '',
+      navigationToken: 1,
+      isDirty: false,
+    }
+    const wrapper = mount(AsyncTerminalHeader, {
+      props: {
+        viewMode: 'explorer',
+        activeOpenFile: activeFile,
+        activeFilePath: activeFile.path,
+        editingWindowIndex: null,
+        openFiles: [activeFile],
+        pathLinkRoot: null,
+        hasPathLinkRoots: false,
+        windowTabItems: [],
+        windows: [],
+        onDownloadActiveFile: downloadActiveFile,
+      },
+      global: {
+        components: {
+          PathLinkRootMenu: true,
+          UButton: ButtonStub,
+          UIcon: true,
+        },
+      },
+    })
+
+    await wrapper.get('[title="Download active file"]').trigger('click')
+
+    expect(downloadActiveFile).toHaveBeenCalledOnce()
+  })
 })
