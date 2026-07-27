@@ -134,6 +134,7 @@ try {
       'playwright',
       'test',
       'tests/e2e/authenticated-terminal.spec.ts',
+      'tests/e2e/explorer-media-previews.spec.ts',
       'tests/e2e/mobile-live-keyboard.spec.ts',
     ],
     environment,

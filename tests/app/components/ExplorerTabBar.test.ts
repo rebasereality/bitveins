@@ -3,7 +3,7 @@
 import { mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import AsyncTerminalHeader from '../../../app/components/AsyncTerminalHeader.vue'
+import ExplorerTabBar from '../../../app/components/ExplorerTabBar.vue'
 
 const ButtonStub = defineComponent({
   name: 'UButton',
@@ -15,16 +15,14 @@ const ButtonStub = defineComponent({
   template: '<button :title="title" @click="$emit(\'click\')">{{ label }}<slot /></button>',
 })
 
-describe('AsyncTerminalHeader Explorer tabs', () => {
+describe('ExplorerTabBar', () => {
   it('selects a tab from its body and closes it only from the close button', async () => {
     const closeFile = vi.fn()
     const selectFile = vi.fn()
-    const wrapper = mount(AsyncTerminalHeader, {
+    const wrapper = mount(ExplorerTabBar, {
       props: {
-        viewMode: 'explorer',
         activeOpenFile: null,
         activeFilePath: 'one.ts',
-        editingWindowIndex: null,
         openFiles: [
           {
             kind: 'text',
@@ -33,6 +31,8 @@ describe('AsyncTerminalHeader Explorer tabs', () => {
             content: '',
             originalContent: '',
             navigationToken: 1,
+            previewEnabled: false,
+            size: 0,
             isDirty: false,
           },
           {
@@ -40,24 +40,19 @@ describe('AsyncTerminalHeader Explorer tabs', () => {
             path: 'preview.png',
             name: 'preview.png',
             mediaType: 'image/png',
+            previewMediaType: 'image/png',
             previewUrl: '/preview.png',
             size: 1,
             isDirty: false,
           },
         ],
-        pathLinkRoot: null,
-        hasPathLinkRoots: false,
-        windowTabItems: [],
-        windows: [],
         onCloseFile: closeFile,
         onSelectFile: selectFile,
       },
       global: {
         components: {
-          PathLinkRootMenu: true,
           UButton: ButtonStub,
           UIcon: true,
-          UTabs: true,
         },
       },
     })
@@ -69,10 +64,14 @@ describe('AsyncTerminalHeader Explorer tabs', () => {
 
     await tabs[1]!.find('button[title="Close file"]').trigger('click')
     expect(closeFile).toHaveBeenCalledWith('preview.png')
+
+    await tabs[0]!.trigger('auxclick', { button: 1 })
+    expect(closeFile).toHaveBeenCalledWith('one.ts')
   })
 
-  it('offers an active text-file download action', async () => {
+  it('offers Preview and Download actions for previewable source files', async () => {
     const downloadActiveFile = vi.fn()
+    const togglePreview = vi.fn()
     const activeFile = {
       kind: 'text' as const,
       path: 'one.ts',
@@ -80,32 +79,31 @@ describe('AsyncTerminalHeader Explorer tabs', () => {
       content: '',
       originalContent: '',
       navigationToken: 1,
+      previewEnabled: true,
+      previewKind: 'markdown' as const,
+      size: 0,
       isDirty: false,
     }
-    const wrapper = mount(AsyncTerminalHeader, {
+    const wrapper = mount(ExplorerTabBar, {
       props: {
-        viewMode: 'explorer',
         activeOpenFile: activeFile,
         activeFilePath: activeFile.path,
-        editingWindowIndex: null,
         openFiles: [activeFile],
-        pathLinkRoot: null,
-        hasPathLinkRoots: false,
-        windowTabItems: [],
-        windows: [],
         onDownloadActiveFile: downloadActiveFile,
+        onTogglePreview: togglePreview,
       },
       global: {
         components: {
-          PathLinkRootMenu: true,
           UButton: ButtonStub,
           UIcon: true,
         },
       },
     })
 
+    await wrapper.get('[title="Show source"]').trigger('click')
     await wrapper.get('[title="Download active file"]').trigger('click')
 
+    expect(togglePreview).toHaveBeenCalledOnce()
     expect(downloadActiveFile).toHaveBeenCalledOnce()
   })
 })

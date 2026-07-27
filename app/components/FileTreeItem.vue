@@ -72,8 +72,31 @@ function getFileIcon(name: string) {
     case 'gif':
     case 'webp':
     case 'avif':
+    case 'apng':
+    case 'bmp':
+    case 'ico':
+    case 'cur':
+    case 'jfif':
+    case 'tif':
+    case 'tiff':
+    case 'heic':
+    case 'heif':
+    case 'jxl':
+    case 'psd':
     case 'svg':
       return 'i-lucide-image'
+    case 'mp4':
+    case 'm4v':
+    case 'webm':
+    case 'ogv':
+    case 'mov':
+    case 'mkv':
+    case 'avi':
+    case 'mpeg':
+    case 'mpg':
+    case '3gp':
+    case '3g2':
+      return 'i-lucide-file-video'
     default:
       return 'i-lucide-file'
   }

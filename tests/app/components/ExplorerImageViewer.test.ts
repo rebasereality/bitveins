@@ -24,6 +24,7 @@ function mountViewer() {
         isDirty: false,
         kind: 'image',
         mediaType: 'image/png',
+        previewMediaType: 'image/png',
         name: 'preview.png',
         path: 'design/preview.png',
         previewUrl: '/preview.png',

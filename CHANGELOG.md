@@ -6,6 +6,34 @@ until a release is tagged.
 
 ## Unreleased
 
+## 1.1.0 - 2026-07-27
+
+### Added
+
+- rendered Markdown previews with safe internal workspace links and images;
+- SVG previews that can be toggled back to the editable source;
+- in-browser video playback backed by authenticated byte-range streaming;
+- Explorer previews for additional browser image formats and TIFF conversion;
+- download actions in the Explorer toolbar, file tree and tab context menus;
+- middle-click tab closing, matching common browser tab behavior.
+
+### Changed
+
+- Explorer tabs now live inside the document pane so the file tree uses the
+  full workspace height;
+- unsupported binary documents open in a useful download-only view;
+- native release verification now covers the Sharp runtime and its libvips
+  dependency;
+- session loading uses compact session-shaped placeholders and only shows the
+  empty state after loading completes.
+
+### Fixed
+
+- the global Download dialog now submits the path entered by the user;
+- Async prompt drafts survive switching between Terminal and Explorer;
+- the Explorer tree header now matches the tab-bar height;
+- the active Preview control remains legible across accent palettes.
+
 ## 1.0.0 - 2026-07-26
 
 ### Added

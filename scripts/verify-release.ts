@@ -2,6 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import {
   mkdtemp,
   readFile,
+  readdir,
   rm,
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -37,6 +38,18 @@ function isString(value: string | undefined): value is string {
   return typeof value === 'string' && value.length > 0
 }
 
+async function findSingleFile(
+  directory: string,
+  predicate: (name: string) => boolean,
+  label: string,
+): Promise<string> {
+  const matches = (await readdir(directory)).filter(predicate)
+  if (matches.length !== 1) {
+    throw new Error(`Expected exactly one ${label} in ${directory}; found ${matches.length}.`)
+  }
+  return join(directory, matches[0]!)
+}
+
 try {
   const manifest = parseReleaseMetadata(
     JSON.parse(await readFile(artifact.manifestPath, 'utf8')) as unknown,
@@ -66,6 +79,7 @@ try {
   )
   const node = join(releaseRoot, 'runtime', 'bin', 'node')
   if (releaseBundle.metadata.commit !== 'unknown') {
+    const outputNodeModules = join(releaseRoot, 'app', '.output', 'server', 'node_modules')
     await Promise.all([
       node,
       join(
@@ -89,6 +103,16 @@ try {
         'prebuilds',
         'linux-x64.node',
       ),
+      await findSingleFile(
+        join(outputNodeModules, '@img', 'sharp-linux-x64', 'lib'),
+        name => name.endsWith('.node'),
+        'Sharp native module',
+      ),
+      await findSingleFile(
+        join(outputNodeModules, '@img', 'sharp-libvips-linux-x64', 'lib'),
+        name => name.startsWith('libvips-cpp.so.'),
+        'Sharp libvips library',
+      ),
     ].map(path => assertMaximumGlibcVersion(path)))
   }
   const command = join(releaseRoot, 'bin', 'bitveins')
@@ -100,8 +124,19 @@ try {
     throw new Error(`Packaged CLI failed: ${cli.stderr || cli.stdout}`)
   }
 
+  const sharpEntry = join(
+    releaseRoot,
+    'app',
+    '.output',
+    'server',
+    'node_modules',
+    'sharp',
+    'dist',
+    'index.mjs',
+  )
   const nativeProbe = `
     import { createRequire } from 'node:module'
+    import { pathToFileURL } from 'node:url'
     const require = createRequire(${JSON.stringify(join(releaseRoot, 'app', '.output', 'server', 'package.json'))})
     const Database = require('better-sqlite3')
     const database = new Database(':memory:')
@@ -109,6 +144,11 @@ try {
     database.close()
     const pty = require('node-pty')
     if (typeof pty.spawn !== 'function') process.exit(2)
+    const sharp = (await import(pathToFileURL(${JSON.stringify(sharpEntry)}).href)).default
+    const preview = await sharp({
+      create: { width: 1, height: 1, channels: 3, background: '#000000' }
+    }).png().toBuffer()
+    if (preview[0] !== 0x89 || preview[1] !== 0x50) process.exit(3)
   `
   execFileSync(node, ['--input-type=module', '--eval', nativeProbe], {
     stdio: 'pipe',

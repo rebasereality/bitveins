@@ -14,11 +14,10 @@ import { useExplorerDocuments } from '~/composables/useExplorerDocuments'
 import { useExplorerDownloads } from '~/composables/useExplorerDownloads'
 import { useTerminalContextMenu } from '~/composables/useTerminalContextMenu'
 import { useAppTransfers } from '~/composables/useAppTransfers'
-import AsyncTerminalHeader from '~/components/AsyncTerminalHeader.vue'
 import AsyncTerminalExplorer from '~/components/AsyncTerminalExplorer.vue'
+import AsyncTerminalWorkspace from '~/components/AsyncTerminalWorkspace.vue'
 import CommandInput from '~/components/CommandInput.vue'
 import SessionWelcome from '~/components/SessionWelcome.vue'
-import TerminalView from '~/components/TerminalView.vue'
 
 import { useBitveinsAppSessions } from '~/composables/useBitveinsAppSessions'
 
@@ -31,7 +30,7 @@ const emit = defineEmits<{ authExpired: [], logout: [] }>()
 const activeSession = ref<string | null>(null)
 const inputMode = ref<InputMode>('async')
 const viewMode = ref<ExplorerViewMode>('terminal')
-const terminal = ref<InstanceType<typeof TerminalView> | null>(null)
+const terminal = ref<InstanceType<typeof AsyncTerminalWorkspace> | null>(null)
 const sessionSidebar = ref<{ openCreateSession: () => void } | null>(null)
 const terminalConnected = ref(false)
 const input = ref<InstanceType<typeof CommandInput> | null>(null)
@@ -98,6 +97,7 @@ const {
   closeOtherFiles,
   closeAllFiles,
   handleFileContentChange,
+  toggleActiveFilePreview,
   saveActiveFile,
   saveFileDirectly,
 } = useExplorerDocuments(activeSession)
@@ -416,70 +416,65 @@ watch(activeSession, () => {
         class="flex min-h-0 flex-col overflow-hidden bg-[var(--bitveins-terminal-bg)]"
         :class="{ 'pb-[var(--bitveins-command-baseline,96px)] max-lg:pb-[calc(72px+env(safe-area-inset-bottom))]': activeSession && viewMode === 'terminal' && !settingsOpen }"
       >
-        <AsyncTerminalHeader
-          v-show="!settingsOpen"
-          v-if="activeSession"
-          v-model:editing-window-name="editingWindowName"
-          v-model:view-mode="viewMode"
-          :active-open-file="activeOpenFile"
-          :active-file-path="activeFilePath"
-          :active-window-value="activeWindowValue"
-          :editing-window-index="editingWindowIndex"
-          :open-files="openFiles"
-          :window-tab-items="windowTabItems"
-          :windows="windows"
-          :path-link-root="pathLinkRoot"
-          :has-path-link-roots="hasPathLinkRoots"
-          @change-path-link-root="changePathLinkRoot"
-          @cancel-tmux-window-rename="cancelTmuxWindowRename"
-          @close-file="closeFile"
-          @close-tmux-window="closeTmuxWindow"
-          @commit-tmux-window-rename="commitTmuxWindowRename"
-          @create-tmux-window="createTmuxWindow"
-          @download-active-file="activeOpenFile && downloadExplorerItem(activeOpenFile.path)"
-          @forget-all-path-link-roots="forgetAllPathLinkRoots"
-          @forget-path-link-root="forgetPathLinkRoot"
-          @open-mobile-tree="isMobileTreeOpen = true"
-          @save-active-file="saveActiveFile"
-          @select-file="activeFilePath = $event"
-          @select-tmux-window="selectTmuxWindow"
-          @start-tmux-window-rename="startTmuxWindowRename"
-          @tab-context-menu="handleTabContextMenu($event)"
-        />
-
         <div
           v-show="!settingsOpen"
           class="relative min-h-0 flex-1 overflow-hidden"
         >
-          <TerminalView
-            v-show="Boolean(activeSession) && viewMode === 'terminal'"
+          <AsyncTerminalWorkspace
             ref="terminal"
+            v-model:editing-window-name="editingWindowName"
             :active="terminalInteractionEnabled"
             :active-session="activeSession"
             :active-window="activeWindow"
+            :active-window-value="activeWindowValue"
+            class="absolute inset-0 flex min-h-0 flex-col"
+            :class="viewMode === 'terminal' && activeSession
+              ? 'visible z-10'
+              : 'invisible pointer-events-none z-0'"
+            :editing-window-index="editingWindowIndex"
+            :has-path-link-roots="hasPathLinkRoots"
             :input-mode="inputMode"
-            :remembered-root="pathLinkRoot || undefined"
+            :path-link-root="pathLinkRoot"
+            :window-tab-items="windowTabItems"
             :windows="windows"
-            class="h-full min-h-0"
-            :style="{ transform: 'translateY(calc(-1 * var(--bitveins-command-offset, 0px)))' }"
             @auth-expired="emit('authExpired')"
+            @change-path-link-root="changePathLinkRoot"
+            @cancel-tmux-window-rename="cancelTmuxWindowRename"
+            @close-tmux-window="closeTmuxWindow"
+            @commit-tmux-window-rename="commitTmuxWindowRename"
             @connection-change="terminalConnected = $event"
+            @create-tmux-window="createTmuxWindow"
             @file-link-activate="handleFileLinkActivate"
+            @forget-all-path-link-roots="forgetAllPathLinkRoots"
+            @forget-path-link-root="forgetPathLinkRoot"
+            @open-explorer="viewMode = 'explorer'"
             @ready="onTerminalReady"
+            @select-tmux-window="selectTmuxWindow"
+            @start-tmux-window-rename="startTmuxWindowRename"
           />
 
           <AsyncTerminalExplorer
             v-show="Boolean(activeSession) && viewMode === 'explorer'"
             ref="explorerRef"
             v-model:is-mobile-tree-open="isMobileTreeOpen"
+            :active-file-path="activeFilePath"
             :active-open-file="activeOpenFile"
             :active-session="activeSession"
             :expanded-paths="activeSession ? expandedPathsBySession[activeSession] || [] : []"
+            :open-files="openFiles"
+            class="absolute inset-0 z-10"
+            @close-file="closeFile"
+            @download-active-file="activeOpenFile && downloadExplorerItem(activeOpenFile.path)"
             @file-content-change="handleFileContentChange($event.file, $event.content)"
             @file-dbl-click="openFile"
             @file-deleted="handleFileDeleted"
             @item-context-menu="handleItemContextMenu($event, () => explorerRef?.reloadFileTree())"
+            @open-path="openPath"
+            @return-to-terminal="viewMode = 'terminal'"
             @save-active-file="saveActiveFile"
+            @select-file="activeFilePath = $event"
+            @tab-context-menu="handleTabContextMenu($event)"
+            @toggle-preview="toggleActiveFilePreview"
             @update-expanded-paths="activeSession && updateExpandedPaths(activeSession, $event)"
           />
 

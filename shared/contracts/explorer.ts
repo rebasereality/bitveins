@@ -1,32 +1,72 @@
 import { z } from 'zod'
 
-export const rasterMediaTypeSchema = z.enum([
+export const browserImageMediaTypeSchema = z.enum([
   'image/png',
   'image/jpeg',
   'image/gif',
   'image/webp',
   'image/avif',
+  'image/bmp',
+  'image/x-icon',
 ])
 
-export type RasterMediaType = z.infer<typeof rasterMediaTypeSchema>
+export const imageMediaTypeSchema = z.enum([
+  ...browserImageMediaTypeSchema.options,
+  'image/tiff',
+])
+
+export const videoMediaTypeSchema = z.enum([
+  'video/mp4',
+  'video/webm',
+  'video/ogg',
+  'video/quicktime',
+  'video/x-matroska',
+  'video/x-msvideo',
+  'video/mpeg',
+  'video/3gpp',
+])
+
+export const sourcePreviewKindSchema = z.enum(['markdown', 'svg'])
+
+export type BrowserImageMediaType = z.infer<typeof browserImageMediaTypeSchema>
+export type ImageMediaType = z.infer<typeof imageMediaTypeSchema>
+export type VideoMediaType = z.infer<typeof videoMediaTypeSchema>
+export type SourcePreviewKind = z.infer<typeof sourcePreviewKindSchema>
 
 const textDocumentMetadataShape = {
   kind: z.literal('text'),
   path: z.string().min(1),
   name: z.string().min(1),
   size: z.number().int().nonnegative(),
+  previewKind: sourcePreviewKindSchema.optional(),
 }
 const imageDocumentMetadataShape = {
   kind: z.literal('image'),
   path: z.string().min(1),
   name: z.string().min(1),
   size: z.number().int().nonnegative(),
-  mediaType: rasterMediaTypeSchema,
+  mediaType: imageMediaTypeSchema,
+  previewMediaType: browserImageMediaTypeSchema,
+}
+const videoDocumentMetadataShape = {
+  kind: z.literal('video'),
+  path: z.string().min(1),
+  name: z.string().min(1),
+  size: z.number().int().nonnegative(),
+  mediaType: videoMediaTypeSchema,
+}
+const binaryDocumentMetadataShape = {
+  kind: z.literal('binary'),
+  path: z.string().min(1),
+  name: z.string().min(1),
+  size: z.number().int().nonnegative(),
 }
 
 export const explorerDocumentMetadataSchema = z.discriminatedUnion('kind', [
   z.object(textDocumentMetadataShape),
   z.object(imageDocumentMetadataShape),
+  z.object(videoDocumentMetadataShape),
+  z.object(binaryDocumentMetadataShape),
 ])
 
 export type ExplorerDocumentMetadata = z.infer<typeof explorerDocumentMetadataSchema>
@@ -50,6 +90,8 @@ export const resolveTerminalFileReferencesBodySchema = z.object({
 export const resolvedExplorerDocumentSchema = z.discriminatedUnion('kind', [
   z.object({ ...textDocumentMetadataShape, absolutePath: z.string(), root: z.string() }),
   z.object({ ...imageDocumentMetadataShape, absolutePath: z.string(), root: z.string() }),
+  z.object({ ...videoDocumentMetadataShape, absolutePath: z.string(), root: z.string() }),
+  z.object({ ...binaryDocumentMetadataShape, absolutePath: z.string(), root: z.string() }),
 ])
 
 export const terminalFileResolutionSchema = z.discriminatedUnion('status', [

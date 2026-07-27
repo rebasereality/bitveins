@@ -12,12 +12,19 @@ function createRepository(): WorkspaceDocumentRepository {
       size: 12,
     }),
     openImage: vi.fn().mockResolvedValue({
+      contentLength: 8,
+      mediaType: 'image/png',
+      name: 'preview.png',
+      size: 8,
+      stream: Readable.from([]),
+    }),
+    openVideo: vi.fn().mockResolvedValue({
       metadata: {
-        kind: 'image',
-        path: 'preview.png',
-        name: 'preview.png',
-        size: 8,
-        mediaType: 'image/png',
+        kind: 'video',
+        path: 'demo.mp4',
+        name: 'demo.mp4',
+        size: 24,
+        mediaType: 'video/mp4',
       },
       stream: Readable.from([]),
     }),
@@ -32,8 +39,10 @@ describe('WorkspaceDocumentService', () => {
 
     await expect(service.describe('/workspace', 'src/file.ts')).resolves.toMatchObject({ kind: 'text' })
     await expect(service.openImage('/workspace', 'preview.png')).resolves.toMatchObject({
-      metadata: { kind: 'image' },
+      mediaType: 'image/png',
     })
+    await expect(service.openVideo('/workspace', 'demo.mp4', { start: 0, end: 7 }))
+      .resolves.toMatchObject({ metadata: { kind: 'video' } })
     await expect(service.readText('/workspace', 'src/file.ts')).resolves.toBe('content')
     expect(repository.describe).toHaveBeenCalledWith('/workspace', 'src/file.ts')
   })

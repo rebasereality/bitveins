@@ -7,26 +7,42 @@ import {
 } from '#shared/contracts/explorer'
 
 describe('Explorer contracts', () => {
-  it('accepts text and supported raster metadata', () => {
+  it('accepts source previews, browser images, videos and unsupported binaries', () => {
     expect(explorerDocumentMetadataSchema.parse({
       kind: 'text',
-      path: 'src/file.ts',
-      name: 'file.ts',
+      path: 'README.md',
+      name: 'README.md',
       size: 12,
-    })).toMatchObject({ kind: 'text' })
+      previewKind: 'markdown',
+    })).toMatchObject({ kind: 'text', previewKind: 'markdown' })
     expect(explorerDocumentMetadataSchema.parse({
       kind: 'image',
       path: 'design/preview.png',
       name: 'preview.png',
       size: 20,
       mediaType: 'image/png',
+      previewMediaType: 'image/png',
     })).toMatchObject({ kind: 'image', mediaType: 'image/png' })
+    expect(explorerDocumentMetadataSchema.parse({
+      kind: 'video',
+      path: 'demo.mp4',
+      name: 'demo.mp4',
+      size: 1024,
+      mediaType: 'video/mp4',
+    })).toMatchObject({ kind: 'video', mediaType: 'video/mp4' })
+    expect(explorerDocumentMetadataSchema.parse({
+      kind: 'binary',
+      path: 'archive.bin',
+      name: 'archive.bin',
+      size: 1024,
+    })).toMatchObject({ kind: 'binary' })
     expect(explorerDocumentMetadataSchema.safeParse({
       kind: 'image',
       path: 'unsafe.svg',
       name: 'unsafe.svg',
       size: 20,
       mediaType: 'image/svg+xml',
+      previewMediaType: 'image/svg+xml',
     }).success).toBe(false)
   })
 

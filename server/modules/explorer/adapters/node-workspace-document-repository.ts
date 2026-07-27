@@ -1,29 +1,76 @@
 import { createReadStream } from 'node:fs'
 import { open, readFile, stat } from 'node:fs/promises'
 import { basename, extname, relative } from 'node:path'
-import type { WorkspaceDocumentMetadata } from '../model/workspace-document'
+import sharp from 'sharp'
+import type {
+  BrowserImageMediaType,
+  ImageMediaType,
+  VideoContainer,
+  VideoMediaType,
+  WorkspaceDocumentMetadata,
+} from '../model/workspace-document'
 import {
   isProbablyBinary,
   MAX_IMAGE_BYTES,
   MAX_TEXT_BYTES,
-  sniffRasterMediaType,
+  sniffImageMediaType,
+  sniffVideoContainer,
+  sourcePreviewKind,
   WorkspaceDocumentError,
 } from '../model/workspace-document'
+import type { MediaByteRange } from '../model/media-byte-range'
 import type {
   OpenWorkspaceImage,
+  OpenWorkspaceVideo,
   WorkspaceDocumentRepository,
 } from '../ports/workspace-document-repository'
 import { resolveWorkspacePath } from '../../../utils/workspace-path'
 
-const HEADER_BYTES = 16
-const MEDIA_TYPE_BY_EXTENSION = {
-  '.avif': 'image/avif',
-  '.gif': 'image/gif',
-  '.jpeg': 'image/jpeg',
-  '.jpg': 'image/jpeg',
-  '.png': 'image/png',
-  '.webp': 'image/webp',
-} as const
+const HEADER_BYTES = 32
+
+interface ImageFormat {
+  mediaType: ImageMediaType
+  previewMediaType: BrowserImageMediaType
+  signatureMediaType: ImageMediaType
+}
+
+const IMAGE_FORMAT_BY_EXTENSION: Record<string, ImageFormat | undefined> = {
+  '.apng': { mediaType: 'image/png', previewMediaType: 'image/png', signatureMediaType: 'image/png' },
+  '.avif': { mediaType: 'image/avif', previewMediaType: 'image/avif', signatureMediaType: 'image/avif' },
+  '.bmp': { mediaType: 'image/bmp', previewMediaType: 'image/bmp', signatureMediaType: 'image/bmp' },
+  '.cur': { mediaType: 'image/x-icon', previewMediaType: 'image/x-icon', signatureMediaType: 'image/x-icon' },
+  '.gif': { mediaType: 'image/gif', previewMediaType: 'image/gif', signatureMediaType: 'image/gif' },
+  '.ico': { mediaType: 'image/x-icon', previewMediaType: 'image/x-icon', signatureMediaType: 'image/x-icon' },
+  '.jfif': { mediaType: 'image/jpeg', previewMediaType: 'image/jpeg', signatureMediaType: 'image/jpeg' },
+  '.jpe': { mediaType: 'image/jpeg', previewMediaType: 'image/jpeg', signatureMediaType: 'image/jpeg' },
+  '.jpeg': { mediaType: 'image/jpeg', previewMediaType: 'image/jpeg', signatureMediaType: 'image/jpeg' },
+  '.jpg': { mediaType: 'image/jpeg', previewMediaType: 'image/jpeg', signatureMediaType: 'image/jpeg' },
+  '.pjp': { mediaType: 'image/jpeg', previewMediaType: 'image/jpeg', signatureMediaType: 'image/jpeg' },
+  '.pjpeg': { mediaType: 'image/jpeg', previewMediaType: 'image/jpeg', signatureMediaType: 'image/jpeg' },
+  '.png': { mediaType: 'image/png', previewMediaType: 'image/png', signatureMediaType: 'image/png' },
+  '.tif': { mediaType: 'image/tiff', previewMediaType: 'image/png', signatureMediaType: 'image/tiff' },
+  '.tiff': { mediaType: 'image/tiff', previewMediaType: 'image/png', signatureMediaType: 'image/tiff' },
+  '.webp': { mediaType: 'image/webp', previewMediaType: 'image/webp', signatureMediaType: 'image/webp' },
+}
+
+interface VideoFormat {
+  container: VideoContainer
+  mediaType: VideoMediaType
+}
+
+const VIDEO_FORMAT_BY_EXTENSION: Record<string, VideoFormat | undefined> = {
+  '.3g2': { container: 'iso-bmff', mediaType: 'video/3gpp' },
+  '.3gp': { container: 'iso-bmff', mediaType: 'video/3gpp' },
+  '.avi': { container: 'avi', mediaType: 'video/x-msvideo' },
+  '.m4v': { container: 'iso-bmff', mediaType: 'video/mp4' },
+  '.mkv': { container: 'matroska', mediaType: 'video/x-matroska' },
+  '.mov': { container: 'iso-bmff', mediaType: 'video/quicktime' },
+  '.mp4': { container: 'iso-bmff', mediaType: 'video/mp4' },
+  '.mpeg': { container: 'mpeg', mediaType: 'video/mpeg' },
+  '.mpg': { container: 'mpeg', mediaType: 'video/mpeg' },
+  '.ogv': { container: 'ogg', mediaType: 'video/ogg' },
+  '.webm': { container: 'matroska', mediaType: 'video/webm' },
+}
 
 function normalizedRelativePath(rootPath: string, targetPath: string): string {
   return relative(rootPath, targetPath).replaceAll('\\', '/')
@@ -70,33 +117,60 @@ export class NodeWorkspaceDocumentRepository implements WorkspaceDocumentReposit
       }
 
       const header = await readHeader(targetPath)
-      const mediaType = sniffRasterMediaType(header)
-      const expectedMediaType = MEDIA_TYPE_BY_EXTENSION[
-        extname(targetPath).toLowerCase() as keyof typeof MEDIA_TYPE_BY_EXTENSION
-      ]
+      const extension = extname(targetPath).toLowerCase()
+      const imageMediaType = sniffImageMediaType(header)
+      const imageFormat = IMAGE_FORMAT_BY_EXTENSION[extension]
+      const videoContainer = sniffVideoContainer(header)
+      const videoFormat = VIDEO_FORMAT_BY_EXTENSION[extension]
       const path = normalizedRelativePath(await resolveWorkspacePath(rootPath, '', { allowRoot: true }), targetPath)
       const common = { path, name: basename(targetPath), size: fileStat.size }
 
-      if (mediaType) {
-        if (mediaType !== expectedMediaType) {
-          throw new WorkspaceDocumentError('unsupported-image', 'Image extension does not match its raster content.')
+      if (imageFormat) {
+        if (imageMediaType !== imageFormat.signatureMediaType) {
+          throw new WorkspaceDocumentError('unsupported-image', 'Image content does not match its file extension.')
         }
         if (fileStat.size > MAX_IMAGE_BYTES) {
           throw new WorkspaceDocumentError('too-large', 'Image exceeds the 50 MiB preview limit.')
         }
-        return { ...common, kind: 'image', mediaType }
+        return {
+          ...common,
+          kind: 'image',
+          mediaType: imageFormat.mediaType,
+          previewMediaType: imageFormat.previewMediaType,
+        }
       }
-      if (expectedMediaType) {
-        throw new WorkspaceDocumentError('unsupported-image', 'Image content does not match its file extension.')
+      if (imageMediaType) {
+        throw new WorkspaceDocumentError('unsupported-image', 'Image extension does not match its raster content.')
       }
 
+      if (videoFormat) {
+        if (videoContainer !== videoFormat.container) {
+          throw new WorkspaceDocumentError('unsupported-video', 'Video content does not match its file extension.')
+        }
+        return {
+          ...common,
+          kind: 'video',
+          mediaType: videoFormat.mediaType,
+        }
+      }
+      if (videoContainer) {
+        if (videoContainer === 'iso-bmff') {
+          return { ...common, kind: 'binary' }
+        }
+        throw new WorkspaceDocumentError('unsupported-video', 'Video extension does not match its container.')
+      }
+
+      if (isProbablyBinary(header)) {
+        return { ...common, kind: 'binary' }
+      }
       if (fileStat.size > MAX_TEXT_BYTES) {
         throw new WorkspaceDocumentError('too-large', 'Text file exceeds the 5 MiB editor limit.')
       }
-      if (isProbablyBinary(header)) {
-        throw new WorkspaceDocumentError('binary', 'Binary file type is not supported by Explorer.')
+      return {
+        ...common,
+        kind: 'text',
+        previewKind: sourcePreviewKind(targetPath),
       }
-      return { ...common, kind: 'text' }
     }
     catch (error: unknown) {
       mapPathError(error)
@@ -105,20 +179,57 @@ export class NodeWorkspaceDocumentRepository implements WorkspaceDocumentReposit
 
   async openImage(rootPath: string, requestedPath: string): Promise<OpenWorkspaceImage> {
     const metadata = await this.describe(rootPath, requestedPath)
+    const targetPath = await resolveWorkspacePath(rootPath, metadata.path)
+
+    if (metadata.kind === 'text' && metadata.previewKind === 'svg') {
+      return {
+        contentLength: metadata.size,
+        mediaType: 'image/svg+xml',
+        name: metadata.name,
+        size: metadata.size,
+        stream: createReadStream(targetPath),
+      }
+    }
     if (metadata.kind !== 'image') {
-      throw new WorkspaceDocumentError('unsupported-image', 'Only supported raster images can be previewed.')
+      throw new WorkspaceDocumentError('unsupported-image', 'Only supported images can be previewed.')
+    }
+    if (metadata.mediaType === 'image/tiff') {
+      return {
+        mediaType: metadata.previewMediaType,
+        name: metadata.name,
+        size: metadata.size,
+        stream: sharp(targetPath).rotate().png(),
+      }
+    }
+    return {
+      contentLength: metadata.size,
+      mediaType: metadata.previewMediaType,
+      name: metadata.name,
+      size: metadata.size,
+      stream: createReadStream(targetPath),
+    }
+  }
+
+  async openVideo(
+    rootPath: string,
+    requestedPath: string,
+    range: MediaByteRange | null,
+  ): Promise<OpenWorkspaceVideo> {
+    const metadata = await this.describe(rootPath, requestedPath)
+    if (metadata.kind !== 'video') {
+      throw new WorkspaceDocumentError('unsupported-video', 'Only supported video containers can be streamed.')
     }
     const targetPath = await resolveWorkspacePath(rootPath, metadata.path)
     return {
       metadata,
-      stream: createReadStream(targetPath),
+      stream: createReadStream(targetPath, range || undefined),
     }
   }
 
   async readText(rootPath: string, requestedPath: string): Promise<string> {
     const metadata = await this.describe(rootPath, requestedPath)
     if (metadata.kind !== 'text') {
-      throw new WorkspaceDocumentError('binary', 'Images must be opened in the image viewer.')
+      throw new WorkspaceDocumentError('binary', 'Binary media cannot be opened in the source editor.')
     }
     const targetPath = await resolveWorkspacePath(rootPath, metadata.path)
     return readFile(targetPath, 'utf8')

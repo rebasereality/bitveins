@@ -188,13 +188,9 @@ function openSettings(): void {
         :title="error"
         variant="subtle"
       />
-      <UAlert
-        v-if="sessions.length === 0"
-        class="text-[length:var(--bitveins-ui-caption-size)]"
-        color="neutral"
-        icon="i-lucide-monitor-x"
-        title="No tmux sessions"
-        variant="subtle"
+      <SessionSidebarSessionState
+        v-if="sessions.length === 0 && !error"
+        :loading="loading"
       />
       <p
         v-if="sessions.length > 0"
@@ -275,13 +271,10 @@ function openSettings(): void {
             :title="error"
             variant="subtle"
           />
-          <UAlert
-            v-if="sessions.length === 0"
-            class="mb-1 text-[length:var(--bitveins-ui-caption-size)]"
-            color="neutral"
-            icon="i-lucide-monitor-x"
-            title="No tmux sessions"
-            variant="subtle"
+          <SessionSidebarSessionState
+            v-if="sessions.length === 0 && !error"
+            is-mobile
+            :loading="loading"
           />
           <SessionSidebarSessionList
             :active-session="activeSession"

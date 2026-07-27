@@ -31,18 +31,23 @@ async function selectTerminalRange(
   const metrics = await page.locator('.xterm-char-measure-element').first().evaluate((element) => {
     const rect = element.getBoundingClientRect()
     const sampleLength = element.textContent?.length || 1
-    return {
-      height: rect.height,
-      width: rect.width / sampleLength,
-    }
+    return { width: rect.width / sampleLength }
   })
+  const terminalRows = page.locator('.xterm-rows > div')
+  const [startRowBox, endRowBox] = await Promise.all([
+    terminalRows.nth(startRow).boundingBox(),
+    terminalRows.nth(endRow).boundingBox(),
+  ])
+  if (!startRowBox || !endRowBox) {
+    throw new Error('The selected mobile terminal rows have no bounding boxes.')
+  }
   const start = {
     x: terminalBox.x + metrics.width * 0.5,
-    y: terminalBox.y + metrics.height * (startRow + 0.5),
+    y: startRowBox.y + startRowBox.height / 2,
   }
   const end = {
     x: terminalBox.x + metrics.width * (endColumn + 0.5),
-    y: terminalBox.y + metrics.height * (endRow + 0.5),
+    y: endRowBox.y + endRowBox.height / 2,
   }
   const pointer = {
     button: 0,
@@ -248,7 +253,24 @@ test('shows the Explorer action after consecutive mobile terminal selections', a
     }).toContain('service.md:1')
     await expect(page.locator('.xterm-rows')).toContainText('service.md:1')
 
-    await selectTerminalRange(page, 0, 1, '  service.md:1'.length)
+    const findWrappedPathRows = async () => {
+      const rows = await page.locator('.xterm-rows > div').allTextContents()
+      const startRow = rows.lastIndexOf('docs/plans/2026-07-24-refonte-ecran-')
+      const endRow = rows.indexOf('  service.md:1', startRow + 1)
+      return { endRow, startRow }
+    }
+    await expect.poll(async () => {
+      const rows = await findWrappedPathRows()
+      return rows.startRow >= 0 && rows.endRow === rows.startRow + 1
+    }).toBe(true)
+    const wrappedPathRows = await findWrappedPathRows()
+
+    await selectTerminalRange(
+      page,
+      wrappedPathRows.startRow,
+      wrappedPathRows.endRow,
+      '  service.md:1'.length,
+    )
     await expect(openSelection).toBeVisible()
     await openSelection.click()
     await expect(page.getByText(wrappedFileName, { exact: true }).last()).toBeVisible()

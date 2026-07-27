@@ -1,4 +1,9 @@
-import type { RasterMediaType } from '#shared/contracts/explorer'
+import type {
+  BrowserImageMediaType,
+  ImageMediaType,
+  SourcePreviewKind,
+  VideoMediaType,
+} from '#shared/contracts/explorer'
 
 export interface ExplorerDocumentBase {
   path: string
@@ -11,19 +16,41 @@ export interface ExplorerTextDocument extends ExplorerDocumentBase {
   content: string
   originalContent: string
   navigationToken: number
+  previewEnabled: boolean
+  previewKind?: SourcePreviewKind
+  size: number
   line?: number
   column?: number
 }
 
 export interface ExplorerImageDocument extends ExplorerDocumentBase {
   kind: 'image'
-  mediaType: RasterMediaType
+  mediaType: ImageMediaType
+  previewMediaType: BrowserImageMediaType
   size: number
   previewUrl: string
   isDirty: false
 }
 
-export type ExplorerDocument = ExplorerTextDocument | ExplorerImageDocument
+export interface ExplorerVideoDocument extends ExplorerDocumentBase {
+  kind: 'video'
+  mediaType: VideoMediaType
+  size: number
+  streamUrl: string
+  isDirty: false
+}
+
+export interface ExplorerBinaryDocument extends ExplorerDocumentBase {
+  kind: 'binary'
+  size: number
+  isDirty: false
+}
+
+export type ExplorerDocument
+  = | ExplorerBinaryDocument
+    | ExplorerImageDocument
+    | ExplorerTextDocument
+    | ExplorerVideoDocument
 
 export interface ExplorerFileNode {
   name: string
@@ -33,4 +60,10 @@ export interface ExplorerFileNode {
 
 export function isTextDocument(document: ExplorerDocument): document is ExplorerTextDocument {
   return document.kind === 'text'
+}
+
+export function isPreviewableTextDocument(
+  document: ExplorerDocument | null,
+): document is ExplorerTextDocument & { previewKind: SourcePreviewKind } {
+  return document?.kind === 'text' && document.previewKind !== undefined
 }

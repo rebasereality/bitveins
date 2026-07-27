@@ -188,9 +188,15 @@ defineExpose({
 </script>
 
 <template>
-  <div class="flex h-full w-full flex-col overflow-hidden border-r border-[var(--bitveins-shell-border)] bg-[var(--bitveins-shell-panel)]">
+  <div
+    class="flex h-full w-full flex-col overflow-hidden border-r border-[var(--bitveins-shell-border)] bg-[var(--bitveins-shell-panel)]"
+    data-explorer-tree
+  >
     <!-- Header -->
-    <div class="flex h-8 shrink-0 select-none items-center justify-between border-b border-[var(--bitveins-shell-border)] bg-[var(--bitveins-terminal-chrome)] px-2 text-[length:var(--bitveins-ui-caption-size)] font-medium text-[var(--bitveins-shell-text-muted)]">
+    <div
+      class="flex h-[var(--bitveins-topbar-height)] shrink-0 select-none items-center justify-between border-b border-[var(--bitveins-shell-border)] bg-[var(--bitveins-terminal-chrome)] px-2 text-[length:var(--bitveins-ui-caption-size)] font-medium text-[var(--bitveins-shell-text-muted)]"
+      data-explorer-tree-header
+    >
       <span>Explorer</span>
       <div class="flex items-center gap-1.5">
         <!-- Manual reload button -->

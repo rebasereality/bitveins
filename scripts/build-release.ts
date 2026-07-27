@@ -81,6 +81,18 @@ const sourceDateEpoch = Number.parseInt(
 )
 const timestamp = new Date(sourceDateEpoch * 1000)
 
+async function findSingleFile(
+  directory: string,
+  predicate: (name: string) => boolean,
+  label: string,
+): Promise<string> {
+  const matches = (await readdir(directory)).filter(predicate)
+  if (matches.length !== 1) {
+    throw new Error(`Expected exactly one ${label} in ${directory}; found ${matches.length}.`)
+  }
+  return join(directory, matches[0]!)
+}
+
 await rm(artifact.outputDirectory, { force: true, recursive: true })
 await mkdir(join(releaseRoot, 'app'), { recursive: true })
 await mkdir(join(releaseRoot, 'bin'), { recursive: true })
@@ -164,6 +176,16 @@ for (const entry of await readdir(betterSqlitePrebuilds)) {
   }
 }
 
+const sharpNative = await findSingleFile(
+  join(releaseRoot, 'app', '.output', 'server', 'node_modules', '@img', 'sharp-linux-x64', 'lib'),
+  name => name.endsWith('.node'),
+  'Sharp native module',
+)
+const sharpLibvips = await findSingleFile(
+  join(releaseRoot, 'app', '.output', 'server', 'node_modules', '@img', 'sharp-libvips-linux-x64', 'lib'),
+  name => name.startsWith('libvips-cpp.so.'),
+  'Sharp libvips library',
+)
 const nativeExecutables = [
   process.execPath,
   join(
@@ -178,6 +200,8 @@ const nativeExecutables = [
     'pty.node',
   ),
   join(betterSqlitePrebuilds, 'linux-x64.node'),
+  sharpNative,
+  sharpLibvips,
 ]
 await Promise.all(nativeExecutables.map(async (path) => {
   await assertLinuxX64Elf(path)
