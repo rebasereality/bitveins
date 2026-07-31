@@ -8,6 +8,10 @@ import {
 
 function lightExtendedAnsi(): string[] {
   const colors: string[] = []
+  // Hermes uses ANSI 220 for its frame and ANSI 230 for response text.
+  // Their default yellows are too pale against the light terminal canvas.
+  colors[220 - 16] = '#a16207'
+  colors[230 - 16] = '#713f12'
   // Codex uses ANSI 235 (`48;5;235`) for its input surface. Keep that
   // extended surface readable without changing the regular ANSI palette.
   colors[235 - 16] = '#e2e8f0'
@@ -51,7 +55,7 @@ export const lightTerminalTheme: ITheme = {
   black: '#17191d',
   red: '#c2410c',
   green: '#047857',
-  yellow: '#a16207',
+  yellow: '#854d0e',
   blue: '#4338ca',
   magenta: '#be185d',
   cyan: '#0e7490',
@@ -59,7 +63,7 @@ export const lightTerminalTheme: ITheme = {
   brightBlack: '#6f7580',
   brightRed: '#dc2626',
   brightGreen: '#059669',
-  brightYellow: '#ca8a04',
+  brightYellow: '#a16207',
   brightBlue: '#4f46e5',
   brightMagenta: '#db2777',
   brightCyan: '#0891b2',
