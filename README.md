@@ -59,7 +59,7 @@ reported `:line[:column]` when present.
 
 - Linux x86_64 with kernel 4.18+ and glibc 2.34+
 - systemd with user services
-- `tmux`
+- `tmux` 3.1 or newer
 
 The native release includes its own Node runtime and compiled modules. End
 users do not need Node, pnpm, Git or native build tooling.

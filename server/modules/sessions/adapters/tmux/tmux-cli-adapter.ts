@@ -10,6 +10,7 @@ import {
   BITVEINS_SESSION_PREFIX,
   normalizeHelperSessionName,
   normalizeSessionName,
+  normalizeTerminalTargetName,
   normalizeWindowIndex,
   normalizeWindowName,
 } from '../../model/session-validation'
@@ -160,6 +161,53 @@ export class TmuxCliAdapter implements TmuxGateway {
     catch (error) {
       if (this.isMissingServer(error)) return null
       throw error
+    }
+  }
+
+  async prepareTerminalWheel(name: string, direction: 'down' | 'up'): Promise<boolean> {
+    const sessionName = normalizeTerminalTargetName(name)
+    const [paneInMode, mouseAnyFlag] = (await this.run([
+      'display-message',
+      '-p',
+      '-t',
+      sessionName,
+      '#{pane_in_mode}|#{mouse_any_flag}',
+    ])).trim().split('|')
+
+    if (paneInMode === '1') {
+      await this.run(['send-keys', '-N', '5', '-X', '-t', sessionName, `scroll-${direction}`])
+      return true
+    }
+    if (mouseAnyFlag === '1' || direction === 'down') return false
+
+    try {
+      await this.run(['copy-mode', '-eH', '-t', sessionName])
+    }
+    catch (error) {
+      if (
+        !(error instanceof SessionError)
+        || !error.causeText?.includes('copy-mode: unknown flag -H')
+      ) {
+        throw error
+      }
+      await this.run(['copy-mode', '-e', '-t', sessionName])
+    }
+    await this.run(['send-keys', '-N', '5', '-X', '-t', sessionName, 'scroll-up'])
+    return true
+  }
+
+  async resetTerminalScroll(name: string): Promise<void> {
+    const sessionName = normalizeTerminalTargetName(name)
+    const paneInMode = (await this.run([
+      'display-message',
+      '-p',
+      '-t',
+      sessionName,
+      '#{pane_in_mode}',
+    ])).trim()
+
+    if (paneInMode === '1') {
+      await this.run(['send-keys', '-X', '-t', sessionName, 'cancel'])
     }
   }
 

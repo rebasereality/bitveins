@@ -3,45 +3,70 @@ interface ReliableInputDeduplicatorOptions {
   ttlMs?: number
 }
 
+interface DeliveryEntry {
+  completedAt?: number
+  promise: Promise<void>
+  target: string
+}
+
 export function createReliableInputDeduplicator(options: ReliableInputDeduplicatorOptions = {}) {
   const maxEntries = options.maxEntries ?? 2_000
   const ttlMs = options.ttlMs ?? 24 * 60 * 60_000
-  const claims = new Map<string, number>()
+  const deliveries = new Map<string, DeliveryEntry>()
 
   function pruneExpired(now: number): void {
-    for (const [id, claimedAt] of claims) {
-      if (now - claimedAt > ttlMs) {
-        claims.delete(id)
+    for (const [id, delivery] of deliveries) {
+      if (delivery.completedAt !== undefined && now - delivery.completedAt > ttlMs) {
+        deliveries.delete(id)
       }
     }
   }
 
   function makeRoom(): void {
-    while (claims.size >= maxEntries) {
-      const oldest = claims.keys().next().value
-
-      if (oldest === undefined) {
-        break
+    while (deliveries.size >= maxEntries) {
+      const completed = [...deliveries].find(([, delivery]) => delivery.completedAt !== undefined)
+      if (!completed) {
+        throw new Error('Reliable input deduplicator capacity exceeded.')
       }
-
-      claims.delete(oldest)
+      deliveries.delete(completed[0])
     }
   }
 
   return {
-    claim(id: string, now = Date.now()): boolean {
+    async deliver(
+      id: string,
+      target: string,
+      operation: () => Promise<void> | void,
+      now = Date.now(),
+    ): Promise<void> {
       pruneExpired(now)
 
-      if (claims.has(id)) {
-        return false
+      const existing = deliveries.get(id)
+      if (existing) {
+        if (existing.target !== target) {
+          throw new Error('Reliable input target changed.')
+        }
+        await existing.promise
+        return
       }
 
       makeRoom()
-      claims.set(id, now)
-      return true
-    },
-    release(id: string): void {
-      claims.delete(id)
+      const delivery: DeliveryEntry = {
+        promise: Promise.resolve().then(operation),
+        target,
+      }
+      deliveries.set(id, delivery)
+
+      try {
+        await delivery.promise
+        delivery.completedAt = now
+      }
+      catch (error) {
+        if (deliveries.get(id) === delivery) {
+          deliveries.delete(id)
+        }
+        throw error
+      }
     },
   }
 }

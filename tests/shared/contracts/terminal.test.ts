@@ -46,6 +46,44 @@ describe('ws protocol', () => {
     })
   })
 
+  it('parses terminal wheel input messages without client-controlled targets', () => {
+    expect(parseClientMessage(JSON.stringify({
+      action: 'wheelInput',
+      payload: { data: '\u001B[<64;20;8M' },
+    }))).toEqual({
+      action: 'wheelInput',
+      payload: { data: '\u001B[<64;20;8M' },
+    })
+  })
+
+  it('parses strict binary terminal wheel reports', () => {
+    const report = `\u001B[M${String.fromCharCode(96, 52, 40)}`
+
+    expect(parseClientMessage(JSON.stringify({
+      action: 'wheelInput',
+      payload: { data: report, encoding: 'binary' },
+    }))).toEqual({
+      action: 'wheelInput',
+      payload: { data: report, encoding: 'binary' },
+    })
+  })
+
+  it('rejects non-wheel binary terminal reports', () => {
+    const keyboardReport = `\u001B[M${String.fromCharCode(32, 52, 40)}`
+
+    expect(() => parseClientMessage(JSON.stringify({
+      action: 'wheelInput',
+      payload: { data: keyboardReport, encoding: 'binary' },
+    }))).toThrow('Wheel input requires a legacy binary wheel report.')
+  })
+
+  it('rejects non-wheel data in terminal wheel messages', () => {
+    expect(() => parseClientMessage(JSON.stringify({
+      action: 'wheelInput',
+      payload: { data: 'keyboard' },
+    }))).toThrow('Wheel input requires an SGR wheel report.')
+  })
+
   it('rejects malformed input payloads', () => {
     expect(() => parseClientMessage(JSON.stringify({
       action: 'input',

@@ -306,6 +306,7 @@ describe('TerminalConnectionController', () => {
 
     expect(context.controller.sendMessage({ action: 'ping' })).toBe(false)
     expect(context.controller.sendInput('before')).toBe(false)
+    expect(context.controller.sendWheelInput('\u001B[<64;20;8M')).toBe(false)
     context.controller.resize(80, 24)
     context.controller.selectWindow('main', 1)
     context.controller.newWindow('main')
@@ -317,14 +318,16 @@ describe('TerminalConnectionController', () => {
     transport.message({ type: 'attached', data: '', sessionName: 'main' })
 
     expect(context.controller.sendInput('after')).toBe(true)
+    expect(context.controller.sendWheelInput('\u001B[<64;20;8M')).toBe(true)
     context.controller.resize(100, 30)
     context.controller.resize(100, 30)
     context.controller.selectWindow('main', 2)
     context.controller.newWindow('main')
     context.controller.killWindow('main', 2)
 
-    expect(transport.messages.slice(-5)).toEqual([
+    expect(transport.messages.slice(-6)).toEqual([
       { action: 'input', payload: { data: 'after' } },
+      { action: 'wheelInput', payload: { data: '\u001B[<64;20;8M', encoding: 'utf8' } },
       { action: 'resize', payload: { cols: 100, rows: 30 } },
       { action: 'selectWindow', payload: { index: 2, sessionName: 'main' } },
       { action: 'newWindow', payload: { sessionName: 'main' } },
