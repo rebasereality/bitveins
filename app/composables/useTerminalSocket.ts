@@ -61,7 +61,9 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
   }
 
   function terminalSize(): { cols?: number, rows?: number } {
-    options.fitAddon.value?.fit()
+    if (options.active?.value ?? true) {
+      options.fitAddon.value?.fit()
+    }
     return {
       cols: options.terminal.value?.cols,
       rows: options.terminal.value?.rows,
@@ -156,6 +158,7 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
   }
 
   function fitAndResize(): void {
+    if (!(options.active?.value ?? true)) return
     const terminal = options.terminal.value
     const fitAddon = options.fitAddon.value
     if (!terminal || !fitAddon) return
@@ -210,6 +213,7 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
     sendInput,
     sendReliableInput,
     sendReliableInputs,
+    sendWheelInput: (data: string, encoding: 'binary' | 'utf8') => controller.sendWheelInput(data, encoding),
     status,
   }
 }

@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer'
 import type { ClientMessage, ServerMessage } from '#shared/contracts/terminal'
 import { parseClientMessage, parseTerminalSize } from '#shared/contracts/terminal'
 import { normalizeSessionName } from '../../sessions/model/session-validation'
@@ -5,8 +6,11 @@ import type { Disposable, PtyProcess } from '../ports/pty-factory'
 import type { TerminalAttachmentProcessFactory } from '../ports/terminal-attachment-process-factory'
 
 interface ReliableInputDeduplicator {
-  claim(id: string): boolean
-  release(id: string): void
+  deliver(
+    id: string,
+    target: string,
+    operation: () => Promise<void> | void,
+  ): Promise<void>
 }
 
 interface TerminalSessionOperations {
@@ -18,6 +22,8 @@ interface TerminalSessionOperations {
   }>
   killBitveinsHelperSession(name: string): Promise<void>
   killWindow(name: string, index: unknown): Promise<void>
+  prepareTerminalWheel(sessionName: string, direction: 'down' | 'up'): Promise<boolean>
+  resetTerminalScroll(sessionName: string): Promise<void>
   selectWindow(name: string, index: unknown): Promise<void>
 }
 
@@ -37,6 +43,8 @@ interface Attachment {
   helperSessionName?: string
   label: string
   pty: PtyProcess
+  reliableInputTarget: string
+  tmuxTarget: string
 }
 
 export class TerminalPeerSession {
@@ -97,8 +105,26 @@ export class TerminalPeerSession {
       case 'input':
         this.requireAttachment().pty.write(message.payload.data)
         return
+      case 'wheelInput': {
+        const attachment = this.requireAttachment()
+        const binary = message.payload.encoding === 'binary'
+        const direction = binary
+          ? (message.payload.data.charCodeAt(3) === 96 ? 'up' : 'down')
+          : (message.payload.data.startsWith('\u001B[<64;') ? 'up' : 'down')
+        const handled = await this.options.sessions.prepareTerminalWheel(
+          attachment.tmuxTarget,
+          direction,
+        )
+        this.requireCurrentAttachment(attachment, 'wheel input')
+        if (!handled) {
+          attachment.pty.write(binary
+            ? Buffer.from(message.payload.data, 'binary')
+            : message.payload.data)
+        }
+        return
+      }
       case 'reliableInput':
-        this.writeReliableInput(message.payload.id, message.payload.data)
+        await this.writeReliableInput(message.payload.id, message.payload.data)
         return
       case 'resize': {
         const attachment = this.attachment
@@ -134,6 +160,7 @@ export class TerminalPeerSession {
     const attachment = this.spawnAttachment(
       normalizedSessionName,
       `tmux attach process`,
+      `session:${normalizedSessionName}`,
       cols,
       rows,
     )
@@ -160,6 +187,7 @@ export class TerminalPeerSession {
       const attachment = this.spawnAttachment(
         windowClient.helperSessionName,
         `tmux window ${windowClient.windowIndex}`,
+        `window:${windowClient.sessionName}:${windowClient.windowIndex}`,
         cols,
         rows,
         windowClient.helperSessionName,
@@ -182,6 +210,7 @@ export class TerminalPeerSession {
   private spawnAttachment(
     sessionName: string,
     label: string,
+    reliableInputTarget: string,
     cols?: number,
     rows?: number,
     helperSessionName?: string,
@@ -193,6 +222,8 @@ export class TerminalPeerSession {
       helperSessionName,
       label,
       pty,
+      reliableInputTarget,
+      tmuxTarget: sessionName,
     }
     attachment.dataSubscription = pty.onData((data) => {
       if (this.attachment === attachment) {
@@ -220,21 +251,21 @@ export class TerminalPeerSession {
     })
   }
 
-  private writeReliableInput(id: string, data: string): void {
+  private async writeReliableInput(id: string, data: string): Promise<void> {
     const attachment = this.requireAttachment()
-    const claimed = this.options.reliableInputs.claim(id)
-
-    if (claimed) {
-      try {
-        attachment.pty.write(data)
-      }
-      catch (error) {
-        this.options.reliableInputs.release(id)
-        throw error
-      }
-    }
+    await this.options.reliableInputs.deliver(id, attachment.reliableInputTarget, async () => {
+      await this.options.sessions.resetTerminalScroll(attachment.tmuxTarget)
+      this.requireCurrentAttachment(attachment, 'reliable input')
+      attachment.pty.write(data)
+    })
 
     this.options.send({ type: 'inputAck', data: '', inputId: id })
+  }
+
+  private requireCurrentAttachment(attachment: Attachment, operation: string): void {
+    if (this.disposed || this.attachment !== attachment) {
+      throw new Error(`Terminal attachment changed during ${operation}.`)
+    }
   }
 
   private requireAttachment(): Attachment {

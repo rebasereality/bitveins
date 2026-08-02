@@ -38,7 +38,13 @@ describe('TmuxTerminalAttachmentProcessFactory', () => {
 
     expect(ptyFactory.spawn).toHaveBeenCalledWith(
       'tmux',
-      ['-L', 'bitveins-test', 'attach-session', '-t', 'main'],
+      [
+        '-L',
+        'bitveins-test',
+        'attach-session',
+        '-t',
+        'main',
+      ],
       {
         cols: 120,
         cwd: '/workspace',

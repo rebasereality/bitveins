@@ -153,7 +153,3 @@ body {
 .xterm-viewport {
   background-color: transparent !important;
 }
-
-.xterm-screen {
-  width: 100% !important;
-}

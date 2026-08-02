@@ -8,6 +8,7 @@ import type {
 } from '#shared/contracts/explorer'
 import type { InputMode } from '~/types/session'
 import { TerminalFileLinkProvider } from '~/terminal/file-link-provider'
+import { createTerminalInputRouter } from '~/terminal/terminal-input-router'
 import { terminalThemeForAccent } from '~/terminal/terminal-theme'
 import { parseSelectedFileReferences } from '~/utils/file-reference-parser'
 import { suppressMobileTerminalKeyboard } from '~/utils/mobile-terminal-input'
@@ -38,6 +39,7 @@ const colorMode = useColorMode()
 const { accentColor, terminalFontSize } = useAppearanceSettings()
 const ready = ref(true)
 let terminalDataDisposable: IDisposable | null = null
+let terminalBinaryDisposable: IDisposable | null = null
 let terminalSelectionDisposable: IDisposable | null = null
 let terminalFileLinkDisposable: IDisposable | null = null
 let terminalFileLinkProvider: TerminalFileLinkProvider | null = null
@@ -81,8 +83,21 @@ const {
   sendInput,
   sendReliableInput,
   sendReliableInputs,
+  sendWheelInput,
   status,
 } = terminalSocket
+const terminalInputRouter = createTerminalInputRouter({
+  enableStdin: () => {
+    if (terminal.value) terminal.value.options.disableStdin = false
+  },
+  inputMode: () => props.inputMode,
+  isActive: () => props.active,
+  isAsyncWheelEnabled: () => connectionState.value === 'attached',
+  isMouseTrackingEnabled: () => terminal.value?.modes.mouseTrackingMode !== 'none',
+  restoreInputMode: applyInputMode,
+  sendInput,
+  sendWheelInput,
+})
 const {
   copyIcon,
   copySelection,
@@ -154,7 +169,7 @@ function resolvedTerminalFontSize(): number {
 function applyTerminalFontSize(): void {
   if (!terminal.value) return
   terminal.value.options.fontSize = resolvedTerminalFontSize()
-  nextTick(fitAndResize)
+  if (props.active) nextTick(fitAndResize)
 }
 
 function applyTerminalTheme(): void {
@@ -277,11 +292,13 @@ function dispose(): void {
   disposed = true
   window.removeEventListener('resize', applyTerminalFontSize)
   terminalHost.value?.removeEventListener('paste', onTerminalPaste)
+  terminalBinaryDisposable?.dispose()
   terminalDataDisposable?.dispose()
   terminalSelectionDisposable?.dispose()
   terminalFileLinkDisposable?.dispose()
   terminalFileLinkProvider?.dispose()
   terminalResizeObserver?.disconnect()
+  terminalInputRouter.dispose()
   terminalSelection.dispose()
   disposeSocket()
   terminal.value?.dispose()
@@ -316,13 +333,11 @@ onMounted(async () => {
   const fit = new FitAddon()
 
   term.loadAddon(fit)
-  terminalDataDisposable = term.onData((data) => {
-    if (props.active && props.inputMode === 'live') {
-      sendInput(data)
-    }
-  })
+  terminalBinaryDisposable = term.onBinary(terminalInputRouter.onBinary)
+  terminalDataDisposable = term.onData(terminalInputRouter.onData)
   terminalSelectionDisposable = term.onSelectionChange(onSelectionChange)
   term.attachCustomKeyEventHandler(onTerminalKey)
+  term.attachCustomWheelEventHandler(terminalInputRouter.onWheel)
   term.open(terminalHost.value)
   if (!isDesktopViewport()) suppressMobileTerminalKeyboard(terminalHost.value)
   terminal.value = term
@@ -338,7 +353,9 @@ onMounted(async () => {
   await nextTick()
   applyInputMode()
   fitAndResize()
-  terminalResizeObserver = new ResizeObserver(() => fitAndResize())
+  terminalResizeObserver = new ResizeObserver(() => {
+    if (props.active) fitAndResize()
+  })
   terminalResizeObserver.observe(terminalHost.value)
   terminalSelection.mount()
   window.addEventListener('resize', applyTerminalFontSize)

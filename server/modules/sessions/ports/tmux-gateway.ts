@@ -20,6 +20,8 @@ export interface TmuxGateway {
   killWindow(name: string, index: unknown): Promise<void>
   listSessions(): Promise<TmuxSession[]>
   listWindows(name: string): Promise<TmuxWindow[]>
+  prepareTerminalWheel(name: string, direction: 'down' | 'up'): Promise<boolean>
+  resetTerminalScroll(name: string): Promise<void>
   renameSession(name: string, nextName: string): Promise<void>
   renameWindow(name: string, index: unknown, nextName: string): Promise<TmuxWindow | null>
   selectWindow(name: string, index: unknown): Promise<void>

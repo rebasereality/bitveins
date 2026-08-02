@@ -75,6 +75,40 @@ const inputSchema = z.object({
   }, { error: 'A payload object is required.' }),
 })
 
+const wheelInputSchema = z.object({
+  action: z.literal('wheelInput'),
+  payload: z.object({
+    data: inputDataSchema,
+    encoding: z.enum(['binary', 'utf8']).optional(),
+  }, { error: 'A payload object is required.' }).superRefine((payload, context) => {
+    if (payload.encoding === 'binary') {
+      const validLegacyReport = payload.data.length === 6
+        && payload.data.startsWith('\u001B[M')
+        && [96, 97].includes(payload.data.charCodeAt(3))
+        && payload.data.charCodeAt(4) >= 33
+        && payload.data.charCodeAt(4) <= 255
+        && payload.data.charCodeAt(5) >= 33
+        && payload.data.charCodeAt(5) <= 255
+      if (!validLegacyReport) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Wheel input requires a legacy binary wheel report.',
+          path: ['data'],
+        })
+      }
+      return
+    }
+
+    if (!/^\u001B\[<6[45];\d+;\d+M$/u.test(payload.data)) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Wheel input requires an SGR wheel report.',
+        path: ['data'],
+      })
+    }
+  }),
+})
+
 const reliableInputSchema = z.object({
   action: z.literal('reliableInput'),
   payload: z.object({
@@ -115,6 +149,7 @@ export const clientMessageSchema = z.discriminatedUnion('action', [
   sessionActionSchema('newWindow'),
   indexedWindowActionSchema('selectWindow'),
   indexedWindowActionSchema('killWindow'),
+  wheelInputSchema,
   z.object({ action: z.literal('detach') }),
   z.object({ action: z.literal('ping') }),
 ])

@@ -40,6 +40,13 @@ export function normalizeHelperSessionName(name: unknown): string {
   return sessionName
 }
 
+export function normalizeTerminalTargetName(name: unknown): string {
+  if (typeof name !== 'string') {
+    throw new SessionError('A session name is required.')
+  }
+  return normalizeInternalSessionName(name)
+}
+
 export function normalizeWindowIndex(index: unknown): number {
   const parsed = typeof index === 'number' ? index : Number(index)
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   normalizeHelperSessionName,
   normalizeSessionName,
+  normalizeTerminalTargetName,
   normalizeWindowIndex,
   normalizeWindowName,
 } from '../../../../../server/modules/sessions/model/session-validation'
@@ -23,6 +24,12 @@ describe('tmux session normalization', () => {
   it('accepts only reserved helper session names', () => {
     expect(normalizeHelperSessionName(' _bitveins_helper ')).toBe('_bitveins_helper')
     expect(() => normalizeHelperSessionName('main')).toThrow('Refusing to kill a non-Bitveins helper session.')
+  })
+
+  it('accepts validated public and helper names for owned terminal targets', () => {
+    expect(normalizeTerminalTargetName('main')).toBe('main')
+    expect(normalizeTerminalTargetName('_bitveins_helper')).toBe('_bitveins_helper')
+    expect(() => normalizeTerminalTargetName('main:1')).toThrow('Session names may contain')
   })
 })
 

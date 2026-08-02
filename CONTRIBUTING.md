@@ -6,7 +6,7 @@ Thank you for your interest in contributing to Bitveins! We welcome bug reports,
 
 - **Node.js**: v24.13.0 (see `.node-version`)
 - **pnpm**: v10.33.2 (pinned by `packageManager`)
-- **tmux**: Installed and available in PATH
+- **tmux**: v3.1 or newer, available in PATH
 - Native build tools (for `node-pty`)
 
 ## Development Setup

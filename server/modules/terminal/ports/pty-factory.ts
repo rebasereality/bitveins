@@ -1,3 +1,5 @@
+import type { Buffer } from 'node:buffer'
+
 export interface Disposable {
   dispose(): void
 }
@@ -12,7 +14,7 @@ export interface PtyProcess {
   onData(listener: (data: string) => void): Disposable
   onExit(listener: (event: PtyExitEvent) => void): Disposable
   resize(columns: number, rows: number): void
-  write(data: string): void
+  write(data: string | Buffer): void
 }
 
 export interface PtySpawnOptions {

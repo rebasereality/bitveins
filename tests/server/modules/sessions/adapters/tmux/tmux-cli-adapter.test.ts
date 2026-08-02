@@ -77,6 +77,83 @@ describe('TmuxCliAdapter', () => {
     ])
   })
 
+  it('handles copy-mode wheels directly while forwarding application mouse input', async () => {
+    const { adapter, runner } = setup()
+    runner.handler = async ({ args }) => ({
+      stderr: '',
+      stdout: args[0] === 'display-message' ? '0|0\n' : '',
+    })
+
+    await expect(adapter.prepareTerminalWheel('main', 'up')).resolves.toBe(true)
+
+    expect(runner.calls.map(call => call.args)).toEqual([
+      [
+        'display-message',
+        '-p',
+        '-t',
+        'main',
+        '#{pane_in_mode}|#{mouse_any_flag}',
+      ],
+      ['copy-mode', '-eH', '-t', 'main'],
+      ['send-keys', '-N', '5', '-X', '-t', 'main', 'scroll-up'],
+    ])
+
+    runner.calls.length = 0
+    runner.handler = async ({ args }) => ({
+      stderr: '',
+      stdout: args[0] === 'display-message' ? '1|0\n' : '',
+    })
+
+    await expect(adapter.prepareTerminalWheel('main', 'down')).resolves.toBe(true)
+
+    expect(runner.calls.at(-1)?.args).toEqual(['send-keys', '-N', '5', '-X', '-t', 'main', 'scroll-down'])
+
+    runner.calls.length = 0
+    runner.handler = async () => ({ stderr: '', stdout: '0|1\n' })
+
+    await expect(adapter.prepareTerminalWheel('main', 'up')).resolves.toBe(false)
+
+    expect(runner.calls).toHaveLength(1)
+  })
+
+  it('cancels copy mode before reliable terminal input', async () => {
+    const { adapter, runner } = setup()
+    runner.handler = async ({ args }) => ({
+      stderr: '',
+      stdout: args[0] === 'display-message' ? '1\n' : '',
+    })
+
+    await adapter.resetTerminalScroll('main')
+
+    expect(runner.calls.map(call => call.args)).toEqual([
+      ['display-message', '-p', '-t', 'main', '#{pane_in_mode}'],
+      ['send-keys', '-X', '-t', 'main', 'cancel'],
+    ])
+
+    runner.calls.length = 0
+    runner.handler = async () => ({ stderr: '', stdout: '0\n' })
+
+    await adapter.resetTerminalScroll('main')
+
+    expect(runner.calls.map(call => call.args)).toEqual([
+      ['display-message', '-p', '-t', 'main', '#{pane_in_mode}'],
+    ])
+  })
+
+  it('falls back to visible copy mode only when tmux does not support the hidden flag', async () => {
+    const { adapter, runner } = setup()
+    runner.handler = async ({ args }) => {
+      if (args[0] === 'display-message') return { stderr: '', stdout: '0\n' }
+      if (args.includes('-eH')) throw new Error('command copy-mode: unknown flag -H')
+      return { stderr: '', stdout: '' }
+    }
+
+    await expect(adapter.prepareTerminalWheel('main', 'up')).resolves.toBe(true)
+
+    expect(runner.calls.map(call => call.args)).toContainEqual(['copy-mode', '-e', '-t', 'main'])
+    expect(runner.calls.at(-1)?.args).toEqual(['send-keys', '-N', '5', '-X', '-t', 'main', 'scroll-up'])
+  })
+
   it('maps a missing tmux server to empty collections', async () => {
     const { adapter, runner } = setup()
     runner.handler = async () => {

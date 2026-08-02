@@ -1,4 +1,6 @@
+import type { Buffer } from 'node:buffer'
 import { describe, expect, it, vi } from 'vitest'
+import { createReliableInputDeduplicator } from '../../../../../server/modules/terminal/application/reliable-input-deduplicator'
 import { TerminalPeerSession } from '../../../../../server/modules/terminal/application/terminal-peer-session'
 import type {
   Disposable,
@@ -18,7 +20,7 @@ class FakePty implements PtyProcess {
   killCount = 0
   readonly resizes: Array<{ cols: number, rows: number }> = []
   throwOnWrite = false
-  readonly writes: string[] = []
+  readonly writes: Array<string | Buffer> = []
 
   kill(): void {
     this.killCount += 1
@@ -47,7 +49,7 @@ class FakePty implements PtyProcess {
     this.resizes.push({ cols, rows })
   }
 
-  write(data: string): void {
+  write(data: string | Buffer): void {
     if (this.throwOnWrite) throw new Error('write failed')
     this.writes.push(data)
   }
@@ -79,11 +81,10 @@ class FakeAttachmentProcessFactory implements TerminalAttachmentProcessFactory {
   }
 }
 
-function setup() {
+function setup(reliableInputs = createReliableInputDeduplicator()) {
   const messages: ServerMessage[] = []
   const activatedHelpers: string[] = []
   const releasedHelpers: string[] = []
-  const claimedInputs = new Set<string>()
   const attachmentProcesses = new FakeAttachmentProcessFactory()
   const sessions = {
     createWindow: vi.fn(async () => {}),
@@ -94,22 +95,15 @@ function setup() {
     })),
     killBitveinsHelperSession: vi.fn(async () => {}),
     killWindow: vi.fn(async () => {}),
+    resetTerminalScroll: vi.fn(async () => {}),
+    prepareTerminalWheel: vi.fn(async () => false),
     selectWindow: vi.fn(async () => {}),
   }
   const peer = new TerminalPeerSession({
     attachmentProcesses,
     onHelperActivated: name => activatedHelpers.push(name),
     onHelperReleased: name => releasedHelpers.push(name),
-    reliableInputs: {
-      claim(id) {
-        if (claimedInputs.has(id)) return false
-        claimedInputs.add(id)
-        return true
-      },
-      release(id) {
-        claimedInputs.delete(id)
-      },
-    },
+    reliableInputs,
     send: message => messages.push(message),
     sessions,
   })
@@ -172,6 +166,188 @@ describe('TerminalPeerSession', () => {
 
     expect(context.attachmentProcesses.processes[0]?.writes).toEqual(['echo safe\r'])
     expect(context.messages.filter(message => message.type === 'inputAck')).toHaveLength(2)
+  })
+
+  it('resets tmux scrollback before writing newly claimed reliable input', async () => {
+    const context = setup()
+    await context.peer.enqueue(JSON.stringify({
+      action: 'attachWindow',
+      payload: { sessionName: 'main', windowIndex: 2 },
+    }))
+    const reset = { release: undefined as (() => void) | undefined }
+    context.sessions.resetTerminalScroll.mockImplementation(() => new Promise<void>((resolve) => {
+      reset.release = resolve
+    }))
+
+    const delivery = context.peer.enqueue(JSON.stringify({
+      action: 'reliableInput',
+      payload: {
+        data: 'echo ready\r',
+        id: '019f4f82-f7e5-7000-8000-000000000003',
+      },
+    }))
+    await vi.waitFor(() => {
+      expect(context.sessions.resetTerminalScroll).toHaveBeenCalledExactlyOnceWith('_bitveins_test')
+    })
+
+    expect(context.attachmentProcesses.processes[0]?.writes).toEqual([])
+    expect(context.messages.filter(message => message.type === 'inputAck')).toHaveLength(0)
+
+    if (!reset.release) throw new Error('Scroll reset did not start.')
+    reset.release()
+    await delivery
+
+    expect(context.attachmentProcesses.processes[0]?.writes).toEqual(['echo ready\r'])
+    expect(context.messages.at(-1)).toEqual({
+      type: 'inputAck',
+      data: '',
+      inputId: '019f4f82-f7e5-7000-8000-000000000003',
+    })
+  })
+
+  it('waits for a concurrent reliable replay before acknowledging it', async () => {
+    const reliableInputs = createReliableInputDeduplicator()
+    const first = setup(reliableInputs)
+    const replay = setup(reliableInputs)
+    await first.peer.enqueue(JSON.stringify({ action: 'attach', payload: { sessionName: 'main' } }))
+    await replay.peer.enqueue(JSON.stringify({ action: 'attach', payload: { sessionName: 'main' } }))
+    const reset = { release: undefined as (() => void) | undefined }
+    first.sessions.resetTerminalScroll.mockImplementation(() => new Promise<void>((resolve) => {
+      reset.release = resolve
+    }))
+    const message = JSON.stringify({
+      action: 'reliableInput',
+      payload: {
+        data: 'echo once\r',
+        id: '019f4f82-f7e5-7000-8000-000000000004',
+      },
+    })
+
+    const delivery = first.peer.enqueue(message)
+    await vi.waitFor(() => {
+      expect(first.sessions.resetTerminalScroll).toHaveBeenCalledOnce()
+    })
+    const duplicate = replay.peer.enqueue(message)
+    await Promise.resolve()
+
+    expect(first.messages.filter(item => item.type === 'inputAck')).toHaveLength(0)
+    expect(replay.messages.filter(item => item.type === 'inputAck')).toHaveLength(0)
+    expect(replay.sessions.resetTerminalScroll).not.toHaveBeenCalled()
+
+    if (!reset.release) throw new Error('Scroll reset did not start.')
+    reset.release()
+    await Promise.all([delivery, duplicate])
+
+    expect(first.attachmentProcesses.processes[0]?.writes).toEqual(['echo once\r'])
+    expect(replay.attachmentProcesses.processes[0]?.writes).toEqual([])
+    expect(first.messages.filter(item => item.type === 'inputAck')).toHaveLength(1)
+    expect(replay.messages.filter(item => item.type === 'inputAck')).toHaveLength(1)
+  })
+
+  it('does not acknowledge reliable input when its attachment exits during reset', async () => {
+    const context = setup()
+    await context.peer.enqueue(JSON.stringify({ action: 'attach', payload: { sessionName: 'main' } }))
+    const reset = { release: undefined as (() => void) | undefined }
+    context.sessions.resetTerminalScroll.mockImplementation(() => new Promise<void>((resolve) => {
+      reset.release = resolve
+    }))
+    const message = JSON.stringify({
+      action: 'reliableInput',
+      payload: {
+        data: 'retry-after-exit\r',
+        id: '019f4f82-f7e5-7000-8000-000000000005',
+      },
+    })
+
+    const delivery = context.peer.enqueue(message)
+    await vi.waitFor(() => {
+      expect(context.sessions.resetTerminalScroll).toHaveBeenCalledOnce()
+    })
+    context.attachmentProcesses.processes[0]!.emitExit({ exitCode: 0 })
+    if (!reset.release) throw new Error('Scroll reset did not start.')
+    reset.release()
+    await delivery
+
+    expect(context.attachmentProcesses.processes[0]?.writes).toEqual([])
+    expect(context.messages.filter(item => item.type === 'inputAck')).toHaveLength(0)
+    expect(context.messages).toContainEqual({
+      type: 'error',
+      data: 'Terminal attachment changed during reliable input.',
+    })
+
+    context.sessions.resetTerminalScroll.mockResolvedValue(undefined)
+    await context.peer.enqueue(JSON.stringify({ action: 'attach', payload: { sessionName: 'main' } }))
+    await context.peer.enqueue(message)
+    expect(context.attachmentProcesses.processes[1]?.writes).toEqual(['retry-after-exit\r'])
+  })
+
+  it('prepares wheel scrolling before writing it to the currently attached tmux target', async () => {
+    const context = setup()
+    await context.peer.enqueue(JSON.stringify({
+      action: 'attachWindow',
+      payload: { sessionName: 'main', windowIndex: 2 },
+    }))
+
+    const preparation = { release: undefined as ((handled: boolean) => void) | undefined }
+    context.sessions.prepareTerminalWheel.mockImplementation(() => new Promise<boolean>((resolve) => {
+      preparation.release = resolve
+    }))
+
+    const wheelInput = context.peer.enqueue(JSON.stringify({
+      action: 'wheelInput',
+      payload: { data: '\u001B[<64;20;8M' },
+    }))
+    await Promise.resolve()
+
+    expect(context.sessions.prepareTerminalWheel).toHaveBeenCalledExactlyOnceWith('_bitveins_test', 'up')
+    expect(context.attachmentProcesses.processes[0]?.writes).toEqual([])
+    if (!preparation.release) throw new Error('Wheel preparation did not start.')
+    preparation.release(false)
+    await wheelInput
+    expect(context.attachmentProcesses.processes[0]?.writes).toEqual(['\u001B[<64;20;8M'])
+  })
+
+  it('forwards legacy wheel reports to the PTY as binary bytes', async () => {
+    const context = setup()
+    await context.peer.enqueue(JSON.stringify({ action: 'attach', payload: { sessionName: 'main' } }))
+    const report = `\u001B[M${String.fromCharCode(96, 52, 40)}`
+
+    await context.peer.enqueue(JSON.stringify({
+      action: 'wheelInput',
+      payload: { data: report, encoding: 'binary' },
+    }))
+
+    expect(context.sessions.prepareTerminalWheel).toHaveBeenCalledExactlyOnceWith('main', 'up')
+    const written = context.attachmentProcesses.processes[0]?.writes[0]
+    expect(typeof written).toBe('object')
+    expect(Array.from(written as Uint8Array)).toEqual([27, 91, 77, 96, 52, 40])
+  })
+
+  it('does not write wheel input after its attachment exits during preparation', async () => {
+    const context = setup()
+    await context.peer.enqueue(JSON.stringify({ action: 'attach', payload: { sessionName: 'main' } }))
+    const preparation = { release: undefined as ((handled: boolean) => void) | undefined }
+    context.sessions.prepareTerminalWheel.mockImplementation(() => new Promise<boolean>((resolve) => {
+      preparation.release = resolve
+    }))
+
+    const wheelInput = context.peer.enqueue(JSON.stringify({
+      action: 'wheelInput',
+      payload: { data: '\u001B[<64;20;8M' },
+    }))
+    await vi.waitFor(() => {
+      expect(context.sessions.prepareTerminalWheel).toHaveBeenCalledOnce()
+    })
+    context.attachmentProcesses.processes[0]!.emitExit({ exitCode: 0 })
+    if (!preparation.release) throw new Error('Wheel preparation did not start.')
+    preparation.release(false)
+    await wheelInput
+
+    expect(context.attachmentProcesses.processes[0]?.writes).toEqual([])
+    expect(context.messages).toContainEqual({
+      type: 'error',
+      data: 'Terminal attachment changed during wheel input.',
+    })
   })
 
   it('releases a helper exactly once across repeated detach calls', async () => {

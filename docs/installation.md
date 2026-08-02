@@ -12,7 +12,7 @@ The host must provide:
 
 - Linux x86_64 with kernel 4.18+ and glibc 2.34+;
 - systemd with user services;
-- tmux;
+- tmux 3.1 or newer;
 - `awk`, `cmp`, `curl`, `grep`, `sha256sum`, `tar` and standard base
   utilities for the bootstrap.
 

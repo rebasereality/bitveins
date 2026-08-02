@@ -1,6 +1,6 @@
 import type { TmuxSession, TmuxWindow } from '#shared/contracts/terminal'
 import { SessionError } from '../model/session-error'
-import { normalizeSessionName } from '../model/session-validation'
+import { normalizeSessionName, normalizeTerminalTargetName } from '../model/session-validation'
 import {
   transferSessionBaseName,
   transferSessionCandidate,
@@ -154,6 +154,14 @@ export class SessionService {
 
   captureWindowSnapshot(name: string, index: unknown, lines?: number): Promise<string> {
     return this.options.tmux.captureWindowSnapshot(normalizeSessionName(name), index, lines)
+  }
+
+  async prepareTerminalWheel(name: string, direction: 'down' | 'up'): Promise<boolean> {
+    return await this.options.tmux.prepareTerminalWheel(normalizeTerminalTargetName(name), direction)
+  }
+
+  async resetTerminalScroll(name: string): Promise<void> {
+    await this.options.tmux.resetTerminalScroll(normalizeTerminalTargetName(name))
   }
 
   killBitveinsHelperSession(name: string): Promise<void> {
