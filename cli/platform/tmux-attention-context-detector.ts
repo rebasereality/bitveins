@@ -20,12 +20,21 @@ export class TmuxAttentionContextDetector {
       '-p',
       '-t',
       pane,
-      '#{session_name}\t#{window_id}\t#{pane_id}\t#{pane_current_path}',
+      '#{session_name}\t#{@bitveins_base}\t#{window_id}\t#{pane_id}\t#{pane_current_path}',
     ], { allowFailure: true })
     if (result.exitCode !== 0) return {}
 
-    const [sessionName, windowId, paneId, currentPath] = result.stdout.trim().split('\t')
-    if (!sessionName || !/^@\d+$/u.test(windowId ?? '') || !/^%\d+$/u.test(paneId ?? '')) {
+    const [detectedSessionName, baseSessionName, windowId, paneId, currentPath] = result.stdout.trim().split('\t')
+    const sessionName = detectedSessionName?.startsWith('_bitveins_')
+      ? baseSessionName
+      : detectedSessionName
+    if (
+      !sessionName
+      || sessionName.startsWith('_bitveins_')
+      || !/^[A-Za-z0-9_.-]{1,80}$/u.test(sessionName)
+      || !/^@\d+$/u.test(windowId ?? '')
+      || !/^%\d+$/u.test(paneId ?? '')
+    ) {
       return {}
     }
     return {

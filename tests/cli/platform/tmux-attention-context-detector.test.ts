@@ -11,7 +11,7 @@ function runner(stdout: string, exitCode = 0): CommandRunner {
 
 describe('TmuxAttentionContextDetector', () => {
   it('detects stable session, window and pane identifiers from TMUX_PANE', async () => {
-    const commands = runner('kouizine\t@4\t%9\t/home/alice/code/kouizine\n')
+    const commands = runner('kouizine\t\t@4\t%9\t/home/alice/code/kouizine\n')
     const detector = new TmuxAttentionContextDetector(commands)
 
     await expect(detector.detect({ TMUX_PANE: '%9' })).resolves.toEqual({
@@ -25,7 +25,7 @@ describe('TmuxAttentionContextDetector', () => {
       '-p',
       '-t',
       '%9',
-      '#{session_name}\t#{window_id}\t#{pane_id}\t#{pane_current_path}',
+      '#{session_name}\t#{@bitveins_base}\t#{window_id}\t#{pane_id}\t#{pane_current_path}',
     ], { allowFailure: true })
   })
 
@@ -34,5 +34,17 @@ describe('TmuxAttentionContextDetector', () => {
     const detector = new TmuxAttentionContextDetector(commands)
     await expect(detector.detect({})).resolves.toEqual({})
     await expect(detector.detect({ TMUX_PANE: '%2' })).resolves.toEqual({})
+  })
+
+  it('maps a Bitveins helper session back to its base session', async () => {
+    const commands = runner('_bitveins_123\tkouizine\t@4\t%9\t/home/alice/code/kouizine\n')
+    const detector = new TmuxAttentionContextDetector(commands)
+
+    await expect(detector.detect({ TMUX_PANE: '%9' })).resolves.toEqual({
+      paneId: '%9',
+      project: 'kouizine',
+      sessionName: 'kouizine',
+      windowId: '@4',
+    })
   })
 })

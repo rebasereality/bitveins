@@ -74,3 +74,25 @@ test('opens the linked tmux window from Agent Inbox', async ({ page }) => {
     await page.request.delete(`/api/sessions/${sessionName}`).catch(() => undefined)
   }
 })
+
+test('does not attach a reserved helper session from a legacy event', async ({ page }) => {
+  await authenticate(page)
+
+  const eventResponse = await page.request.post('/api/attention', {
+    data: {
+      sessionName: '_bitveins_legacy_helper',
+      source: 'test-agent',
+      title: 'Legacy helper target',
+      type: 'information',
+      windowId: '@1',
+    },
+  })
+  expect(eventResponse.ok(), await eventResponse.text()).toBe(true)
+  const { event } = await eventResponse.json() as { event: { id: string } }
+
+  await page.getByLabel('Open Agent Inbox').click()
+  await page.locator(`[data-event-id="${event.id}"]`).click()
+
+  await expect(page.getByText('The linked tmux session is no longer available.').first()).toBeVisible()
+  await expect(page.locator('[data-bitveins-app]')).toBeVisible()
+})

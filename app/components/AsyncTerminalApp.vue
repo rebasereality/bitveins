@@ -43,6 +43,7 @@ type AmbiguousResolution = Extract<TerminalFileResolution, { status: 'ambiguous'
 const pendingFileResolution = ref<AmbiguousResolution | null>(null)
 const settingsOpen = ref(false)
 const inboxOpen = ref(false)
+const attentionNavigationError = ref<string | null>(null)
 
 const {
   dismiss: dismissAttentionEvent,
@@ -218,7 +219,7 @@ const {
   terminal,
 })
 
-const appError = computed(() => windowError.value ?? sessionError.value)
+const appError = computed(() => attentionNavigationError.value ?? windowError.value ?? sessionError.value)
 
 const { downloadExplorerItem, downloadPath } = useExplorerDownloads(
   sessions,
@@ -284,6 +285,7 @@ async function openAttentionTarget(target: {
   sessionName?: string
   windowId?: string
 }): Promise<void> {
+  attentionNavigationError.value = null
   if (target.event && !target.event.readAt) {
     await markAttentionEventRead(target.event.id).catch(() => undefined)
   }
@@ -292,6 +294,10 @@ async function openAttentionTarget(target: {
   viewMode.value = 'terminal'
 
   if (!target.sessionName) return
+  if (!sessions.value.some(session => session.name === target.sessionName)) {
+    attentionNavigationError.value = 'The linked tmux session is no longer available.'
+    return
+  }
   await attachSession(target.sessionName)
   if (target.windowId) {
     await fetchWindows()
