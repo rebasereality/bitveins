@@ -3,6 +3,7 @@ import { rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { prepareE2eAttentionEnvironment } from './e2e-attention-environment.ts'
 
 const databasePath = process.env.BITVEINS_E2E_DATABASE_PATH
 const pidPath = process.env.BITVEINS_E2E_SERVER_PID_PATH
@@ -34,6 +35,7 @@ const isolatedDatabasePath = databasePath
 const isolatedPidPath = pidPath
 const isolatedSocketName = socketName
 const isolatedWorkspace = workspace
+const isolatedConfigurationRoot = prepareE2eAttentionEnvironment(runId)
 let cleaned = false
 
 function cleanIsolatedResources() {
@@ -52,11 +54,12 @@ function cleanIsolatedResources() {
     `${isolatedDatabasePath}-shm`,
     `${isolatedDatabasePath}-wal`,
     isolatedPidPath,
+    isolatedConfigurationRoot,
     socketPath,
   ]) {
     rmSync(path, {
       force: true,
-      recursive: path === isolatedWorkspace,
+      recursive: path === isolatedWorkspace || path === isolatedConfigurationRoot,
     })
   }
 }
