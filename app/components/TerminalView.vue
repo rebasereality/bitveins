@@ -95,6 +95,7 @@ watch(activePaneKey, () => {
       :key="activePaneKey"
       ref="paneRef"
       :active="active"
+      :application="activeWindow.application"
       :input-mode="inputMode"
       :pane-key="activePaneKey"
       :session-name="activeSession"

@@ -9,6 +9,7 @@ import type {
 import type { InputMode } from '~/types/session'
 import { TerminalFileLinkProvider } from '~/terminal/file-link-provider'
 import { createTerminalInputRouter } from '~/terminal/terminal-input-router'
+import { createTerminalOutputNormalizer } from '~/terminal/terminal-output-normalizer'
 import { terminalThemeForAccent } from '~/terminal/terminal-theme'
 import { parseSelectedFileReferences } from '~/utils/file-reference-parser'
 import { suppressMobileTerminalKeyboard } from '~/utils/mobile-terminal-input'
@@ -16,6 +17,7 @@ import { buildUploadDestinationPath } from '~/utils/upload-path'
 
 const props = defineProps<{
   active: boolean
+  application?: 'hermes'
   inputMode: InputMode
   paneKey: string
   sessionName: string
@@ -50,6 +52,9 @@ const activeSession = computed(() => props.sessionName)
 const active = computed(() => props.active)
 const inputMode = computed(() => props.inputMode)
 const isLightTheme = computed(() => colorMode.value === 'light')
+const terminalOutputNormalizer = createTerminalOutputNormalizer(
+  () => props.application === 'hermes',
+)
 
 const terminalTheme = computed<ITheme>(() => terminalThemeForAccent(
   isLightTheme.value ? 'light' : 'dark',
@@ -63,7 +68,9 @@ const terminalSocket = useTerminalSocket({
   emitAuthExpired: () => emit('authExpired'),
   fitAddon,
   inputMode,
+  normalizeOutput: terminalOutputNormalizer.normalize,
   promptRecoveryKey: props.paneKey,
+  resetOutput: terminalOutputNormalizer.reset,
   terminal,
   onStdout: () => {
     emit('ready')
@@ -223,7 +230,7 @@ async function writeSnapshot(isLiveStarted: () => boolean): Promise<void> {
 
     term.clear()
     term.write('\x1b[2J\x1b[3J\x1b[H')
-    term.write(data.data || '')
+    term.write(terminalOutputNormalizer.normalize(data.data || ''))
   }
   catch {
     if (!disposed && !isLiveStarted()) {

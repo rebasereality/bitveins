@@ -6,6 +6,7 @@ export const tmuxSessionSchema = z.object({
 })
 
 export const tmuxWindowSchema = z.object({
+  application: z.enum(['hermes']).optional(),
   id: z.string(),
   index: z.number().int(),
   name: z.string(),

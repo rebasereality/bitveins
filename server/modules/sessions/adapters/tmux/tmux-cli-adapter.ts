@@ -5,6 +5,7 @@ import {
   parseBitveinsHelperSessions,
   parseTmuxSessions,
   parseTmuxWindows,
+  parseTmuxWindowsWithPanePids,
 } from './tmux-output'
 import {
   BITVEINS_SESSION_PREFIX,
@@ -61,13 +62,14 @@ export class TmuxCliAdapter implements TmuxGateway {
 
   async listWindows(name: string): Promise<TmuxWindow[]> {
     try {
-      return parseTmuxWindows(await this.run([
+      const windows = parseTmuxWindowsWithPanePids(await this.run([
         'list-windows',
         '-t',
         normalizeSessionName(name),
         '-F',
-        '#{window_id}|#{window_index}|#{window_name}|#{window_active}|#{pane_current_path}',
+        '#{window_id}|#{window_index}|#{window_name}|#{window_active}|#{pane_pid}|#{pane_current_path}',
       ]))
+      return this.withDetectedApplications(windows)
     }
     catch (error) {
       if (this.isMissingServer(error)) return []
@@ -255,6 +257,46 @@ export class TmuxCliAdapter implements TmuxGateway {
 
   private isMissingServer(error: unknown): boolean {
     return error instanceof SessionError && isMissingTmuxServerError(error.causeText)
+  }
+
+  private async withDetectedApplications(
+    windows: ReturnType<typeof parseTmuxWindowsWithPanePids>,
+  ): Promise<TmuxWindow[]> {
+    if (!windows.some(window => window.panePid !== null)) {
+      return windows.map(({ window }) => window)
+    }
+
+    try {
+      const { stdout } = await this.options.runner.run(
+        'ps',
+        ['-eo', 'pid=,tpgid=,comm='],
+        { maxBuffer: TMUX_MAX_BUFFER, timeoutMs: TMUX_TIMEOUT_MS },
+      )
+      const processes = new Map<number, { command: string, foregroundPid: number }>()
+
+      for (const line of stdout.split('\n')) {
+        const match = line.match(/^\s*(\d+)\s+(-?\d+)\s+(\S+)\s*$/)
+        if (!match) continue
+        processes.set(Number(match[1]), {
+          command: match[3]!,
+          foregroundPid: Number(match[2]),
+        })
+      }
+
+      return windows.map(({ panePid, window }) => {
+        const paneProcess = panePid === null ? undefined : processes.get(panePid)
+        const foregroundProcess = paneProcess
+          ? processes.get(paneProcess.foregroundPid)
+          : undefined
+
+        return foregroundProcess?.command === 'hermes'
+          ? { ...window, application: 'hermes' as const }
+          : window
+      })
+    }
+    catch {
+      return windows.map(({ window }) => window)
+    }
   }
 
   private async run(args: readonly string[]): Promise<string> {

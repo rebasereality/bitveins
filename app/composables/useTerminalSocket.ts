@@ -16,8 +16,10 @@ type TerminalSocketOptions = {
   emitAuthExpired: () => void
   fitAddon: ShallowRef<FitAddon | null>
   inputMode: Readonly<Ref<InputMode>>
+  normalizeOutput?: (data: string) => string
   onStdout?: () => void
   promptRecoveryKey: string
+  resetOutput?: () => void
   terminal: ShallowRef<Terminal | null>
 }
 
@@ -74,6 +76,7 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
     environment: new BrowserConnectionEnvironment(),
     getSize: terminalSize,
     onAttachmentBegin() {
+      options.resetOutput?.()
       terminalSize()
       outputBuffer.begin()
     },
@@ -87,9 +90,10 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
       reliableInput?.acknowledge(inputId)
     },
     onOutput(data) {
-      if (outputBuffer.buffer(data)) return
+      const normalizedData = options.normalizeOutput?.(data) ?? data
+      if (outputBuffer.buffer(normalizedData)) return
       options.onStdout?.()
-      options.terminal.value?.write(data)
+      options.terminal.value?.write(normalizedData)
     },
     onReliableInputFlush() {
       reliableInput?.flush()
@@ -168,6 +172,7 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
 
   function detach(): void {
     currentWindowAttachment = null
+    options.resetOutput?.()
     controller.detach()
     outputBuffer.dispose()
     outputBuffer.clearTerminal()
@@ -194,6 +199,7 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
 
   function dispose(): void {
     currentWindowAttachment = null
+    options.resetOutput?.()
     controller.dispose()
     outputBuffer.dispose()
   }

@@ -7,6 +7,11 @@ export interface BitveinsHelperSession {
   owner: string
 }
 
+export interface TmuxWindowWithPanePid {
+  panePid: number | null
+  window: TmuxWindow
+}
+
 export function parseTmuxSessions(stdout: string): TmuxSession[] {
   return stdout
     .split('\n')
@@ -40,6 +45,29 @@ export function parseTmuxWindows(stdout: string): TmuxWindow[] {
       }
     })
     .sort((a, b) => a.index - b.index)
+}
+
+export function parseTmuxWindowsWithPanePids(stdout: string): TmuxWindowWithPanePid[] {
+  return stdout
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [id = '', index = '', name = '', active = '0', panePid = '', ...pathParts] = line.split('|')
+      const parsedPanePid = Number(panePid)
+
+      return {
+        panePid: Number.isSafeInteger(parsedPanePid) && parsedPanePid > 0 ? parsedPanePid : null,
+        window: {
+          id,
+          index: normalizeWindowIndex(index),
+          name: name || `window-${index}`,
+          active: active === '1',
+          path: pathParts.join('|') || '~',
+        },
+      }
+    })
+    .sort((a, b) => a.window.index - b.window.index)
 }
 
 export function parseBitveinsHelperSessions(stdout: string): BitveinsHelperSession[] {
