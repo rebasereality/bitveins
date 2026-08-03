@@ -52,4 +52,34 @@ describe('BrowserPushManager', () => {
     }))
     expect(client.saveSubscription).toHaveBeenCalledWith(subscription.toJSON())
   })
+
+  it('shows a local notification through the active service worker registration', async () => {
+    const showNotification = vi.fn().mockResolvedValue(undefined)
+    const manager = new BrowserPushManager({
+      api: api(),
+      notification: { permission: 'granted', requestPermission: vi.fn() },
+      serviceWorker: {
+        ready: Promise.resolve({
+          pushManager: {} as PushManager,
+          showNotification,
+        }),
+      },
+    })
+
+    await expect(manager.showLocalTest()).resolves.toBeUndefined()
+    expect(showNotification).toHaveBeenCalledWith('Bitveins device test', expect.objectContaining({
+      body: 'Local notifications can be displayed on this device.',
+      tag: 'bitveins:device-test',
+    }))
+  })
+
+  it('rejects a local notification test when permission is not granted', async () => {
+    const manager = new BrowserPushManager({
+      api: api(),
+      notification: { permission: 'denied', requestPermission: vi.fn() },
+      serviceWorker: { ready: Promise.resolve({ pushManager: {} as PushManager }) },
+    })
+
+    await expect(manager.showLocalTest()).rejects.toThrow('Notification permission is not granted.')
+  })
 })

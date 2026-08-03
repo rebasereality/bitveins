@@ -4,6 +4,7 @@ const {
   disable,
   enable,
   error,
+  localTest,
   permission,
   setShowDetails,
   showDetails,
@@ -70,8 +71,17 @@ const status = computed(() => {
       <UButton
         color="neutral"
         :disabled="busy || !subscribed"
+        icon="i-lucide-smartphone"
+        label="Test device display"
+        size="sm"
+        variant="outline"
+        @click="localTest"
+      />
+      <UButton
+        color="neutral"
+        :disabled="busy || !subscribed"
         icon="i-lucide-send"
-        label="Send test"
+        label="Test Web Push"
         size="sm"
         variant="outline"
         @click="test"

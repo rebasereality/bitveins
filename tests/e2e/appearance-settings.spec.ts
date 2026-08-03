@@ -46,6 +46,8 @@ test('keeps desktop and mobile appearance profiles independent without remountin
     await page.getByRole('button', { name: 'Notifications', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'Notifications', exact: true })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Agent Inbox notifications' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Test device display' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Test Web Push' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Appearance' })).toHaveCount(0)
     await page.getByRole('button', { name: 'Appearance', exact: true }).click()
     await expect(page.locator('[data-appearance-device]')).toHaveText('Desktop')

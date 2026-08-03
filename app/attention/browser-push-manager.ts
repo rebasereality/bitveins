@@ -17,7 +17,10 @@ interface NotificationFacade {
 }
 
 interface ServiceWorkerFacade {
-  ready: Promise<{ pushManager: PushManager }>
+  ready: Promise<{
+    pushManager: PushManager
+    showNotification?: (title: string, options?: NotificationOptions) => Promise<void>
+  }>
 }
 
 export type PushEnableResult = 'denied' | 'subscribed' | 'unsupported'
@@ -75,6 +78,22 @@ export class BrowserPushManager {
     if (!subscription) return
     await this.options.api.removeSubscription(subscription.endpoint)
     await subscription.unsubscribe()
+  }
+
+  async showLocalTest(): Promise<void> {
+    if (this.options.notification?.permission !== 'granted') {
+      throw new Error('Notification permission is not granted.')
+    }
+    const registration = await this.options.serviceWorker?.ready
+    if (!registration?.showNotification) {
+      throw new Error('Service Worker notifications are unavailable.')
+    }
+    await registration.showNotification('Bitveins device test', {
+      badge: '/icons/bitveins-hand-192x192.png',
+      body: 'Local notifications can be displayed on this device.',
+      icon: '/icons/bitveins-hand-192x192.png',
+      tag: 'bitveins:device-test',
+    })
   }
 }
 

@@ -101,6 +101,13 @@ export function useWebPushNotifications() {
     })
   }
 
+  async function localTest(): Promise<void> {
+    await run(async () => {
+      if (!manager) await load()
+      await manager!.showLocalTest()
+    })
+  }
+
   onMounted(() => void load())
 
   return {
@@ -108,6 +115,7 @@ export function useWebPushNotifications() {
     disable,
     enable,
     error,
+    localTest,
     permission,
     setShowDetails,
     showDetails,
