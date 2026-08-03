@@ -6,6 +6,31 @@ until a release is tagged.
 
 ## Unreleased
 
+## 1.2.0 - 2026-08-03
+
+### Added
+
+- Async terminals now forward wheel input to mouse-aware applications and tmux
+  scrollback while continuing to block direct keyboard input;
+- terminal output adapts Hermes response text to the active color scheme.
+
+### Changed
+
+- Async submissions now leave tmux copy mode before delivery and use
+  attachment-aware acknowledgements across reconnects;
+- passive Terminal and Explorer navigation preserves the current scrollback
+  viewport.
+
+### Fixed
+
+- yellow terminal output remains legible in light mode, including the extended
+  ANSI colors used by Hermes;
+- Hermes response text remains legible against the dark terminal background;
+- new tmux windows can be created when a session and its current window share
+  the same name, with failures now surfaced in the session sidebar;
+- tapping or focusing the mobile Async editor commits the selected command
+  history preview before editing.
+
 ## 1.1.0 - 2026-07-27
 
 ### Added
