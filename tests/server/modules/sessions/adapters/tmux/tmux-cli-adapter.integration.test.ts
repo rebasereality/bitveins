@@ -40,6 +40,7 @@ describe('TmuxCliAdapter isolated integration', () => {
       path: workspace,
     }])
 
+    await adapter.renameWindow('integration', 0, 'integration')
     const window = await adapter.createWindow('integration', workspace)
     expect(window.id).toMatch(/^@\d+$/)
     const windows = await adapter.listWindows('integration')

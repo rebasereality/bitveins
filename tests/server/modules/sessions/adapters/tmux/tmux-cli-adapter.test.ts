@@ -295,6 +295,7 @@ describe('TmuxCliAdapter', () => {
       'capture-pane',
       'display-message',
     ])
+    expect(runner.calls[3]?.args).toContain('next:')
     expect(runner.calls[7]?.args).toContain('-20000')
   })
 
