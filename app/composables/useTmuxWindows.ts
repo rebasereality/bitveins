@@ -1,5 +1,6 @@
 import { computed, nextTick, ref } from 'vue'
 import type { TmuxWindow } from '~/types/session'
+import { apiErrorMessage } from '~/utils/api-error'
 
 export function useTmuxWindows(
   activeSession: Ref<string | null>,
@@ -10,6 +11,7 @@ export function useTmuxWindows(
   const editingWindowIndex = ref<number | null>(null)
   const editingWindowName = ref('')
   const renameWindowInput = ref<HTMLInputElement | null>(null)
+  const error = ref<string | null>(null)
   let windowsRefreshTimer: ReturnType<typeof setInterval> | null = null
 
   const windowTabItems = computed(() => windows.value.map(window => ({
@@ -54,6 +56,7 @@ export function useTmuxWindows(
 
   function startWindowRefresh(): void {
     stopWindowRefresh()
+    error.value = null
     void fetchWindows()
     windowsRefreshTimer = setInterval(() => {
       void fetchWindows()
@@ -62,18 +65,21 @@ export function useTmuxWindows(
 
   async function handleWindowSelect(windowIndex: number, attachWindowFn: (sessionName: string, windowIndex: number) => Promise<void>): Promise<void> {
     if (!activeSession.value) return
+    error.value = null
     selectedWindowIndex.value = windowIndex
     try {
       await attachWindowFn(activeSession.value, windowIndex)
       await fetchWindows()
     }
     catch (err) {
+      error.value = apiErrorMessage(err, 'Unable to select tmux window.')
       handleAuthError(err)
     }
   }
 
   async function handleCreateWindow(attachWindowFn: (sessionName: string, windowIndex: number) => Promise<void>): Promise<void> {
     if (!activeSession.value) return
+    error.value = null
     try {
       const data = await $fetch<{ window: TmuxWindow }>(`/api/sessions/${encodeURIComponent(activeSession.value)}/windows`, {
         method: 'POST',
@@ -83,6 +89,7 @@ export function useTmuxWindows(
       await fetchWindows()
     }
     catch (err) {
+      error.value = apiErrorMessage(err, 'Unable to create tmux window.')
       handleAuthError(err)
     }
   }
@@ -103,6 +110,7 @@ export function useTmuxWindows(
 
   async function saveWindowRename(windowIndex: number): Promise<void> {
     if (!activeSession.value) return
+    error.value = null
     const nextName = editingWindowName.value.trim()
     if (!nextName) {
       cancelWindowRename()
@@ -118,6 +126,7 @@ export function useTmuxWindows(
       await fetchWindows()
     }
     catch (err) {
+      error.value = apiErrorMessage(err, 'Unable to rename tmux window.')
       handleAuthError(err)
     }
   }
@@ -128,6 +137,7 @@ export function useTmuxWindows(
     editingWindowIndex,
     editingWindowName,
     renameWindowInput,
+    error,
     windowTabItems,
     activeWindowIndex,
     activeWindowValue,

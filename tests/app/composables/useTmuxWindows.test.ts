@@ -34,4 +34,19 @@ describe('useTmuxWindows', () => {
     expect(attach).toHaveBeenCalledWith('session', 1)
     expect(tmuxWindows.activeWindow.value).toEqual(createdWindow)
   })
+
+  it('exposes a non-authenticated window creation failure', async () => {
+    fetchStub.mockRejectedValueOnce({
+      data: { statusMessage: 'tmux refused the new window' },
+      statusCode: 500,
+    })
+
+    const handleAuthError = vi.fn()
+    const tmuxWindows = useTmuxWindows(ref('session'), handleAuthError)
+
+    await tmuxWindows.handleCreateWindow(vi.fn())
+
+    expect(tmuxWindows.error.value).toBe('tmux refused the new window')
+    expect(handleAuthError).toHaveBeenCalledOnce()
+  })
 })

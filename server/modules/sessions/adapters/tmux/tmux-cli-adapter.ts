@@ -88,7 +88,7 @@ export class TmuxCliAdapter implements TmuxGateway {
       '-F',
       '#{window_id}|#{window_index}|#{window_name}|#{window_active}|#{pane_current_path}',
       '-t',
-      normalizeSessionName(name),
+      `${normalizeSessionName(name)}:`,
       '-c',
       path,
     ])

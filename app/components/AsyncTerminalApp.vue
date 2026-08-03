@@ -6,7 +6,7 @@ import type {
 } from '#shared/contracts/explorer'
 import { saveSubmittedAsyncPrompt } from '~/utils/async-prompt-recovery'
 import { asyncTerminalSubmissionChunks } from '~/utils/async-terminal-submission'
-import { isUnauthorizedError } from '~/utils/api-error'
+import { apiErrorMessage, isUnauthorizedError } from '~/utils/api-error'
 import { parseStoredExplorerViewMode, type ExplorerViewMode } from '~/utils/explorer-view-mode'
 import { useTmuxWindows } from '~/composables/useTmuxWindows'
 import { useFileTreeModal } from '~/composables/useFileTreeModal'
@@ -70,6 +70,7 @@ const {
   windows,
   editingWindowIndex,
   editingWindowName,
+  error: windowError,
   windowTabItems,
   activeWindowValue,
   activeWindow,
@@ -183,7 +184,7 @@ function openCreateSession(): void {
 const {
   sessions,
   loading,
-  error,
+  error: sessionError,
   refreshSessions,
   attachSession,
   createSession,
@@ -202,6 +203,8 @@ const {
   stopWindowRefresh,
   terminal,
 })
+
+const appError = computed(() => windowError.value ?? sessionError.value)
 
 const { downloadExplorerItem, downloadPath } = useExplorerDownloads(
   sessions,
@@ -263,7 +266,10 @@ async function selectTmuxWindow(value: string | number): Promise<void> {
 }
 
 async function createTmuxWindow(): Promise<void> {
-  if (!terminal.value) return
+  if (!terminal.value) {
+    windowError.value = 'Terminal is not ready.'
+    return
+  }
   await handleCreateWindow((name, idx) => terminal.value!.attachWindow(name, idx))
 }
 
@@ -284,6 +290,7 @@ function cancelTmuxWindowRename(): void {
 
 async function closeTmuxWindow(windowIndex: number): Promise<void> {
   if (!activeSession.value || windows.value.length <= 1) return
+  windowError.value = null
   try {
     const data = await $fetch<{ activeWindowIndex: number }>(`/api/sessions/${encodeURIComponent(activeSession.value)}/windows/${windowIndex}`, {
       method: 'DELETE',
@@ -293,6 +300,7 @@ async function closeTmuxWindow(windowIndex: number): Promise<void> {
     }
   }
   catch (err) {
+    windowError.value = apiErrorMessage(err, 'Unable to close tmux window.')
     handleAuthError(err)
   }
 }
@@ -396,7 +404,7 @@ watch(activeSession, () => {
       <SessionSidebar
         ref="sessionSidebar"
         :active-session="activeSession"
-        :error="error"
+        :error="appError"
         :linux-username="linuxUsername"
         :loading="loading"
         :sessions="sessions"
