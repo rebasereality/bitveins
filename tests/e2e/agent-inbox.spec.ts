@@ -8,6 +8,7 @@ if (!runId || !workspace) {
   throw new Error('Playwright did not configure the isolated Bitveins E2E environment.')
 }
 const sessionName = `inbox_${runId.replaceAll(/[^A-Za-z0-9]/g, '').slice(-20)}`
+const staleWindowSessionName = `stale_${runId.replaceAll(/[^A-Za-z0-9]/g, '').slice(-20)}`
 
 test('opens the linked tmux window from Agent Inbox', async ({ page }) => {
   await mkdir(workspace, { recursive: true })
@@ -95,4 +96,37 @@ test('does not attach a reserved helper session from a legacy event', async ({ p
 
   await expect(page.getByText('The linked tmux session is no longer available.').first()).toBeVisible()
   await expect(page.locator('[data-bitveins-app]')).toBeVisible()
+})
+
+test('does not attach a session when its linked tmux window no longer exists', async ({ page }) => {
+  await mkdir(workspace, { recursive: true })
+  await authenticate(page)
+
+  try {
+    const createResponse = await page.request.post('/api/sessions', {
+      data: { name: staleWindowSessionName, path: workspace },
+    })
+    expect(createResponse.ok(), await createResponse.text()).toBe(true)
+
+    const eventResponse = await page.request.post('/api/attention', {
+      data: {
+        sessionName: staleWindowSessionName,
+        source: 'test-agent',
+        title: 'Stale window target',
+        type: 'information',
+        windowId: '@999999',
+      },
+    })
+    expect(eventResponse.ok(), await eventResponse.text()).toBe(true)
+    const { event } = await eventResponse.json() as { event: { id: string } }
+
+    await page.getByLabel('Open Agent Inbox').click()
+    await page.locator(`[data-event-id="${event.id}"]`).click()
+
+    await expect(page.getByText('The linked tmux window is no longer available.').first()).toBeVisible()
+    await expect(page.locator('[data-session-active="true"]', { hasText: staleWindowSessionName })).toHaveCount(0)
+  }
+  finally {
+    await page.request.delete(`/api/sessions/${staleWindowSessionName}`).catch(() => undefined)
+  }
 })

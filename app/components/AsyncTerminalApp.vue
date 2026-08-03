@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { HistoryMessage, InputMode } from '~/types/session'
+import type { HistoryMessage, InputMode, TmuxWindow } from '~/types/session'
 import type {
   ResolvedExplorerDocument,
   TerminalFileResolution,
@@ -298,11 +298,26 @@ async function openAttentionTarget(target: {
     attentionNavigationError.value = 'The linked tmux session is no longer available.'
     return
   }
-  await attachSession(target.sessionName)
+  let targetWindow: TmuxWindow | undefined
   if (target.windowId) {
+    try {
+      const data = await $fetch<{ windows: TmuxWindow[] }>(`/api/sessions/${encodeURIComponent(target.sessionName)}/windows`)
+      targetWindow = data.windows.find(candidate => candidate.id === target.windowId)
+    }
+    catch (error) {
+      attentionNavigationError.value = apiErrorMessage(error, 'Unable to inspect the linked tmux session.')
+      handleAuthError(error)
+      return
+    }
+    if (!targetWindow) {
+      attentionNavigationError.value = 'The linked tmux window is no longer available.'
+      return
+    }
+  }
+  await attachSession(target.sessionName)
+  if (targetWindow) {
     await fetchWindows()
-    const targetWindow = windows.value.find(candidate => candidate.id === target.windowId)
-    if (targetWindow) await selectTmuxWindow(targetWindow.index)
+    await selectTmuxWindow(targetWindow.index)
   }
   if (target.event) {
     window.history.replaceState(null, '', createAttentionDeepLink(target.event))
@@ -591,6 +606,16 @@ watch(activeSession, () => {
         @submit="handleCommandSubmit"
       />
     </div>
+
+    <UAlert
+      v-if="attentionNavigationError"
+      aria-live="assertive"
+      class="fixed inset-x-2 top-[calc(48px+env(safe-area-inset-top))] z-[70] text-[length:var(--bitveins-ui-caption-size)] lg:hidden"
+      color="error"
+      icon="i-lucide-triangle-alert"
+      :title="attentionNavigationError"
+      variant="subtle"
+    />
 
     <FileUploadOverlay />
 
