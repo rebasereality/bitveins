@@ -1,16 +1,18 @@
 <script setup lang="ts">
 import CommandHistoryActions from '~/components/CommandHistoryActions.vue'
 
-defineProps<{
+const props = defineProps<{
   canHistoryDown: boolean
   canHistoryUp: boolean
   disabled: boolean
+  historyPreview: string
   placeholder: string
   queueMode: boolean
   submittedPromptAvailable: boolean
 }>()
 
 const emit = defineEmits<{
+  commitHistoryPreview: []
   focus: []
   historyDown: []
   historyUp: []
@@ -26,6 +28,12 @@ const drawerOpen = defineModel<boolean>('drawerOpen', { default: false })
 const value = defineModel<string>('value', { default: '' })
 const queueModeModel = defineModel<boolean>('queueMode', { default: false })
 const mobileTextarea = ref<{ textareaRef?: HTMLTextAreaElement, autoResize?: () => void } | null>(null)
+
+function commitHistoryPreview(): void {
+  if (!value.value && props.historyPreview) {
+    emit('commitHistoryPreview')
+  }
+}
 
 defineExpose({
   textareaRef: computed(() => mobileTextarea.value?.textareaRef),
@@ -101,6 +109,8 @@ defineExpose({
           class="w-full"
           :placeholder="placeholder"
           :ui="{ base: 'max-h-[45vh] min-h-28 overflow-y-auto bg-[var(--bitveins-shell-panel)] [font-family:var(--bitveins-prompt-font-family)] text-[length:var(--bitveins-input-font-size)] md:text-[length:var(--bitveins-input-font-size)] leading-[var(--bitveins-input-line-height)] text-[var(--bitveins-shell-text)] placeholder:text-[var(--bitveins-shell-text-subtle)] p-2' }"
+          @click="commitHistoryPreview"
+          @focus="commitHistoryPreview"
           @keydown="emit('keydown', $event)"
           @dragover.prevent
           @drop="emit('onDrop', $event)"

@@ -17,6 +17,7 @@ const safeRunId = runId.replaceAll(/[^A-Za-z0-9]/g, '').slice(-24)
 const sessionName = `mobile_${safeRunId}`
 const selectionSessionName = `selection_${safeRunId}`
 const commandSessionName = `command_${safeRunId}`
+const historySessionName = `history_${safeRunId}`
 
 async function selectTerminalRange(
   page: Page,
@@ -315,5 +316,48 @@ test('opens a blank Async drawer for each tmux conversation and keeps Files comp
   }
   finally {
     await page.request.delete(`/api/sessions/${commandSessionName}`).catch(() => undefined)
+  }
+})
+
+test('commits a selected history message when the mobile Async textarea is tapped', async ({ page }) => {
+  await mkdir(workspace, { recursive: true })
+  await authenticate(page)
+
+  try {
+    const created = await page.request.post('/api/sessions', {
+      data: {
+        name: historySessionName,
+        path: workspace,
+      },
+    })
+    expect(created.ok(), await created.text()).toBe(true)
+
+    await page.reload()
+    await page.getByLabel('Open sessions').click()
+    await page.getByRole('button', { name: historySessionName, exact: true }).click()
+    await expect(page.locator('[data-connection-state="attached"]')).toBeVisible()
+
+    const command = 'printf mobile-history-probe'
+    const openCommandDrawer = page.locator('input[readonly][placeholder^="Type command"]')
+    await openCommandDrawer.click()
+    const commandTextarea = page.locator('textarea:not(.xterm-helper-textarea):visible')
+    await commandTextarea.fill(command)
+
+    const historySaved = page.waitForResponse(response =>
+      response.request().method() === 'POST'
+      && response.url().includes(`/api/sessions/${historySessionName}/history`),
+    )
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
+    expect((await historySaved).status()).toBe(201)
+
+    await openCommandDrawer.click()
+    await page.getByTitle('Previous message (History Up)').tap()
+    await expect(commandTextarea).toHaveAttribute('placeholder', command)
+    await commandTextarea.tap()
+
+    await expect(commandTextarea).toHaveValue(command)
+  }
+  finally {
+    await page.request.delete(`/api/sessions/${historySessionName}`).catch(() => undefined)
   }
 })
