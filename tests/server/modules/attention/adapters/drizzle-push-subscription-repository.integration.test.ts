@@ -36,16 +36,21 @@ describe('DrizzlePushSubscriptionRepository integration', () => {
       endpoint: subscription.endpoint,
       expirationTime: null,
       keys: { auth: 'next-auth', p256dh: 'next-public' },
+      showDetails: false,
     }])
+    expect(repository.removeIfMatches(subscription)).toBe(false)
+    expect(repository.list()).toHaveLength(1)
     expect(repository.remove(subscription.endpoint)).toBe(true)
     expect(repository.remove(subscription.endpoint)).toBe(false)
     expect(repository.list()).toEqual([])
   })
 
-  it('persists the singleton details preference disabled by default', () => {
+  it('persists details preference per subscription disabled by default', () => {
     const repository = new DrizzlePushSubscriptionRepository(useDrizzle())
-    expect(repository.getPreference()).toEqual({ showDetails: false })
-    expect(repository.setPreference({ showDetails: true }, 300)).toEqual({ showDetails: true })
-    expect(repository.getPreference()).toEqual({ showDetails: true })
+    repository.upsert(subscription, 100)
+    expect(repository.getPreference(subscription.endpoint)).toEqual({ showDetails: false })
+    expect(repository.setPreference(subscription.endpoint, { showDetails: true }, 300)).toEqual({ showDetails: true })
+    expect(repository.getPreference(subscription.endpoint)).toEqual({ showDetails: true })
+    expect(repository.getPreference('https://push.example.test/other')).toEqual({ showDetails: false })
   })
 })

@@ -15,9 +15,13 @@ export class FilesystemEnvironmentRepository implements EnvironmentRepository {
   constructor(private readonly layout: InstallationLayout) {}
 
   async read(): Promise<BitveinsEnvironment> {
-    return parseEnvironmentFile(
-      await readPrivateFile(this.layout.environmentFile),
-    )
+    const content = await readPrivateFile(this.layout.environmentFile)
+    const environment = parseEnvironmentFile(content)
+    const serialized = serializeEnvironmentFile(environment)
+    if (serialized !== content) {
+      await writePrivateFileAtomic(this.layout.environmentFile, serialized)
+    }
+    return environment
   }
 
   async readOptional(): Promise<BitveinsEnvironment | null> {

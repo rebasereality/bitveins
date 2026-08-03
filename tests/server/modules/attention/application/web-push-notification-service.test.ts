@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { WebPushNotificationService } from '../../../../../server/modules/attention/application/web-push-notification-service'
-import type { PushSubscriptionRepository } from '../../../../../server/modules/attention/ports/push-subscription-repository'
+import type { PushSubscriptionRepository, StoredPushSubscription } from '../../../../../server/modules/attention/ports/push-subscription-repository'
 import type { PushSubscriptionInput } from '../../../../../shared/contracts/attention'
 
 const event = {
@@ -13,7 +13,7 @@ const event = {
 
 class MemorySubscriptions implements PushSubscriptionRepository {
   preference = { showDetails: false }
-  subscriptions: PushSubscriptionInput[] = []
+  subscriptions: StoredPushSubscription[] = []
   getPreference = () => this.preference
   list = () => [...this.subscriptions]
   remove = (endpoint: string) => {
@@ -21,18 +21,30 @@ class MemorySubscriptions implements PushSubscriptionRepository {
     this.subscriptions = this.subscriptions.filter(item => item.endpoint !== endpoint)
     return this.subscriptions.length !== before
   }
-  setPreference = (preference: { showDetails: boolean }) => (this.preference = preference)
+
+  removeIfMatches = (subscription: PushSubscriptionInput) => {
+    const stored = this.subscriptions.find(item => item.endpoint === subscription.endpoint)
+    if (
+      !stored
+      || stored.keys.auth !== subscription.keys.auth
+      || stored.keys.p256dh !== subscription.keys.p256dh
+    ) return false
+    return this.remove(subscription.endpoint)
+  }
+
+  setPreference = (_endpoint: string, preference: { showDetails: boolean }) => (this.preference = preference)
   upsert = (subscription: PushSubscriptionInput) => {
     this.remove(subscription.endpoint)
-    this.subscriptions.push(subscription)
+    this.subscriptions.push({ ...subscription, showDetails: this.preference.showDetails })
   }
 }
 
-function subscription(id: number): PushSubscriptionInput {
+function subscription(id: number): StoredPushSubscription {
   return {
     endpoint: `https://push.example.test/${id}`,
     expirationTime: null,
     keys: { auth: `auth-${id}`, p256dh: `public-${id}` },
+    showDetails: false,
   }
 }
 
@@ -82,5 +94,20 @@ describe('WebPushNotificationService', () => {
 
     expect(send).toHaveBeenCalledTimes(9)
     expect(maximum).toBeLessThanOrEqual(3)
+  })
+
+  it('includes sensitive details only for the subscription that opted in', async () => {
+    const repository = new MemorySubscriptions()
+    repository.subscriptions = [
+      subscription(1),
+      { ...subscription(2), showDetails: true },
+    ]
+    const send = vi.fn()
+    const service = new WebPushNotificationService({ repository, sender: { send } })
+
+    await service.notify({ ...event, summary: 'Private migration prompt' })
+
+    expect(send.mock.calls[0]?.[1].body).not.toContain('Private migration prompt')
+    expect(send.mock.calls[1]?.[1].body).toContain('Private migration prompt')
   })
 })

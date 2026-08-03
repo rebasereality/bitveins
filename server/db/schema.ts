@@ -47,13 +47,8 @@ export const webPushSubscriptions = sqliteTable('web_push_subscriptions', {
   expirationTime: integer('expiration_time'),
   p256dh: text('p256dh').notNull(),
   auth: text('auth').notNull(),
-  createdAt: integer('created_at').notNull(),
-  updatedAt: integer('updated_at').notNull(),
-})
-
-export const notificationPreferences = sqliteTable('notification_preferences', {
-  id: integer('id').primaryKey(),
   showDetails: integer('show_details', { mode: 'boolean' }).notNull().default(false),
+  createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 })
 

@@ -19,6 +19,8 @@ flowchart LR
     Explorer["Explorer module"]
     Files["Typed file handlers"]
     Terminal["Terminal module"]
+    Attention["Attention module"]
+    Push["Web Push services"]
     Tmux["tmux CLI"]
     Pty["node-pty"]
     SQLite[("SQLite")]
@@ -34,6 +36,7 @@ flowchart LR
     Composition --> History
     Composition --> Explorer
     Composition --> Terminal
+    Composition --> Attention
     Rest --> Files
     Explorer --> Files
     Files --> Sessions
@@ -41,6 +44,8 @@ flowchart LR
     Sessions --> SQLite
     Dropzones --> SQLite
     History --> SQLite
+    Attention --> SQLite
+    Attention --> Push
     Terminal --> Pty
     Pty --> Tmux
 ```
@@ -89,6 +94,12 @@ server/
       application/
       ports/
       adapters/
+    attention/
+      application/
+      model/
+      ports/
+      adapters/
+      delivery/
 ```
 
 The `sessions` module owns session and window orchestration. Its application
@@ -152,6 +163,26 @@ finishes after peer closure is still released. `TerminalPeerRegistry` owns the
 active peers, heartbeats and the set of active helpers. Only `NodePtyFactory`
 imports `node-pty`; `TmuxTerminalAttachmentProcessFactory` translates semantic
 attachments into PTY spawn arguments and propagates the configured tmux socket.
+
+The `attention` module owns Agent Inbox events, Web Push subscriptions and the
+notification privacy preference. `AttentionService` persists an event before
+publishing it to active WebSocket peers and queues Push delivery independently;
+provider failures cannot fail event creation. `WebPushNotificationService`
+bounds subscription concurrency, removes endpoints rejected with HTTP 404/410
+and logs only redacted status information. SQLite access remains inside the two
+Drizzle repositories.
+
+The browser receives typed `attentionEvent` messages on the existing terminal
+WebSocket transport. Persistent inbox refresh remains authoritative across
+reconnects, so reconnecting never triggers duplicate notifications. Deep links
+carry only internal `session`, stable `window` and `event` query parameters.
+The client resolves the stable tmux window ID to its current index before
+attaching.
+
+The custom inject-manifest Service Worker handles `push` and
+`notificationclick`. Notification URLs are accepted only when they resolve to
+the current Bitveins origin and root route. The worker focuses or opens the PWA;
+it cannot execute commands or navigate to arbitrary origins.
 
 Application services depend on ports; the composition root selects their
 concrete adapters. Tmux commands are executed with `execFile` argument arrays;

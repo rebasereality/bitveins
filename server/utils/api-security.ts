@@ -10,5 +10,6 @@ export function isPublicApiPath(path: string): boolean {
 export function requiresApiAuthentication(path: string): boolean {
   return path.startsWith('/api/')
     && path !== '/api/ws'
+    && path !== '/api/integrations/events'
     && !isPublicApiPath(path)
 }

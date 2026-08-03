@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { chmodSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import Database from 'better-sqlite3'
@@ -67,6 +67,7 @@ describe('DrizzleHistoryRepository integration', () => {
       );
     `)
     oldDatabase.close()
+    chmodSync(process.env.BITVEINS_DATABASE_PATH!, 0o600)
 
     const service = createService()
     service.saveMessage(mainWindow, 'after-migration')

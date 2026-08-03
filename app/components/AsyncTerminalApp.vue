@@ -4,6 +4,8 @@ import type {
   ResolvedExplorerDocument,
   TerminalFileResolution,
 } from '#shared/contracts/explorer'
+import type { AttentionEvent } from '#shared/contracts/attention'
+import { createAttentionDeepLink } from '#shared/contracts/attention'
 import { saveSubmittedAsyncPrompt } from '~/utils/async-prompt-recovery'
 import { asyncTerminalSubmissionChunks } from '~/utils/async-terminal-submission'
 import { apiErrorMessage, isUnauthorizedError } from '~/utils/api-error'
@@ -40,6 +42,17 @@ const explorerRef = ref<{ reloadFileTree: () => void } | null>(null)
 type AmbiguousResolution = Extract<TerminalFileResolution, { status: 'ambiguous' }>
 const pendingFileResolution = ref<AmbiguousResolution | null>(null)
 const settingsOpen = ref(false)
+const inboxOpen = ref(false)
+
+const {
+  dismiss: dismissAttentionEvent,
+  error: attentionError,
+  events: attentionEvents,
+  loading: attentionLoading,
+  markRead: markAttentionEventRead,
+  refresh: refreshAttentionEvents,
+  unreadCount: unreadAttentionCount,
+} = useAttentionInbox()
 
 function resetHistory(): void {
   historyMessages.value = []
@@ -74,6 +87,7 @@ const {
   windowTabItems,
   activeWindowValue,
   activeWindow,
+  fetchWindows,
   stopWindowRefresh,
   startWindowRefresh,
   handleWindowSelect,
@@ -265,6 +279,58 @@ async function selectTmuxWindow(value: string | number): Promise<void> {
   await handleWindowSelect(windowIndex, (name, idx) => terminal.value!.attachWindow(name, idx))
 }
 
+async function openAttentionTarget(target: {
+  event?: AttentionEvent
+  sessionName?: string
+  windowId?: string
+}): Promise<void> {
+  if (target.event && !target.event.readAt) {
+    await markAttentionEventRead(target.event.id).catch(() => undefined)
+  }
+  inboxOpen.value = false
+  settingsOpen.value = false
+  viewMode.value = 'terminal'
+
+  if (!target.sessionName) return
+  await attachSession(target.sessionName)
+  if (target.windowId) {
+    await fetchWindows()
+    const targetWindow = windows.value.find(candidate => candidate.id === target.windowId)
+    if (targetWindow) await selectTmuxWindow(targetWindow.index)
+  }
+  if (target.event) {
+    window.history.replaceState(null, '', createAttentionDeepLink(target.event))
+  }
+}
+
+function openAttentionEvent(event: AttentionEvent): void {
+  void openAttentionTarget({
+    event,
+    sessionName: event.sessionName,
+    windowId: event.windowId,
+  })
+}
+
+async function openDeepLink(): Promise<void> {
+  const query = new URLSearchParams(window.location.search)
+  const eventId = query.get('event')
+  const sessionName = query.get('session')
+  const windowId = query.get('window')
+  await refreshSessions()
+  if (!eventId && !sessionName) return
+  if (windowId && !/^@\d+$/u.test(windowId)) return
+
+  await refreshAttentionEvents()
+  const event = eventId
+    ? attentionEvents.value.find(candidate => candidate.id === eventId)
+    : undefined
+  await openAttentionTarget({
+    event,
+    sessionName: event?.sessionName ?? sessionName ?? undefined,
+    windowId: event?.windowId ?? windowId ?? undefined,
+  })
+}
+
 async function createTmuxWindow(): Promise<void> {
   if (!terminal.value) {
     windowError.value = 'Terminal is not ready.'
@@ -371,7 +437,7 @@ onMounted(() => {
     }
   }
 
-  void refreshSessions()
+  void openDeepLink()
 })
 
 onBeforeUnmount(() => {
@@ -408,11 +474,13 @@ watch(activeSession, () => {
         :linux-username="linuxUsername"
         :loading="loading"
         :sessions="sessions"
+        :unread-attention-count="unreadAttentionCount"
         class="row-span-2 max-lg:row-span-1"
         @attach="attachSession"
         @create="createSession"
         @destroy="destroySession"
         @detach="detachSession"
+        @inbox="inboxOpen = true"
         @logout="emit('logout')"
         @open-dropzone="openDropzone"
         @refresh="refreshSessions"
@@ -545,6 +613,15 @@ watch(activeSession, () => {
       :roots="rootChoices"
       @close="rootChoices = null"
       @select="selectPathLinkRoot"
+    />
+
+    <AgentInbox
+      v-model:open="inboxOpen"
+      :error="attentionError"
+      :events="attentionEvents"
+      :loading="attentionLoading"
+      @dismiss="dismissAttentionEvent($event.id)"
+      @select="openAttentionEvent"
     />
   </main>
 </template>

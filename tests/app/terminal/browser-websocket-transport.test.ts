@@ -92,6 +92,29 @@ describe('BrowserWebSocketTransport', () => {
     expect(handlers.onProtocolError).toHaveBeenCalledOnce()
   })
 
+  it('dispatches attention events without forwarding them to terminal state', () => {
+    const { handlers, socket } = setup()
+    const listener = vi.fn()
+    window.addEventListener('bitveins:attention-event', listener)
+
+    socket.dispatchEvent(new MessageEvent('message', {
+      data: JSON.stringify({
+        type: 'attentionEvent',
+        event: {
+          createdAt: '2026-08-03T12:00:00.000Z',
+          id: 'evt_123456789012',
+          source: 'codex',
+          title: 'Completed',
+          type: 'completed',
+        },
+      }),
+    }))
+
+    expect(listener).toHaveBeenCalledOnce()
+    expect(handlers.onMessage).not.toHaveBeenCalled()
+    window.removeEventListener('bitveins:attention-event', listener)
+  })
+
   it('forwards browser errors and remote close exactly once', () => {
     const { handlers, socket } = setup()
     socket.dispatchEvent(new Event('error'))

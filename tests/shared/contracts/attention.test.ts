@@ -4,6 +4,7 @@ import {
   createAttentionEventSchema,
   createAttentionDeepLink,
   notificationPreferenceSchema,
+  pushNotificationPayloadSchema,
   pushSubscriptionSchema,
 } from '../../../shared/contracts/attention'
 
@@ -55,14 +56,38 @@ describe('attention contracts', () => {
 
   it('strictly validates push subscriptions and keeps details disabled by default', () => {
     expect(pushSubscriptionSchema.parse({
-      endpoint: 'https://push.example.test/subscription',
+      endpoint: 'https://fcm.googleapis.com/fcm/send/subscription',
       expirationTime: null,
       keys: { auth: 'auth-key', p256dh: 'public-key' },
-    })).toMatchObject({ endpoint: 'https://push.example.test/subscription' })
+    })).toMatchObject({ endpoint: 'https://fcm.googleapis.com/fcm/send/subscription' })
     expect(notificationPreferenceSchema.parse({})).toEqual({ showDetails: false })
-    expect(() => pushSubscriptionSchema.parse({
-      endpoint: 'http://push.example.test/subscription',
-      keys: { auth: 'auth-key', p256dh: 'public-key' },
+    for (const endpoint of [
+      'http://fcm.googleapis.com/fcm/send/subscription',
+      'https://127.0.0.1/push',
+      'https://169.254.169.254/latest/meta-data',
+      'https://fcm.googleapis.com.attacker.test/push',
+      'https://user@fcm.googleapis.com/push',
+      'https://fcm.googleapis.com:8443/push',
+    ]) {
+      expect(() => pushSubscriptionSchema.parse({
+        endpoint,
+        keys: { auth: 'auth-key', p256dh: 'public-key' },
+      })).toThrow()
+    }
+  })
+
+  it('validates the encrypted notification payload and internal deep link shape', () => {
+    expect(pushNotificationPayloadSchema.parse({
+      body: 'Source: test',
+      data: { url: '/?session=demo&window=%401&event=evt_123456789012' },
+      tag: 'attention:evt_123456789012',
+      title: 'Attention required',
+    })).toBeTruthy()
+    expect(() => pushNotificationPayloadSchema.parse({
+      body: 'Source: test',
+      data: { url: 'https://attacker.test/' },
+      tag: 'attention:evt_123456789012',
+      title: 'Attention required',
     })).toThrow()
   })
 })

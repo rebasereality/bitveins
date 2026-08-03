@@ -265,6 +265,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
           </div>
         </AppearanceSizeSetting>
 
+        <NotificationSettingsSection />
+
         <div class="flex items-center justify-between border-t border-[var(--bitveins-shell-border)] py-6">
           <div>
             <p class="font-medium">

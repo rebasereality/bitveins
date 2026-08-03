@@ -3,10 +3,13 @@ import type {
   PushSubscriptionInput,
 } from '#shared/contracts/attention'
 
+export type StoredPushSubscription = PushSubscriptionInput & { showDetails: boolean }
+
 export interface PushSubscriptionRepository {
-  getPreference(): NotificationPreference
-  list(): PushSubscriptionInput[]
+  getPreference(endpoint?: string): NotificationPreference
+  list(): StoredPushSubscription[]
   remove(endpoint: string): boolean
-  setPreference(preference: NotificationPreference, now: number): NotificationPreference
+  removeIfMatches(subscription: PushSubscriptionInput): boolean
+  setPreference(endpoint: string, preference: NotificationPreference, now: number): NotificationPreference
   upsert(subscription: PushSubscriptionInput, now: number): void
 }

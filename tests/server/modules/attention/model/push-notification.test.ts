@@ -15,12 +15,12 @@ const event: AttentionEvent = {
 }
 
 describe('push notification model', () => {
-  it('hides the event summary by default', () => {
+  it('hides all event metadata by default', () => {
     expect(buildPushPayload(event, { showDetails: false })).toEqual({
-      body: 'Project: Kouizine\nSource: Codex',
+      body: 'Open Bitveins to view the event.',
       data: { url: '/?session=kouizine&window=%404&event=evt_123456789012' },
       tag: 'attention:evt_123456789012',
-      title: 'Permission required',
+      title: 'Bitveins needs your attention',
     })
   })
 
@@ -34,6 +34,7 @@ describe('push notification model', () => {
     expect(payload.title.length).toBeLessThanOrEqual(80)
     expect(payload.body.length).toBeLessThanOrEqual(240)
     expect(payload.body).toContain('x')
+    expect(payload.body).toContain('Project: Kouizine')
   })
 
   it('redacts endpoints, subscription keys and arbitrary provider messages', () => {

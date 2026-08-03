@@ -83,6 +83,20 @@ describe('AttentionService', () => {
     expect(publish).toHaveBeenCalledOnce()
   })
 
+  it('returns after persistence without waiting for push delivery', async () => {
+    const repository = new MemoryRepository()
+    const pushDelivery = new Promise<void>(() => {})
+    const service = new AttentionService({
+      createId: () => 'evt_123456789012',
+      publisher: { publish: vi.fn() },
+      push: { notify: vi.fn().mockReturnValue(pushDelivery) },
+      repository,
+    })
+
+    await expect(service.create(input)).resolves.toMatchObject({ id: 'evt_123456789012' })
+    expect(repository.events).toHaveLength(1)
+  })
+
   it('lists newest-first and records read and dismissed lifecycle state', async () => {
     const repository = new MemoryRepository()
     let id = 0

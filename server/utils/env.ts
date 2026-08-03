@@ -10,6 +10,9 @@ const envSchema = z.object({
   NUXT_SESSION_PASSWORD: z.string().optional(),
   BITVEINS_AUTH_VERSION: z.string().regex(/^[A-Za-z0-9_.:-]{1,64}$/, 'BITVEINS_AUTH_VERSION contains unsupported characters.').default('1'),
   BITVEINS_ALLOWED_ORIGINS: z.string().optional(),
+  BITVEINS_EVENT_TOKEN: z.string().optional().default(''),
+  BITVEINS_VAPID_PRIVATE_KEY: z.string().optional().default(''),
+  BITVEINS_VAPID_PUBLIC_KEY: z.string().optional().default(''),
   BITVEINS_TMUX_SOCKET_NAME: z.string()
     .regex(/^[A-Za-z0-9_.-]{1,80}$/, 'BITVEINS_TMUX_SOCKET_NAME contains unsupported characters.')
     .optional(),
@@ -48,5 +51,16 @@ export function assertProductionEnv(env: BitveinsEnv, nodeEnv = process.env.NODE
 
   if (env.HOST !== '127.0.0.1') {
     throw new Error('HOST must be exactly 127.0.0.1 in production.')
+  }
+
+  if (env.BITVEINS_EVENT_TOKEN.length < MIN_PRODUCTION_SECRET_LENGTH) {
+    throw new Error(`BITVEINS_EVENT_TOKEN must contain at least ${MIN_PRODUCTION_SECRET_LENGTH} characters in production.`)
+  }
+
+  if (
+    !/^[A-Za-z0-9_-]{43}$/u.test(env.BITVEINS_VAPID_PRIVATE_KEY)
+    || !/^[A-Za-z0-9_-]{87}$/u.test(env.BITVEINS_VAPID_PUBLIC_KEY)
+  ) {
+    throw new Error('BITVEINS VAPID keys must be canonical P-256 Base64URL values in production.')
   }
 }

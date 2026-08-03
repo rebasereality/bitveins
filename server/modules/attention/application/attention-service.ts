@@ -15,6 +15,8 @@ interface AttentionServiceOptions {
 export class AttentionService {
   private readonly clock: () => Date
   private readonly createId: () => string
+  private pendingPushNotifications = 0
+  private pushQueue = Promise.resolve()
 
   constructor(private readonly options: AttentionServiceOptions) {
     this.clock = options.clock ?? (() => new Date())
@@ -30,9 +32,17 @@ export class AttentionService {
     })
 
     this.options.publisher.publish(event)
-    await this.options.push.notify(event).catch(() => {
-      // Persistence and live delivery must not depend on external push providers.
-    })
+    if (this.pendingPushNotifications < 100) {
+      this.pendingPushNotifications += 1
+      this.pushQueue = this.pushQueue
+        .then(() => this.options.push.notify(event))
+        .catch(() => {
+          // Persistence and live delivery must not depend on external push providers.
+        })
+        .finally(() => {
+          this.pendingPushNotifications -= 1
+        })
+    }
     return event
   }
 

@@ -1,3 +1,4 @@
+import type { AttentionEvent } from '#shared/contracts/attention'
 import type { ServerMessage } from '#shared/contracts/terminal'
 
 export interface TerminalPeer {
@@ -56,6 +57,12 @@ export class TerminalPeerRegistry<Peer extends TerminalPeer> {
   heartbeat(): void {
     for (const peer of this.activePeers) {
       this.peerSessions.get(peer)?.sendHeartbeat()
+    }
+  }
+
+  broadcastAttention(event: AttentionEvent): void {
+    for (const peer of this.activePeers) {
+      this.send(peer, { type: 'attentionEvent', event })
     }
   }
 

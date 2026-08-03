@@ -77,7 +77,10 @@ export default defineNuxtConfig({
     },
   },
   pwa: {
-    registerType: 'prompt',
+    filename: 'sw.ts',
+    registerType: 'autoUpdate',
+    srcDir: '../service-worker',
+    strategies: 'injectManifest',
     manifest: {
       id: '/',
       name: 'Bitveins Async Terminal',
@@ -118,8 +121,7 @@ export default defineNuxtConfig({
         },
       ],
     },
-    workbox: {
-      navigateFallback: null,
+    injectManifest: {
       globPatterns: ['**/*.{js,css,html,png,svg,ico}'],
     },
   },

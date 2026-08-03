@@ -1,21 +1,22 @@
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { NotificationPreference, PushSubscriptionInput } from '#shared/contracts/attention'
-import { notificationPreferences, webPushSubscriptions } from '../../../db/schema'
+import { webPushSubscriptions } from '../../../db/schema'
 import type { DrizzleDatabase } from '../../../utils/db'
-import type { PushSubscriptionRepository } from '../ports/push-subscription-repository'
+import type { PushSubscriptionRepository, StoredPushSubscription } from '../ports/push-subscription-repository'
 
 export class DrizzlePushSubscriptionRepository implements PushSubscriptionRepository {
   constructor(private readonly database: DrizzleDatabase) {}
 
-  getPreference(): NotificationPreference {
+  getPreference(endpoint?: string): NotificationPreference {
+    if (!endpoint) return { showDetails: false }
     const row = this.database.select()
-      .from(notificationPreferences)
-      .where(eq(notificationPreferences.id, 1))
+      .from(webPushSubscriptions)
+      .where(eq(webPushSubscriptions.endpoint, endpoint))
       .get()
     return { showDetails: row?.showDetails ?? false }
   }
 
-  list(): PushSubscriptionInput[] {
+  list(): StoredPushSubscription[] {
     return this.database.select()
       .from(webPushSubscriptions)
       .all()
@@ -23,6 +24,7 @@ export class DrizzlePushSubscriptionRepository implements PushSubscriptionReposi
         endpoint: row.endpoint,
         expirationTime: row.expirationTime,
         keys: { auth: row.auth, p256dh: row.p256dh },
+        showDetails: row.showDetails,
       }))
   }
 
@@ -32,13 +34,20 @@ export class DrizzlePushSubscriptionRepository implements PushSubscriptionReposi
       .run().changes > 0
   }
 
-  setPreference(preference: NotificationPreference, now: number): NotificationPreference {
-    this.database.insert(notificationPreferences)
-      .values({ id: 1, showDetails: preference.showDetails, updatedAt: now })
-      .onConflictDoUpdate({
-        target: notificationPreferences.id,
-        set: { showDetails: preference.showDetails, updatedAt: now },
-      })
+  removeIfMatches(subscription: PushSubscriptionInput): boolean {
+    return this.database.delete(webPushSubscriptions)
+      .where(and(
+        eq(webPushSubscriptions.endpoint, subscription.endpoint),
+        eq(webPushSubscriptions.auth, subscription.keys.auth),
+        eq(webPushSubscriptions.p256dh, subscription.keys.p256dh),
+      ))
+      .run().changes > 0
+  }
+
+  setPreference(endpoint: string, preference: NotificationPreference, now: number): NotificationPreference {
+    this.database.update(webPushSubscriptions)
+      .set({ showDetails: preference.showDetails, updatedAt: now })
+      .where(eq(webPushSubscriptions.endpoint, endpoint))
       .run()
     return preference
   }
@@ -49,6 +58,7 @@ export class DrizzlePushSubscriptionRepository implements PushSubscriptionReposi
       expirationTime: subscription.expirationTime ?? null,
       auth: subscription.keys.auth,
       p256dh: subscription.keys.p256dh,
+      showDetails: false,
       createdAt: now,
       updatedAt: now,
     }

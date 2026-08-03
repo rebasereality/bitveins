@@ -1,4 +1,10 @@
 import type { TerminalPeer } from '../modules/terminal/application/terminal-peer-registry'
+import { AttentionService } from '../modules/attention/application/attention-service'
+import { WebPushNotificationService } from '../modules/attention/application/web-push-notification-service'
+import { DrizzleAttentionRepository } from '../modules/attention/adapters/drizzle-attention-repository'
+import { DrizzlePushSubscriptionRepository } from '../modules/attention/adapters/drizzle-push-subscription-repository'
+import { NodeWebPushSender } from '../modules/attention/adapters/node-web-push-sender'
+import { ensureAttentionEnvironment } from '../modules/attention/adapters/attention-environment'
 import { DropzoneService } from '../modules/dropzones/application/dropzone-service'
 import { DrizzleDropzoneRepository } from '../modules/dropzones/adapters/drizzle-dropzone-repository'
 import { FileReferenceResolver } from '../modules/explorer/application/file-reference-resolver'
@@ -22,15 +28,19 @@ import { db, useDrizzle } from '../utils/db'
 import { getValidatedEnv } from '../utils/env'
 
 export interface BitveinsContainer {
+  attention: AttentionService
   dropzones: DropzoneService
   explorerDocuments: WorkspaceDocumentService
   explorerFileReferences: FileReferenceResolver
   history: HistoryService
   sessions: SessionService
   terminalPeers: TerminalPeerRegistry<TerminalPeer>
+  pushPublicKey: string
+  pushSubscriptions: DrizzlePushSubscriptionRepository
 }
 
 export function createBitveinsContainer(): BitveinsContainer {
+  ensureAttentionEnvironment()
   const environment = getValidatedEnv()
   const tmux = new TmuxCliAdapter({
     helperOwner: String(process.pid),
@@ -91,14 +101,39 @@ export function createBitveinsContainer(): BitveinsContainer {
     },
     sessions,
   })
+  const pushSubscriptions = new DrizzlePushSubscriptionRepository(useDrizzle())
+  const push = new WebPushNotificationService({
+    logger: {
+      warn(message, details) {
+        console.warn(message, details)
+      },
+    },
+    repository: pushSubscriptions,
+    sender: new NodeWebPushSender({
+      privateKey: environment.BITVEINS_VAPID_PRIVATE_KEY,
+      publicKey: environment.BITVEINS_VAPID_PUBLIC_KEY,
+    }),
+  })
+  const attention = new AttentionService({
+    publisher: {
+      publish(event) {
+        terminalPeers.broadcastAttention(event)
+      },
+    },
+    push,
+    repository: new DrizzleAttentionRepository(useDrizzle()),
+  })
 
   return {
+    attention,
     dropzones,
     explorerDocuments,
     explorerFileReferences,
     history,
     sessions,
     terminalPeers,
+    pushPublicKey: environment.BITVEINS_VAPID_PUBLIC_KEY,
+    pushSubscriptions,
   }
 }
 

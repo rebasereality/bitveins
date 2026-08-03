@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm'
+import { desc, eq, sql } from 'drizzle-orm'
 import type { AttentionEvent, AttentionEventType } from '#shared/contracts/attention'
 import { attentionEventSchema } from '#shared/contracts/attention'
 import { attentionEvents, type AttentionEventRow } from '../../../db/schema'
@@ -36,6 +36,12 @@ export class DrizzleAttentionRepository implements AttentionRepository {
       readAt: event.readAt ?? null,
       dismissedAt: event.dismissedAt ?? null,
     }).run()
+    this.database.run(sql`
+      DELETE FROM attention_events
+      WHERE id NOT IN (
+        SELECT id FROM attention_events ORDER BY created_at DESC LIMIT 1000
+      )
+    `)
     return event
   }
 
@@ -47,6 +53,7 @@ export class DrizzleAttentionRepository implements AttentionRepository {
     return this.database.select()
       .from(attentionEvents)
       .orderBy(desc(attentionEvents.createdAt))
+      .limit(100)
       .all()
       .map(toEvent)
   }

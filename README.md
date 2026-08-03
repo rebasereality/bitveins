@@ -21,6 +21,36 @@ sandbox.
 - **Async** is the default. Type in the native textarea and send a complete command or multi-line block with Enter. This is best for high-latency mobile links because local editing stays responsive.
 - **Live** forwards xterm keystrokes directly to the PTY. Use it for Codex `$` skill menus, `@` file pickers, shells, editors, and other interactive terminal apps.
 
+## Agent Inbox and notifications
+
+Agent Inbox records local attention events from commands, scripts and development
+agents. Events can report required input or permission, completion, failure or
+general information. When an event names a tmux session and stable window ID,
+opening it attaches that exact context and marks the event as read.
+
+Open Settings → Agent Inbox notifications to enable Web Push for the current
+device. The permission prompt appears only after selecting **Enable
+notifications**. Notifications contain only the event title, project and source
+by default. The optional detailed mode adds a strictly shortened summary and is
+disabled by default. On iPhone and iPad, install Bitveins on the Home Screen
+before enabling notifications.
+
+Create an event from the VPS with the product CLI:
+
+```bash
+bitveins event \
+  --type permission_required \
+  --source codex \
+  --title "Permission required" \
+  --summary "Run database migrations?" \
+  --project Kouizine
+```
+
+Inside tmux, Bitveins detects the session, stable window ID and pane ID from the
+current pane. `--session`, `--window` and `--pane` explicitly override detected
+values. The command talks only to the loopback Bitveins service with a dedicated
+integration token; it never reuses the browser password.
+
 ## Explorer and terminal file links
 
 Explorer opens text files and authenticated raster previews directly from the
@@ -106,6 +136,7 @@ bitveins start
 bitveins stop
 bitveins status
 bitveins doctor
+bitveins event --type completed --source shell --title "Command completed"
 bitveins logs --follow
 bitveins restart
 bitveins password
@@ -119,6 +150,25 @@ sessions. `bitveins uninstall` preserves configuration and history by default;
 `bitveins uninstall --purge` requires an additional interactive confirmation.
 Every command supports `bitveins <command> --help`. Expected failures are
 concise; append `--verbose` to include redacted diagnostic causes.
+
+A generic shell integration can preserve the original exit status:
+
+```bash
+long-running-command
+status=$?
+
+if [ "$status" -eq 0 ]; then
+  bitveins event --type completed --source shell --title "Command completed"
+else
+  bitveins event \
+    --type failed \
+    --source shell \
+    --title "Command failed" \
+    --summary "Exit code: $status"
+fi
+
+exit "$status"
+```
 
 CLI exit codes are stable:
 
@@ -169,12 +219,15 @@ flowchart LR
     Container --> History["History module"]
     Container --> Explorer["Explorer module"]
     Container --> Terminal["Terminal peer module"]
+    Container --> Attention["Attention module"]
     Routes --> Files["Typed file handlers"]
     Explorer --> Files
     Sessions --> Tmux["tmux CLI adapter"]
     Sessions --> SQLite[("SQLite repository")]
     Dropzones --> SQLite
     History --> SQLite
+    Attention --> SQLite
+    Attention --> Push["Browser push services"]
     Files --> Sessions
     Terminal --> PTY["node-pty adapter"]
     PTY --> TmuxServer["tmux server"]
@@ -201,6 +254,10 @@ test-isolation and dependency details.
 - `POST /api/auth/login` unlocks the app with `{ "password": string }`.
 - `POST /api/auth/logout` clears the sealed session.
 - `GET /api/auth/session` reports whether the browser is unlocked.
+- `GET /api/attention` lists persistent Agent Inbox events.
+- `POST /api/attention` creates an authenticated event.
+- `PATCH /api/attention/:id` marks an event read or dismissed.
+- `/api/attention/push/*` manages the current device subscription and privacy preference.
 - `WS /api/ws` uses the sealed session cookie and accepts terminal attach, live input, reliable async input, resize, heartbeat, and detach actions. Reliable async inputs are acknowledged and deduplicated across reconnects.
 
 Detach only kills the local `tmux attach-session` PTY process. It leaves the underlying tmux session alive.

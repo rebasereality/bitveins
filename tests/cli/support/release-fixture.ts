@@ -70,10 +70,13 @@ export function createEnvironmentFixture(
     authPasswordHash: '$fixture-hash',
     authVersion: '1',
     databasePath: '/tmp/bitveins-fixture.sqlite',
+    eventToken: 'fixture-event-token-with-at-least-32-characters',
     extensions: {},
     host: '127.0.0.1',
     port: 4567,
     sessionPassword: 'fixture-session-secret-with-at-least-32-characters',
+    vapidPrivateKey: 'c'.repeat(43),
+    vapidPublicKey: 'd'.repeat(87),
     ...overrides,
   }
 }

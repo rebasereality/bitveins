@@ -20,19 +20,19 @@ export class WebPushNotificationService implements AttentionPushNotifier {
 
   async notify(event: AttentionEvent): Promise<void> {
     const subscriptions = this.options.repository.list()
-    const payload = buildPushPayload(event, this.options.repository.getPreference())
     let cursor = 0
     const worker = async (): Promise<void> => {
       while (cursor < subscriptions.length) {
         const subscription = subscriptions[cursor++]
         if (!subscription) return
         try {
+          const payload = buildPushPayload(event, { showDetails: subscription.showDetails })
           await this.options.sender.send(subscription, payload)
         }
         catch (error) {
           const redacted = redactPushError(error)
           if (redacted.statusCode === 404 || redacted.statusCode === 410) {
-            this.options.repository.remove(subscription.endpoint)
+            this.options.repository.removeIfMatches(subscription)
           }
           else {
             this.options.logger?.warn('Web Push delivery failed.', redacted)

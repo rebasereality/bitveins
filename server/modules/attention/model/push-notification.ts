@@ -1,12 +1,7 @@
-import type { AttentionEvent, NotificationPreference } from '#shared/contracts/attention'
+import type { AttentionEvent, NotificationPreference, PushNotificationPayload } from '#shared/contracts/attention'
 import { createAttentionDeepLink } from '#shared/contracts/attention'
 
-export interface PushNotificationPayload {
-  body: string
-  data: { url: string }
-  tag: string
-  title: string
-}
+export type { PushNotificationPayload } from '#shared/contracts/attention'
 
 const MAX_TITLE_LENGTH = 80
 const MAX_BODY_LENGTH = 240
@@ -19,19 +14,20 @@ export function buildPushPayload(
   event: AttentionEvent,
   preference: NotificationPreference,
 ): PushNotificationPayload {
-  const context = [
-    event.project ? `Project: ${event.project}` : null,
-    `Source: ${event.source}`,
-  ].filter((value): value is string => Boolean(value))
-  const body = preference.showDetails && event.summary
-    ? event.summary
-    : context.join('\n')
+  const title = preference.showDetails ? event.title : 'Bitveins needs your attention'
+  const body = preference.showDetails
+    ? [
+        event.project ? `Project: ${event.project}` : null,
+        `Source: ${event.source}`,
+        event.summary ?? null,
+      ].filter((value): value is string => Boolean(value)).join('\n')
+    : 'Open Bitveins to view the event.'
 
   return {
     body: bounded(body, MAX_BODY_LENGTH),
     data: { url: createAttentionDeepLink(event) },
     tag: `attention:${event.id}`,
-    title: bounded(event.title, MAX_TITLE_LENGTH),
+    title: bounded(title, MAX_TITLE_LENGTH),
   }
 }
 
