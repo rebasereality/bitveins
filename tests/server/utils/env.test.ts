@@ -41,9 +41,16 @@ describe('server/utils/env', () => {
       NUXT_SESSION_PASSWORD: 'a'.repeat(32),
       BITVEINS_AUTH_PASSWORD_HASH: 'hashed-password',
       BITVEINS_AUTH_VERSION: '1',
+      BITVEINS_EVENT_TOKEN: 'b'.repeat(32),
+      BITVEINS_VAPID_PRIVATE_KEY: 'c'.repeat(43),
+      BITVEINS_VAPID_PUBLIC_KEY: 'd'.repeat(87),
     })
 
     expect(() => assertProductionEnv(env, 'production')).not.toThrow()
+    expect(() => assertProductionEnv({
+      ...env,
+      BITVEINS_VAPID_PUBLIC_KEY: 'invalid',
+    }, 'production')).toThrow('canonical P-256 Base64URL')
   })
 
   it('requires a password hash even when the session secret is valid', () => {

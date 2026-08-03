@@ -1,0 +1,143 @@
+import { z } from 'zod'
+
+const safeText = (label: string, max: number) => z.string()
+  .trim()
+  .min(1, `${label} is required.`)
+  .max(max, `${label} is too long.`)
+  .refine(value => !/[\u0000-\u001F\u007F]/u.test(value), `${label} contains unsupported control characters.`)
+
+const optionalSafeText = (label: string, max: number) => safeText(label, max).optional()
+const isoTimestampSchema = z.iso.datetime({ offset: true })
+const eventIdSchema = z.string().regex(/^evt_[A-Za-z0-9_-]{12,80}$/u, 'A valid attention event id is required.')
+const sessionNameSchema = safeText('Session name', 80)
+const windowIdSchema = z.string().regex(/^@\d+$/u, 'A valid tmux window id is required.')
+const paneIdSchema = z.string().regex(/^%\d+$/u, 'A valid tmux pane id is required.')
+
+export const attentionEventTypeSchema = z.enum([
+  'input_required',
+  'permission_required',
+  'completed',
+  'failed',
+  'information',
+])
+
+export const createAttentionEventSchema = z.object({
+  type: attentionEventTypeSchema,
+  source: safeText('Source', 80),
+  title: safeText('Title', 160),
+  summary: optionalSafeText('Summary', 2000),
+  project: optionalSafeText('Project', 160),
+  sessionName: sessionNameSchema.optional(),
+  windowId: windowIdSchema.optional(),
+  paneId: paneIdSchema.optional(),
+}).strict()
+
+export const attentionEventSchema = createAttentionEventSchema.extend({
+  id: eventIdSchema,
+  createdAt: isoTimestampSchema,
+  readAt: isoTimestampSchema.optional(),
+  dismissedAt: isoTimestampSchema.optional(),
+}).strict()
+
+export const attentionEventListSchema = z.object({
+  events: z.array(attentionEventSchema),
+}).strict()
+
+export const attentionEventResponseSchema = z.object({
+  event: attentionEventSchema,
+}).strict()
+
+const subscriptionKeySchema = z.string().min(1).max(512).regex(/^[A-Za-z0-9_-]+$/u)
+const pushServiceHosts = new Set([
+  'fcm.googleapis.com',
+  'push.services.mozilla.com',
+  'updates.push.services.mozilla.com',
+  'web.push.apple.com',
+])
+const pushServiceSuffixes = [
+  '.notify.live.net',
+  '.notify.windows.com',
+  '.push.apple.com',
+]
+
+export function isSupportedPushEndpoint(value: string): boolean {
+  try {
+    const url = new URL(value)
+    const hostname = url.hostname.toLowerCase()
+    return url.protocol === 'https:'
+      && !url.username
+      && !url.password
+      && (!url.port || url.port === '443')
+      && (pushServiceHosts.has(hostname) || pushServiceSuffixes.some(suffix => hostname.endsWith(suffix)))
+  }
+  catch {
+    return false
+  }
+}
+
+export const pushSubscriptionSchema = z.object({
+  endpoint: z.url().max(4096).refine(
+    isSupportedPushEndpoint,
+    'Push endpoint is not a supported browser push service.',
+  ),
+  expirationTime: z.number().finite().nonnegative().nullable().optional(),
+  keys: z.object({
+    auth: subscriptionKeySchema,
+    p256dh: subscriptionKeySchema,
+  }).strict(),
+}).strict()
+
+export const notificationPreferenceSchema = z.object({
+  showDetails: z.boolean().default(false),
+}).strict()
+
+export const notificationPreferenceUpdateSchema = notificationPreferenceSchema.extend({
+  endpoint: pushSubscriptionSchema.shape.endpoint,
+}).strict()
+
+export const pushConfigurationQuerySchema = z.object({
+  endpoint: pushSubscriptionSchema.shape.endpoint.optional(),
+}).strict()
+
+export const unsubscribePushSchema = z.object({
+  endpoint: pushSubscriptionSchema.shape.endpoint,
+}).strict()
+
+export const attentionStateUpdateSchema = z.object({
+  action: z.enum(['read', 'dismiss']),
+}).strict()
+
+export const pushPublicConfigurationSchema = z.object({
+  preference: notificationPreferenceSchema,
+  publicKey: z.string().min(80).max(200),
+}).strict()
+
+export const attentionWebSocketMessageSchema = z.object({
+  type: z.literal('attentionEvent'),
+  event: attentionEventSchema,
+}).strict()
+
+export const pushNotificationPayloadSchema = z.object({
+  body: z.string().min(1).max(240).refine(value => !/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/u.test(value)),
+  data: z.object({
+    url: z.string().max(512).regex(/^\/\?(?:[A-Za-z]+=[^&]*&?)+$/u),
+  }).strict(),
+  tag: z.string().regex(/^attention:evt_[A-Za-z0-9_-]{12,80}$/u),
+  title: safeText('Notification title', 80),
+}).strict()
+
+export type AttentionEventType = z.infer<typeof attentionEventTypeSchema>
+export type CreateAttentionEvent = z.infer<typeof createAttentionEventSchema>
+export type AttentionEvent = z.infer<typeof attentionEventSchema>
+export type PushSubscriptionInput = z.infer<typeof pushSubscriptionSchema>
+export type NotificationPreference = z.infer<typeof notificationPreferenceSchema>
+export type AttentionWebSocketMessage = z.infer<typeof attentionWebSocketMessageSchema>
+export type PushNotificationPayload = z.infer<typeof pushNotificationPayloadSchema>
+
+export function createAttentionDeepLink(event: Pick<AttentionEvent, 'id' | 'sessionName' | 'windowId'>): string {
+  const query = new URLSearchParams()
+  if (event.sessionName) query.set('session', event.sessionName)
+  if (event.windowId) query.set('window', event.windowId)
+  query.set('event', event.id)
+  return `/?${query.toString()}`
+}

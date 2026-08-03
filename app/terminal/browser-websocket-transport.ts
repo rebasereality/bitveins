@@ -54,7 +54,14 @@ export class BrowserWebSocketTransport implements TerminalTransport {
 
     try {
       const data = event instanceof MessageEvent ? event.data : undefined
-      this.handlers.onMessage(parseServerMessage(String(data)))
+      const message = parseServerMessage(String(data))
+      if (message.type === 'attentionEvent') {
+        window.dispatchEvent(new CustomEvent('bitveins:attention-event', {
+          detail: message.event,
+        }))
+        return
+      }
+      this.handlers.onMessage(message)
     }
     catch {
       this.handlers.onProtocolError()

@@ -16,6 +16,8 @@ import { GitHubReleaseSource } from './platform/github-release-source'
 import { NodeCommandRunner } from './platform/node-command-runner'
 import { NodeHealthProbe } from './platform/node-health-probe'
 import { NodeHostInspector } from './platform/node-host-inspector'
+import { LocalAttentionEventClient } from './platform/local-attention-event-client'
+import { TmuxAttentionContextDetector } from './platform/tmux-attention-context-detector'
 import { FileOperationLock } from './platform/operation-lock'
 import { SystemdUserServiceManager } from './platform/systemd-user-service-manager'
 import {
@@ -27,6 +29,7 @@ import { CliApplication } from './presentation/cli-application'
 import { CommandRegistry } from './presentation/command-registry'
 import { ConsoleOutput } from './presentation/console-output'
 import { DoctorCommand } from './presentation/commands/doctor-command'
+import { EventCommand } from './presentation/commands/event-command'
 import { HelpCommand } from './presentation/commands/help-command'
 import { InstallCommand } from './presentation/commands/install-command'
 import { LifecycleCommand } from './presentation/commands/lifecycle-command'
@@ -60,6 +63,8 @@ export function createCliApplication(version: string): CliApplication {
   const home = resolve(process.env.HOME || homedir())
   const registry = new CommandRegistry()
   const environment = new FilesystemEnvironmentRepository(layout)
+  const eventClient = new LocalAttentionEventClient({ environment })
+  const tmuxAttentionContext = new TmuxAttentionContextDetector(commands)
   const health = new NodeHealthProbe()
   const host = new NodeHostInspector(commands)
   const releases = new FilesystemReleaseStore(layout)
@@ -114,6 +119,12 @@ export function createCliApplication(version: string): CliApplication {
     releases,
     service,
   })))
+  registry.register(new EventCommand({
+    create: event => eventClient.create(event),
+    detectContext: env => tmuxAttentionContext.detect(env),
+    environment: process.env,
+    output,
+  }))
   registry.register(new PasswordCommand({
     createManager: passwordReader => new BitveinsPasswordManager({
       environment,

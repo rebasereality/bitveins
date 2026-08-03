@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs'
+import { chmodSync, existsSync, lstatSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import Database from 'better-sqlite3'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
@@ -26,13 +26,52 @@ function initDb(): void {
   }
 
   rawDatabase?.close()
-  mkdirSync(dirname(nextPath), { recursive: true })
+  const dataDirectory = dirname(nextPath)
+  mkdirSync(dataDirectory, { mode: 0o700, recursive: true })
+  if (nextPath === DEFAULT_DATABASE_PATH) chmodSync(dataDirectory, 0o700)
+  const strictProduction = process.env.NODE_ENV === 'production' && !process.env.BITVEINS_E2E_RUN_ID
+  if (strictProduction) assertPrivateDatabaseDirectory(dataDirectory)
+  if (existsSync(nextPath)) assertAndHardenPrivateDatabaseFile(nextPath, strictProduction)
 
   rawDatabase = new Database(nextPath)
+  rawDatabase.pragma('journal_mode = DELETE')
+  chmodSync(nextPath, 0o600)
   databasePath = nextPath
   drizzleDatabase = drizzle(rawDatabase, { schema })
 
   runMigrations(rawDatabase)
+  for (const suffix of ['-journal', '-shm', '-wal']) {
+    const auxiliaryPath = `${nextPath}${suffix}`
+    if (existsSync(auxiliaryPath)) chmodSync(auxiliaryPath, 0o600)
+  }
+}
+
+function assertPrivateDatabaseDirectory(path: string): void {
+  const directory = lstatSync(path)
+  const uid = process.getuid?.()
+  if (!directory.isDirectory() || directory.isSymbolicLink() || (directory.mode & 0o077) !== 0) {
+    throw new Error('Bitveins database directory must be a private directory.')
+  }
+  if (uid !== undefined && directory.uid !== uid) {
+    throw new Error('Bitveins database directory must be owned by the current user.')
+  }
+}
+
+function assertAndHardenPrivateDatabaseFile(path: string, strictPermissions: boolean): void {
+  const file = lstatSync(path)
+  const uid = process.getuid?.()
+  if (!file.isFile() || file.isSymbolicLink()) {
+    throw new Error('Bitveins database must be a regular file.')
+  }
+  if (uid !== undefined && file.uid !== uid) {
+    throw new Error('Bitveins database must be owned by the current user.')
+  }
+  if (strictPermissions && (file.mode & 0o077) !== 0) {
+    chmodSync(path, 0o600)
+    if ((lstatSync(path).mode & 0o077) !== 0) {
+      throw new Error('Bitveins database file must be private.')
+    }
+  }
 }
 
 function ensureColumn(dbInstance: RawDatabase, tableName: string, name: string, type: 'INTEGER' | 'TEXT'): void {
@@ -100,6 +139,62 @@ function runMigrations(dbInstance: RawDatabase): void {
           CREATE INDEX IF NOT EXISTS idx_async_messages_window_id
             ON async_messages (session_name, window_id, window_index, id DESC);
         `)
+      },
+    },
+    {
+      id: 3,
+      name: '003_add_attention_inbox_and_web_push',
+      up: () => {
+        dbInstance.exec(`
+          CREATE TABLE IF NOT EXISTS attention_events (
+            id TEXT PRIMARY KEY,
+            type TEXT NOT NULL,
+            source TEXT NOT NULL,
+            title TEXT NOT NULL,
+            summary TEXT,
+            project TEXT,
+            session_name TEXT,
+            window_id TEXT,
+            pane_id TEXT,
+            created_at TEXT NOT NULL,
+            read_at TEXT,
+            dismissed_at TEXT
+          );
+          CREATE INDEX IF NOT EXISTS idx_attention_events_created_at
+            ON attention_events (created_at DESC);
+
+          CREATE TABLE IF NOT EXISTS web_push_subscriptions (
+            endpoint TEXT PRIMARY KEY,
+            expiration_time INTEGER,
+            p256dh TEXT NOT NULL,
+            auth TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+          );
+        `)
+      },
+    },
+    {
+      id: 4,
+      name: '004_add_per_subscription_notification_preference',
+      up: () => {
+        const columns = dbInstance.prepare('PRAGMA table_info(web_push_subscriptions)').all() as Array<{ name: string }>
+        if (!columns.some(column => column.name === 'show_details')) {
+          dbInstance.exec('ALTER TABLE web_push_subscriptions ADD COLUMN show_details INTEGER NOT NULL DEFAULT 0')
+        }
+        const legacyPreferenceTable = dbInstance.prepare(
+          `SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'notification_preferences'`,
+        ).get()
+        if (legacyPreferenceTable) {
+          dbInstance.exec(`
+            UPDATE web_push_subscriptions
+            SET show_details = COALESCE(
+              (SELECT show_details FROM notification_preferences WHERE id = 1),
+              0
+            );
+            DROP TABLE notification_preferences;
+          `)
+        }
       },
     },
   ]

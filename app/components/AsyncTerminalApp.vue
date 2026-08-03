@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import type { HistoryMessage, InputMode } from '~/types/session'
+import type { HistoryMessage, InputMode, TmuxWindow } from '~/types/session'
 import type {
   ResolvedExplorerDocument,
   TerminalFileResolution,
 } from '#shared/contracts/explorer'
+import type { AttentionEvent } from '#shared/contracts/attention'
+import { createAttentionDeepLink } from '#shared/contracts/attention'
 import { saveSubmittedAsyncPrompt } from '~/utils/async-prompt-recovery'
 import { asyncTerminalSubmissionChunks } from '~/utils/async-terminal-submission'
 import { apiErrorMessage, isUnauthorizedError } from '~/utils/api-error'
@@ -40,6 +42,18 @@ const explorerRef = ref<{ reloadFileTree: () => void } | null>(null)
 type AmbiguousResolution = Extract<TerminalFileResolution, { status: 'ambiguous' }>
 const pendingFileResolution = ref<AmbiguousResolution | null>(null)
 const settingsOpen = ref(false)
+const inboxOpen = ref(false)
+const attentionNavigationError = ref<string | null>(null)
+
+const {
+  dismiss: dismissAttentionEvent,
+  error: attentionError,
+  events: attentionEvents,
+  loading: attentionLoading,
+  markRead: markAttentionEventRead,
+  refresh: refreshAttentionEvents,
+  unreadCount: unreadAttentionCount,
+} = useAttentionInbox()
 
 function resetHistory(): void {
   historyMessages.value = []
@@ -74,6 +88,7 @@ const {
   windowTabItems,
   activeWindowValue,
   activeWindow,
+  fetchWindows,
   stopWindowRefresh,
   startWindowRefresh,
   handleWindowSelect,
@@ -204,7 +219,7 @@ const {
   terminal,
 })
 
-const appError = computed(() => windowError.value ?? sessionError.value)
+const appError = computed(() => attentionNavigationError.value ?? windowError.value ?? sessionError.value)
 
 const { downloadExplorerItem, downloadPath } = useExplorerDownloads(
   sessions,
@@ -263,6 +278,78 @@ async function selectTmuxWindow(value: string | number): Promise<void> {
   const windowIndex = typeof value === 'number' ? value : Number(value)
   if (Number.isNaN(windowIndex) || !terminal.value) return
   await handleWindowSelect(windowIndex, (name, idx) => terminal.value!.attachWindow(name, idx))
+}
+
+async function openAttentionTarget(target: {
+  event?: AttentionEvent
+  sessionName?: string
+  windowId?: string
+}): Promise<void> {
+  attentionNavigationError.value = null
+  if (target.event && !target.event.readAt) {
+    await markAttentionEventRead(target.event.id).catch(() => undefined)
+  }
+  inboxOpen.value = false
+  settingsOpen.value = false
+  viewMode.value = 'terminal'
+
+  if (!target.sessionName) return
+  if (!sessions.value.some(session => session.name === target.sessionName)) {
+    attentionNavigationError.value = 'The linked tmux session is no longer available.'
+    return
+  }
+  let targetWindow: TmuxWindow | undefined
+  if (target.windowId) {
+    try {
+      const data = await $fetch<{ windows: TmuxWindow[] }>(`/api/sessions/${encodeURIComponent(target.sessionName)}/windows`)
+      targetWindow = data.windows.find(candidate => candidate.id === target.windowId)
+    }
+    catch (error) {
+      attentionNavigationError.value = apiErrorMessage(error, 'Unable to inspect the linked tmux session.')
+      handleAuthError(error)
+      return
+    }
+    if (!targetWindow) {
+      attentionNavigationError.value = 'The linked tmux window is no longer available.'
+      return
+    }
+  }
+  await attachSession(target.sessionName)
+  if (targetWindow) {
+    await fetchWindows()
+    await selectTmuxWindow(targetWindow.index)
+  }
+  if (target.event) {
+    window.history.replaceState(null, '', createAttentionDeepLink(target.event))
+  }
+}
+
+function openAttentionEvent(event: AttentionEvent): void {
+  void openAttentionTarget({
+    event,
+    sessionName: event.sessionName,
+    windowId: event.windowId,
+  })
+}
+
+async function openDeepLink(): Promise<void> {
+  const query = new URLSearchParams(window.location.search)
+  const eventId = query.get('event')
+  const sessionName = query.get('session')
+  const windowId = query.get('window')
+  await refreshSessions()
+  if (!eventId && !sessionName) return
+  if (windowId && !/^@\d+$/u.test(windowId)) return
+
+  await refreshAttentionEvents()
+  const event = eventId
+    ? attentionEvents.value.find(candidate => candidate.id === eventId)
+    : undefined
+  await openAttentionTarget({
+    event,
+    sessionName: event?.sessionName ?? sessionName ?? undefined,
+    windowId: event?.windowId ?? windowId ?? undefined,
+  })
 }
 
 async function createTmuxWindow(): Promise<void> {
@@ -371,7 +458,7 @@ onMounted(() => {
     }
   }
 
-  void refreshSessions()
+  void openDeepLink()
 })
 
 onBeforeUnmount(() => {
@@ -408,11 +495,13 @@ watch(activeSession, () => {
         :linux-username="linuxUsername"
         :loading="loading"
         :sessions="sessions"
+        :unread-attention-count="unreadAttentionCount"
         class="row-span-2 max-lg:row-span-1"
         @attach="attachSession"
         @create="createSession"
         @destroy="destroySession"
         @detach="detachSession"
+        @inbox="inboxOpen = true"
         @logout="emit('logout')"
         @open-dropzone="openDropzone"
         @refresh="refreshSessions"
@@ -518,6 +607,16 @@ watch(activeSession, () => {
       />
     </div>
 
+    <UAlert
+      v-if="attentionNavigationError"
+      aria-live="assertive"
+      class="fixed inset-x-2 top-[calc(48px+env(safe-area-inset-top))] z-[70] text-[length:var(--bitveins-ui-caption-size)] lg:hidden"
+      color="error"
+      icon="i-lucide-triangle-alert"
+      :title="attentionNavigationError"
+      variant="subtle"
+    />
+
     <FileUploadOverlay />
 
     <GlobalTransferDropOverlay
@@ -545,6 +644,15 @@ watch(activeSession, () => {
       :roots="rootChoices"
       @close="rootChoices = null"
       @select="selectPathLinkRoot"
+    />
+
+    <AgentInbox
+      v-model:open="inboxOpen"
+      :error="attentionError"
+      :events="attentionEvents"
+      :loading="attentionLoading"
+      @dismiss="dismissAttentionEvent($event.id)"
+      @select="openAttentionEvent"
     />
   </main>
 </template>

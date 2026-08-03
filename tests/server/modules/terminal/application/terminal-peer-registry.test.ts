@@ -72,6 +72,29 @@ describe('TerminalPeerRegistry', () => {
     expect(context.managedSessions[0]?.dispose).toHaveBeenCalledOnce()
   })
 
+  it('broadcasts a typed attention event once to every active peer', async () => {
+    const context = setup()
+    const first = new FakePeer()
+    const second = new FakePeer()
+    context.registry.open(first)
+    context.registry.open(second)
+    await context.registry.close(second)
+
+    context.registry.broadcastAttention({
+      createdAt: '2026-08-03T12:00:00.000Z',
+      id: 'evt_123456789012',
+      source: 'codex',
+      title: 'Completed',
+      type: 'completed',
+    })
+
+    expect(first.sent.map(message => JSON.parse(message))).toContainEqual({
+      type: 'attentionEvent',
+      event: expect.objectContaining({ id: 'evt_123456789012' }),
+    })
+    expect(second.sent).toEqual([])
+  })
+
   it('tracks the exact active helper set used by cleanup', async () => {
     const context = setup()
     const peer = new FakePeer()

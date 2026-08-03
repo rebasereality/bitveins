@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { attentionWebSocketMessageSchema } from './attention'
 
 export const tmuxSessionSchema = z.object({
   name: z.string(),
@@ -171,6 +172,7 @@ export const serverMessageSchema = z.union([
     data: z.string(),
     inputId: z.string(),
   }),
+  attentionWebSocketMessageSchema,
 ])
 
 export type ClientMessage = z.infer<typeof clientMessageSchema>

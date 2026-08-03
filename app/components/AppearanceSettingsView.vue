@@ -30,6 +30,7 @@ const {
 } = useAppearanceSettings()
 const deviceLabel = computed(() => activeDevice.value === 'mobile' ? 'Mobile' : 'Desktop')
 const deviceIcon = computed(() => activeDevice.value === 'mobile' ? 'i-lucide-smartphone' : 'i-lucide-monitor')
+const activeSection = ref<'appearance' | 'notifications'>('appearance')
 
 const themes = [
   { icon: 'i-lucide-monitor', label: 'System', value: 'system' },
@@ -71,15 +72,30 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
         </div>
 
         <button
-          aria-current="page"
-          class="flex h-8 w-full items-center gap-2 rounded bg-[var(--bitveins-shell-accent-soft)] px-2 text-left font-medium text-[var(--bitveins-shell-text)] max-md:w-auto"
+          :aria-current="activeSection === 'appearance' ? 'page' : undefined"
+          class="flex h-8 w-full items-center gap-2 rounded px-2 text-left font-medium max-md:w-auto"
+          :class="activeSection === 'appearance' ? 'bg-[var(--bitveins-shell-accent-soft)] text-[var(--bitveins-shell-text)]' : 'text-[var(--bitveins-shell-text-muted)] hover:bg-[var(--bitveins-shell-panel-muted)] hover:text-[var(--bitveins-shell-text)]'"
           type="button"
+          @click="activeSection = 'appearance'"
         >
           <UIcon
             class="size-4 text-[var(--bitveins-shell-accent)]"
             name="i-lucide-palette"
           />
           <span>Appearance</span>
+        </button>
+        <button
+          :aria-current="activeSection === 'notifications' ? 'page' : undefined"
+          class="mt-1 flex h-8 w-full items-center gap-2 rounded px-2 text-left font-medium max-md:mt-0 max-md:w-auto"
+          :class="activeSection === 'notifications' ? 'bg-[var(--bitveins-shell-accent-soft)] text-[var(--bitveins-shell-text)]' : 'text-[var(--bitveins-shell-text-muted)] hover:bg-[var(--bitveins-shell-panel-muted)] hover:text-[var(--bitveins-shell-text)]'"
+          type="button"
+          @click="activeSection = 'notifications'"
+        >
+          <UIcon
+            class="size-4 text-[var(--bitveins-shell-accent)]"
+            name="i-lucide-bell"
+          />
+          <span>Notifications</span>
         </button>
       </div>
     </aside>
@@ -98,7 +114,10 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
         />
       </button>
 
-      <div class="mx-auto w-full max-w-3xl px-10 py-8 max-md:px-4 max-md:py-5">
+      <div
+        v-if="activeSection === 'appearance'"
+        class="mx-auto w-full max-w-3xl px-10 py-8 max-md:px-4 max-md:py-5"
+      >
         <div class="pr-12">
           <div class="flex items-center gap-2">
             <h2 class="text-[length:var(--bitveins-ui-heading-size)] font-semibold">
@@ -282,6 +301,20 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
             Reset
           </button>
         </div>
+      </div>
+      <div
+        v-else
+        class="mx-auto w-full max-w-3xl px-10 py-8 max-md:px-4 max-md:py-5"
+      >
+        <div class="pr-12">
+          <h2 class="text-[length:var(--bitveins-ui-heading-size)] font-semibold">
+            Notifications
+          </h2>
+          <p class="mt-1 text-xs text-[var(--bitveins-shell-text-muted)]">
+            Manage system notifications for this device.
+          </p>
+        </div>
+        <NotificationSettingsSection />
       </div>
     </div>
   </div>

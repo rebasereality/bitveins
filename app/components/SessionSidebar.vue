@@ -10,6 +10,7 @@ defineProps<{
   linuxUsername: string | null
   loading: boolean
   sessions: TmuxSession[]
+  unreadAttentionCount: number
 }>()
 
 const emit = defineEmits<{
@@ -18,6 +19,7 @@ const emit = defineEmits<{
   destroy: [sessionName: string]
   detach: [sessionName: string]
   logout: []
+  inbox: []
   refresh: []
   rename: [payload: { currentName: string, nextName: string }]
   openDropzone: [payload: { name: string, path: string }]
@@ -141,6 +143,25 @@ function openSettings(): void {
       </div>
 
       <div class="flex items-center gap-0.5">
+        <UButton
+          aria-label="Open Agent Inbox"
+          class="relative size-6 justify-center max-lg:size-8"
+          color="neutral"
+          icon="i-lucide-inbox"
+          size="xs"
+          square
+          title="Agent Inbox"
+          variant="ghost"
+          @click="emit('inbox')"
+        >
+          <span
+            v-if="unreadAttentionCount > 0"
+            class="absolute -right-0.5 -top-0.5 grid min-w-3.5 place-items-center rounded-full bg-[var(--bitveins-shell-accent)] px-0.5 text-[9px] leading-3.5 text-[var(--bitveins-accent-contrast)]"
+          >
+            {{ Math.min(unreadAttentionCount, 99) }}
+          </span>
+        </UButton>
+
         <UDropdownMenu
           :items="newMenuOptions"
           :content="{ align: 'end' }"

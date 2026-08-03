@@ -270,7 +270,11 @@ export class TerminalConnectionController {
     if (this.activeTransport?.id !== transportId) return
     this.watchdog.activity()
 
-    if (message.type === 'heartbeat' || message.type === 'pong') return
+    if (
+      message.type === 'attentionEvent'
+      || message.type === 'heartbeat'
+      || message.type === 'pong'
+    ) return
     if (message.type === 'attached') {
       this.lastResize = null
       this.transition({

@@ -33,11 +33,28 @@ describe('Bitveins environment file', () => {
     expect(environment.host).toBe('127.0.0.1')
     expect(environment.port).toBe(3456)
     expect(environment.sessionPassword).toHaveLength(64)
+    expect(environment.eventToken).toHaveLength(64)
+    expect(environment.vapidPrivateKey.length).toBeGreaterThanOrEqual(40)
+    expect(environment.vapidPublicKey.length).toBeGreaterThanOrEqual(80)
     expect(environment.allowedOrigins).toEqual([
       'https://terminal.example.com',
       'http://127.0.0.1:3456',
       'http://localhost:3456',
     ])
+  })
+
+  it('initializes missing integration secrets when reading a pre-inbox configuration', () => {
+    const legacy = serializeEnvironmentFile(createEnvironmentFixture())
+      .split('\n')
+      .filter(line => !line.startsWith('BITVEINS_EVENT_TOKEN='))
+      .filter(line => !line.startsWith('BITVEINS_VAPID_'))
+      .join('\n')
+
+    const upgraded = parseEnvironmentFile(legacy)
+
+    expect(upgraded.eventToken).toHaveLength(64)
+    expect(upgraded.vapidPrivateKey.length).toBeGreaterThanOrEqual(40)
+    expect(upgraded.vapidPublicKey.length).toBeGreaterThanOrEqual(80)
   })
 
   it('accepts only a bare HTTPS public origin', () => {
@@ -61,6 +78,20 @@ describe('Bitveins environment file', () => {
       extensions: { VALID: 'line\nbreak' },
     })))
       .toThrow(/unsupported character/)
+  })
+
+  it('rejects invalid keys, missing required values and partial VAPID pairs', () => {
+    const serialized = serializeEnvironmentFile(createEnvironmentFixture())
+    expect(parseEnvironmentFile(serialized.replace('HOST="127.0.0.1"', 'HOST=127.0.0.1')).host)
+      .toBe('127.0.0.1')
+    expect(() => parseEnvironmentFile(`${serialized}invalid-key="value"\n`))
+      .toThrow(/Invalid environment key/)
+    expect(() => parseEnvironmentFile(
+      serialized.split('\n').filter(line => !line.startsWith('HOST=')).join('\n'),
+    )).toThrow(/HOST is missing/)
+    expect(() => parseEnvironmentFile(
+      serialized.split('\n').filter(line => !line.startsWith('BITVEINS_VAPID_PRIVATE_KEY=')).join('\n'),
+    )).toThrow(/configured as a pair/)
   })
 
   it('parses only an exact unprivileged TCP port', () => {

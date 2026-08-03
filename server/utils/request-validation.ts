@@ -21,7 +21,17 @@ export function parseRequest<T>(schema: ZodType<T>, input: unknown): T {
 export async function readRequestBody<T>(
   event: Parameters<typeof readBody>[0],
   schema: ZodType<T>,
+  maximumBytes = 1_048_576,
+  requireKnownLength = false,
 ): Promise<T> {
+  const contentLengthHeader = event.node.req.headers['content-length']
+  if (requireKnownLength && (contentLengthHeader === undefined || event.node.req.headers['transfer-encoding'])) {
+    throw createError({ statusCode: 411, statusMessage: 'Content-Length is required.' })
+  }
+  const contentLength = Number(contentLengthHeader ?? 0)
+  if (!Number.isFinite(contentLength) || contentLength > maximumBytes) {
+    throw createError({ statusCode: 413, statusMessage: 'Request payload is too large.' })
+  }
   return parseRequest(schema, await readBody<unknown>(event))
 }
 

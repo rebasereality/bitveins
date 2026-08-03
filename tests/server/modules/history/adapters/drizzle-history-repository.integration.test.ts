@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import Database from 'better-sqlite3'
@@ -72,5 +72,6 @@ describe('DrizzleHistoryRepository integration', () => {
     service.saveMessage(mainWindow, 'after-migration')
 
     expect(service.listMessages(mainWindow).map(message => message.message)).toEqual(['after-migration'])
+    expect(statSync(process.env.BITVEINS_DATABASE_PATH!).mode & 0o777).toBe(0o600)
   })
 })
