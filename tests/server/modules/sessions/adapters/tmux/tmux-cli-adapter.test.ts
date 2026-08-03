@@ -167,14 +167,20 @@ describe('TmuxCliAdapter', () => {
 
   it('parses and sorts windows returned by the CLI', async () => {
     const { adapter, runner } = setup()
-    runner.handler = async () => ({
-      stderr: '',
-      stdout: '@2|2|logs|0|/workspace\n@1|1|editor|1|/workspace/src\n',
-    })
+    runner.handler = async ({ command }) => command === 'ps'
+      ? {
+          stderr: '',
+          stdout: '101 201 bash\n201 201 hermes\n102 202 bash\n202 202 node\n',
+        }
+      : {
+          stderr: '',
+          stdout: '@2|2|logs|0|102|/workspace\n@1|1|editor|1|101|/workspace/src\n',
+        }
 
     await expect(adapter.listWindows('main')).resolves.toEqual([
       {
         active: true,
+        application: 'hermes',
         id: '@1',
         index: 1,
         name: 'editor',
@@ -188,6 +194,25 @@ describe('TmuxCliAdapter', () => {
         path: '/workspace',
       },
     ])
+  })
+
+  it('keeps windows available when foreground process detection fails', async () => {
+    const { adapter, runner } = setup()
+    runner.handler = async ({ command }) => {
+      if (command === 'ps') throw new Error('ps unavailable')
+      return {
+        stderr: '',
+        stdout: '@1|1|editor|1|101|/workspace/src\n',
+      }
+    }
+
+    await expect(adapter.listWindows('main')).resolves.toEqual([{
+      active: true,
+      id: '@1',
+      index: 1,
+      name: 'editor',
+      path: '/workspace/src',
+    }])
   })
 
   it('compensates a failed helper creation using only its generated name', async () => {
