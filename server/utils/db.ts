@@ -31,7 +31,7 @@ function initDb(): void {
   if (nextPath === DEFAULT_DATABASE_PATH) chmodSync(dataDirectory, 0o700)
   const strictProduction = process.env.NODE_ENV === 'production' && !process.env.BITVEINS_E2E_RUN_ID
   if (strictProduction) assertPrivateDatabaseDirectory(dataDirectory)
-  if (existsSync(nextPath)) assertPrivateDatabaseFile(nextPath, strictProduction)
+  if (existsSync(nextPath)) assertAndHardenPrivateDatabaseFile(nextPath, strictProduction)
 
   rawDatabase = new Database(nextPath)
   rawDatabase.pragma('journal_mode = DELETE')
@@ -57,7 +57,7 @@ function assertPrivateDatabaseDirectory(path: string): void {
   }
 }
 
-function assertPrivateDatabaseFile(path: string, strictPermissions: boolean): void {
+function assertAndHardenPrivateDatabaseFile(path: string, strictPermissions: boolean): void {
   const file = lstatSync(path)
   const uid = process.getuid?.()
   if (!file.isFile() || file.isSymbolicLink()) {
@@ -67,7 +67,10 @@ function assertPrivateDatabaseFile(path: string, strictPermissions: boolean): vo
     throw new Error('Bitveins database must be owned by the current user.')
   }
   if (strictPermissions && (file.mode & 0o077) !== 0) {
-    throw new Error('Bitveins database file must be private.')
+    chmodSync(path, 0o600)
+    if ((lstatSync(path).mode & 0o077) !== 0) {
+      throw new Error('Bitveins database file must be private.')
+    }
   }
 }
 
