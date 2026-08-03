@@ -102,6 +102,45 @@ function runMigrations(dbInstance: RawDatabase): void {
         `)
       },
     },
+    {
+      id: 3,
+      name: '003_add_attention_inbox_and_web_push',
+      up: () => {
+        dbInstance.exec(`
+          CREATE TABLE IF NOT EXISTS attention_events (
+            id TEXT PRIMARY KEY,
+            type TEXT NOT NULL,
+            source TEXT NOT NULL,
+            title TEXT NOT NULL,
+            summary TEXT,
+            project TEXT,
+            session_name TEXT,
+            window_id TEXT,
+            pane_id TEXT,
+            created_at TEXT NOT NULL,
+            read_at TEXT,
+            dismissed_at TEXT
+          );
+          CREATE INDEX IF NOT EXISTS idx_attention_events_created_at
+            ON attention_events (created_at DESC);
+
+          CREATE TABLE IF NOT EXISTS web_push_subscriptions (
+            endpoint TEXT PRIMARY KEY,
+            expiration_time INTEGER,
+            p256dh TEXT NOT NULL,
+            auth TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+          );
+
+          CREATE TABLE IF NOT EXISTS notification_preferences (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            show_details INTEGER NOT NULL DEFAULT 0,
+            updated_at INTEGER NOT NULL
+          );
+        `)
+      },
+    },
   ]
 
   for (const migration of migrations) {
