@@ -31,7 +31,7 @@ export class NodeWebPushSender implements WebPushSender {
     await client.sendNotification(subscription, JSON.stringify(payload), {
       TTL: 60 * 60,
       timeout: this.options.timeoutMs ?? 10_000,
-      urgency: 'normal',
+      urgency: 'high',
       vapidDetails: {
         privateKey: this.options.privateKey,
         publicKey: this.options.publicKey,

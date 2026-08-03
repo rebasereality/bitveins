@@ -42,7 +42,7 @@ describe('NodeWebPushSender', () => {
     expect(sendNotification).toHaveBeenCalledWith(
       target,
       JSON.stringify(payload),
-      expect.objectContaining({ TTL: 3600, timeout: 500 }),
+      expect.objectContaining({ TTL: 3600, timeout: 500, urgency: 'high' }),
     )
   })
 })
