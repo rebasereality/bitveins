@@ -72,6 +72,14 @@ export class AttentionService {
     return this.options.repository.dismiss(id, this.clock().toISOString())
   }
 
+  dismissAll(): { dismissedAt: string, ids: string[] } {
+    const dismissedAt = this.clock().toISOString()
+    return {
+      dismissedAt,
+      ids: this.options.repository.dismissAll(dismissedAt),
+    }
+  }
+
   list(): AttentionEvent[] {
     return this.options.repository.list()
   }

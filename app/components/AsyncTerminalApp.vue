@@ -47,6 +47,8 @@ const attentionNavigationError = ref<string | null>(null)
 
 const {
   dismiss: dismissAttentionEvent,
+  dismissAll: dismissAllAttentionEvents,
+  dismissingAll: dismissingAllAttentionEvents,
   error: attentionError,
   events: attentionEvents,
   loading: attentionLoading,
@@ -648,10 +650,12 @@ watch(activeSession, () => {
 
     <AgentInbox
       v-model:open="inboxOpen"
+      :dismissing-all="dismissingAllAttentionEvents"
       :error="attentionError"
       :events="attentionEvents"
       :loading="attentionLoading"
       @dismiss="dismissAttentionEvent($event.id)"
+      @dismiss-all="dismissAllAttentionEvents"
       @select="openAttentionEvent"
     />
   </main>

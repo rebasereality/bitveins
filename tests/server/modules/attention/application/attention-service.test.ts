@@ -15,6 +15,12 @@ class MemoryRepository implements AttentionRepository {
     return this.update(id, { dismissedAt })
   }
 
+  dismissAll(dismissedAt: string): string[] {
+    const ids = this.events.filter(event => !event.dismissedAt).map(event => event.id)
+    for (const id of ids) this.update(id, { dismissedAt })
+    return ids
+  }
+
   list(): AttentionEvent[] {
     return this.events.toSorted((left, right) => right.createdAt.localeCompare(left.createdAt))
   }
@@ -57,6 +63,7 @@ describe('AttentionService', () => {
           return repository.create(event)
         },
         dismiss: repository.dismiss.bind(repository),
+        dismissAll: repository.dismissAll.bind(repository),
         list: repository.list.bind(repository),
         markRead: repository.markRead.bind(repository),
       },
@@ -168,6 +175,12 @@ describe('AttentionService', () => {
     expect(service.list().map(event => event.id)).toEqual([second.id, first.id])
     expect(service.markRead(first.id)?.readAt).toBe('2026-08-03T12:02:00.000Z')
     expect(service.dismiss(second.id)?.dismissedAt).toBe('2026-08-03T12:03:00.000Z')
+    expect(service.dismissAll()).toEqual({
+      dismissedAt: '2026-08-03T12:04:00.000Z',
+      ids: [first.id],
+    })
+    expect(service.list().find(event => event.id === first.id)?.dismissedAt)
+      .toBe('2026-08-03T12:04:00.000Z')
     expect(service.markRead('evt_missing_000')).toBeNull()
   })
 })
