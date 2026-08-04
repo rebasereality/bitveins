@@ -48,6 +48,30 @@ class BitveinsNotificationsPluginTest(unittest.TestCase):
             self.assertEqual(config.port, 3000)
             self.assertEqual(config.token, "literal-$-token")
 
+    def test_private_environment_file_validates_optional_tmux_socket_name(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "env"
+            path.write_text(
+                "PORT=3000\n"
+                "BITVEINS_EVENT_TOKEN=test-token\n"
+                "BITVEINS_TMUX_SOCKET_NAME=bitveins.private-1\n",
+                encoding="utf-8",
+            )
+            path.chmod(0o600)
+
+            config = self.plugin._load_client_config(path)
+
+            self.assertEqual(config.tmux_socket_name, "bitveins.private-1")
+
+            path.write_text(
+                "PORT=3000\n"
+                "BITVEINS_EVENT_TOKEN=test-token\n"
+                "BITVEINS_TMUX_SOCKET_NAME=--attacker socket\n",
+                encoding="utf-8",
+            )
+            with self.assertRaises(ValueError):
+                self.plugin._load_client_config(path)
+
     def test_environment_path_ignores_untrusted_overrides(self):
         with patch.dict(
             os.environ,
@@ -88,11 +112,55 @@ class BitveinsNotificationsPluginTest(unittest.TestCase):
         })()
 
         context = self.plugin._detect_tmux_context(
-            {"TMUX_PANE": "%9"},
+            {
+                "TMUX": "/tmp/tmux-1000/default,123,0",
+                "TMUX_PANE": "%9",
+            },
             run=lambda *args, **kwargs: completed,
         )
 
         self.assertEqual(context, {"windowId": "@7", "paneId": "%9"})
+
+    def test_tmux_context_rejects_a_different_server_socket(self):
+        calls = []
+
+        context = self.plugin._detect_tmux_context(
+            {
+                "TMUX": "/tmp/tmux-1000/hermes,123,0",
+                "TMUX_PANE": "%9",
+            },
+            run=lambda *args, **kwargs: calls.append((args, kwargs)),
+            socket_name="bitveins",
+        )
+
+        self.assertEqual(context, {})
+        self.assertEqual(calls, [])
+
+    def test_tmux_context_targets_the_configured_matching_socket(self):
+        calls = []
+        completed = type("Completed", (), {
+            "returncode": 0,
+            "stdout": "@7\t%9\n",
+        })()
+
+        def run(*args, **kwargs):
+            calls.append((args, kwargs))
+            return completed
+
+        context = self.plugin._detect_tmux_context(
+            {
+                "TMUX": "/tmp/tmux-1000/bitveins,123,0",
+                "TMUX_PANE": "%9",
+            },
+            run=run,
+            socket_name="bitveins",
+        )
+
+        self.assertEqual(context, {"windowId": "@7", "paneId": "%9"})
+        self.assertEqual(
+            calls[0][0][0][:3],
+            ["tmux", "-L", "bitveins"],
+        )
 
     def test_tmux_context_never_collects_current_path_or_project_name(self):
         calls = []
@@ -105,7 +173,10 @@ class BitveinsNotificationsPluginTest(unittest.TestCase):
             calls.append((args, kwargs))
             return completed
 
-        context = self.plugin._detect_tmux_context({"TMUX_PANE": "%9"}, run=run)
+        context = self.plugin._detect_tmux_context({
+            "TMUX": "/tmp/tmux-1000/default,123,0",
+            "TMUX_PANE": "%9",
+        }, run=run)
 
         self.assertNotIn("project", context)
         self.assertNotIn("sessionName", context)
@@ -118,7 +189,10 @@ class BitveinsNotificationsPluginTest(unittest.TestCase):
         })()
 
         context = self.plugin._detect_tmux_context(
-            {"TMUX_PANE": "%9"},
+            {
+                "TMUX": "/tmp/tmux-1000/default,123,0",
+                "TMUX_PANE": "%9",
+            },
             run=lambda *args, **kwargs: completed,
         )
 

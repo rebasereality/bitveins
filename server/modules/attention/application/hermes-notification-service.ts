@@ -15,9 +15,17 @@ interface AttentionEventCreator {
   createHermes(input: CreateHermesAttentionEvent): Promise<AttentionEvent>
 }
 
-function createHermesAttentionEvent(event: HermesLifecycleEvent): CreateHermesAttentionEvent {
+interface WindowSessionResolver {
+  findSessionNameByWindowId(windowId: string): Promise<string | null>
+}
+
+function createHermesAttentionEvent(
+  event: HermesLifecycleEvent,
+  sessionName: string,
+): CreateHermesAttentionEvent {
   const context = {
     paneId: event.paneId,
+    sessionName,
     source: event.source,
     windowId: event.windowId,
   }
@@ -38,6 +46,8 @@ export class HermesNotificationService {
   constructor(private readonly dependencies: {
     attention: AttentionEventCreator
     preferences: HermesNotificationPreferenceRepository
+    reportResolutionError: (error: unknown) => void
+    windowSessions: WindowSessionResolver
   }) {}
 
   async create(input: HermesLifecycleEvent): Promise<AttentionEvent | null> {
@@ -45,7 +55,22 @@ export class HermesNotificationService {
     if (!isHermesLifecycleEnabled(this.dependencies.preferences.get(), validated.lifecycle)) {
       return null
     }
-    return this.dependencies.attention.createHermes(createHermesAttentionEvent(validated))
+    if (!validated.windowId) return null
+
+    let sessionName: string | null
+    try {
+      sessionName = await this.dependencies.windowSessions
+        .findSessionNameByWindowId(validated.windowId)
+    }
+    catch (error) {
+      this.dependencies.reportResolutionError(error)
+      return null
+    }
+    if (!sessionName) return null
+
+    return this.dependencies.attention.createHermes(
+      createHermesAttentionEvent(validated, sessionName),
+    )
   }
 
   getPreference(): HermesNotificationPreference {

@@ -130,6 +130,10 @@ export function createBitveinsContainer(): BitveinsContainer {
   const hermesNotifications = new HermesNotificationService({
     attention,
     preferences: hermesNotificationPreferences,
+    reportResolutionError: () => {
+      console.warn('Hermes session resolution failed; event suppressed.')
+    },
+    windowSessions: sessions,
   })
 
   return {

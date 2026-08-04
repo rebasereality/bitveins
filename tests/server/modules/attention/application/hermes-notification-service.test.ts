@@ -23,12 +23,71 @@ const persistedEvent = {
   type: 'completed' as const,
 }
 
+function resolvedWindowSessions() {
+  return { findSessionNameByWindowId: vi.fn().mockResolvedValue('Bitveins') }
+}
+
+const ignoreResolutionError = () => {}
+
 describe('HermesNotificationService', () => {
+  it('resolves the linked session from the privacy-safe window id before persistence', async () => {
+    const create = vi.fn().mockResolvedValue(persistedEvent)
+    const findSessionNameByWindowId = vi.fn().mockResolvedValue('Bitveins')
+    const service = new HermesNotificationService({
+      attention: { createHermes: create },
+      preferences: new MemoryPreferences(),
+      reportResolutionError: ignoreResolutionError,
+      windowSessions: { findSessionNameByWindowId },
+    })
+
+    await service.create({
+      lifecycle: 'completed_with_tools',
+      paneId: '%2710',
+      source: 'hermes',
+      type: 'completed',
+      windowId: '@2709',
+    })
+
+    expect(findSessionNameByWindowId).toHaveBeenCalledWith('@2709')
+    expect(create).toHaveBeenCalledWith({
+      paneId: '%2710',
+      sessionName: 'Bitveins',
+      source: 'hermes',
+      title: 'Hermes turn completed',
+      type: 'completed',
+      windowId: '@2709',
+    })
+  })
+
+  it('suppresses the event when tmux context resolution fails', async () => {
+    const create = vi.fn().mockResolvedValue(persistedEvent)
+    const findSessionNameByWindowId = vi.fn().mockRejectedValue(new Error('tmux unavailable'))
+    const reportResolutionError = vi.fn()
+    const service = new HermesNotificationService({
+      attention: { createHermes: create },
+      preferences: new MemoryPreferences(),
+      reportResolutionError,
+      windowSessions: { findSessionNameByWindowId },
+    })
+
+    await expect(service.create({
+      lifecycle: 'completed_with_tools',
+      source: 'hermes',
+      type: 'completed',
+      windowId: '@2709',
+    })).resolves.toBeNull()
+    expect(findSessionNameByWindowId).toHaveBeenCalledWith('@2709')
+    expect(reportResolutionError).toHaveBeenCalledOnce()
+    expect(create).not.toHaveBeenCalled()
+  })
+
   it('filters chat-only responses before persistence by default', async () => {
     const create = vi.fn()
     const service = new HermesNotificationService({
       attention: { createHermes: create },
       preferences: new MemoryPreferences(),
+      reportResolutionError: ignoreResolutionError,
+      windowSessions: resolvedWindowSessions(),
     })
 
     await expect(service.create({
@@ -39,22 +98,23 @@ describe('HermesNotificationService', () => {
     expect(create).not.toHaveBeenCalled()
   })
 
-  it('persists an enabled chat-only response without the routing signal', async () => {
+  it('suppresses an enabled lifecycle without a routing signal', async () => {
     const preferences = new MemoryPreferences()
     preferences.update({ completedWithoutTools: true }, 100)
     const create = vi.fn().mockResolvedValue(persistedEvent)
-    const service = new HermesNotificationService({ attention: { createHermes: create }, preferences })
+    const service = new HermesNotificationService({
+      attention: { createHermes: create },
+      preferences,
+      reportResolutionError: ignoreResolutionError,
+      windowSessions: resolvedWindowSessions(),
+    })
 
     await expect(service.create({
       lifecycle: 'completed_without_tools',
       source: 'hermes',
       type: 'completed',
-    })).resolves.toEqual(persistedEvent)
-    expect(create).toHaveBeenCalledWith({
-      source: 'hermes',
-      title: 'Hermes turn completed',
-      type: 'completed',
-    })
+    })).resolves.toBeNull()
+    expect(create).not.toHaveBeenCalled()
   })
 
   it('keeps all previously supported lifecycle signals enabled by default', async () => {
@@ -62,6 +122,8 @@ describe('HermesNotificationService', () => {
     const service = new HermesNotificationService({
       attention: { createHermes: create },
       preferences: new MemoryPreferences(),
+      reportResolutionError: ignoreResolutionError,
+      windowSessions: resolvedWindowSessions(),
     })
 
     for (const event of [
@@ -70,7 +132,11 @@ describe('HermesNotificationService', () => {
       { lifecycle: 'completed_with_tools', type: 'completed' },
       { lifecycle: 'failed', type: 'failed' },
     ] as const) {
-      await expect(service.create({ ...event, source: 'hermes' })).resolves.toEqual(persistedEvent)
+      await expect(service.create({
+        ...event,
+        source: 'hermes',
+        windowId: '@8',
+      })).resolves.toEqual(persistedEvent)
     }
     expect(create).toHaveBeenCalledTimes(4)
   })
@@ -93,6 +159,8 @@ describe('HermesNotificationService', () => {
     const service = new HermesNotificationService({
       attention,
       preferences: new MemoryPreferences(),
+      reportResolutionError: ignoreResolutionError,
+      windowSessions: resolvedWindowSessions(),
     })
 
     await expect(service.create({
@@ -103,6 +171,7 @@ describe('HermesNotificationService', () => {
       paneId: '%9',
     })).resolves.toMatchObject({
       id: 'evt_123456789012',
+      sessionName: 'Bitveins',
       source: 'hermes',
       title: 'Hermes turn completed',
       type: 'completed',

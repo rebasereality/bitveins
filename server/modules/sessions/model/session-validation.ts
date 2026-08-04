@@ -57,6 +57,13 @@ export function normalizeWindowIndex(index: unknown): number {
   return parsed
 }
 
+export function normalizeWindowId(id: unknown): string {
+  if (typeof id !== 'string' || !/^@\d+$/.test(id)) {
+    throw new SessionError('A valid tmux window id is required.')
+  }
+  return id
+}
+
 export function normalizeWindowName(name: unknown): string {
   if (typeof name !== 'string') {
     throw new SessionError('A window name is required.')

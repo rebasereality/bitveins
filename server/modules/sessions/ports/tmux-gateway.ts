@@ -12,6 +12,7 @@ export interface TmuxGateway {
   createWindow(name: string, path: string): Promise<TmuxWindow>
   createWindowClientSession(name: string, index: unknown): Promise<WindowClientSession>
   displaySessionPath(name: string): Promise<string | null>
+  findSessionNameByWindowId(windowId: string): Promise<string | null>
   killAllBitveinsHelpers(): Promise<void>
   killSession(name: string): Promise<void>
   killBitveinsHelperSession(name: string): Promise<void>

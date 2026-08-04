@@ -3,12 +3,63 @@ import { expect, test } from '@playwright/test'
 import { authenticate } from './support/authenticate'
 
 const runId = process.env.BITVEINS_E2E_RUN_ID
+const eventToken = process.env.BITVEINS_E2E_EVENT_TOKEN
 const workspace = process.env.BITVEINS_E2E_WORKSPACE
-if (!runId || !workspace) {
+if (!eventToken || !runId || !workspace) {
   throw new Error('Playwright did not configure the isolated Bitveins E2E environment.')
 }
 const sessionName = `inbox_${runId.replaceAll(/[^A-Za-z0-9]/g, '').slice(-20)}`
 const staleWindowSessionName = `stale_${runId.replaceAll(/[^A-Za-z0-9]/g, '').slice(-20)}`
+const hermesSessionName = `hermes_${runId.replaceAll(/[^A-Za-z0-9]/g, '').slice(-20)}`
+
+test('persists a Hermes integration event with its resolved tmux session', async ({ page }) => {
+  await mkdir(workspace, { recursive: true })
+  await authenticate(page)
+
+  try {
+    const sessionResponse = await page.request.post('/api/sessions', {
+      data: { name: hermesSessionName, path: workspace },
+    })
+    expect(sessionResponse.ok(), await sessionResponse.text()).toBe(true)
+
+    const windowResponse = await page.request.post(`/api/sessions/${hermesSessionName}/windows`)
+    expect(windowResponse.ok(), await windowResponse.text()).toBe(true)
+    const { window: tmuxWindow } = await windowResponse.json() as {
+      window: { id: string }
+    }
+
+    const eventResponse = await page.request.post('/api/integrations/events', {
+      data: {
+        lifecycle: 'completed_with_tools',
+        source: 'hermes',
+        type: 'completed',
+        windowId: tmuxWindow.id,
+      },
+      headers: { authorization: `Bearer ${eventToken}` },
+    })
+    expect(eventResponse.ok(), await eventResponse.text()).toBe(true)
+    const response = await eventResponse.json() as {
+      event: { id: string, sessionName?: string } | null
+      suppressed?: boolean
+    }
+    expect(response.event).toMatchObject({
+      sessionName: hermesSessionName,
+    })
+    expect(response.suppressed).toBeUndefined()
+
+    const inboxResponse = await page.request.get('/api/attention')
+    expect(inboxResponse.ok(), await inboxResponse.text()).toBe(true)
+    const inbox = await inboxResponse.json() as {
+      events: Array<{ id: string, sessionName?: string }>
+    }
+    expect(inbox.events.find(event => event.id === response.event?.id)).toMatchObject({
+      sessionName: hermesSessionName,
+    })
+  }
+  finally {
+    await page.request.delete(`/api/sessions/${hermesSessionName}`).catch(() => undefined)
+  }
+})
 
 test('opens the linked tmux window from Agent Inbox', async ({ page }) => {
   await mkdir(workspace, { recursive: true })

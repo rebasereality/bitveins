@@ -77,6 +77,7 @@ export const createAttentionEventSchema = attentionEventInputSchema.refine(
 
 const hermesAttentionContextShape = {
   paneId: paneIdSchema.optional(),
+  sessionName: sessionNameSchema,
   source: z.literal('hermes'),
   windowId: windowIdSchema.optional(),
 }

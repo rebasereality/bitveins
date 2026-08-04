@@ -12,6 +12,7 @@ import {
   normalizeHelperSessionName,
   normalizeSessionName,
   normalizeTerminalTargetName,
+  normalizeWindowId,
   normalizeWindowIndex,
   normalizeWindowName,
 } from '../../model/session-validation'
@@ -44,6 +45,36 @@ export class TmuxCliAdapter implements TmuxGateway {
     }
     catch (error) {
       if (this.isMissingServer(error)) return []
+      throw error
+    }
+  }
+
+  async findSessionNameByWindowId(id: string): Promise<string | null> {
+    const windowId = normalizeWindowId(id)
+    try {
+      const output = await this.run([
+        'list-windows',
+        '-a',
+        '-F',
+        '#{session_name}|#{window_id}',
+      ])
+      const sessionNames = new Set<string>()
+      for (const line of output.split('\n')) {
+        const match = /^(.*)\|(@\d+)$/.exec(line.trim())
+        if (!match || match[2] !== windowId) continue
+
+        try {
+          sessionNames.add(normalizeSessionName(match[1]))
+        }
+        catch {
+          // Ignore helper and externally-created session names outside Bitveins' contract.
+        }
+      }
+
+      return sessionNames.size === 1 ? sessionNames.values().next().value ?? null : null
+    }
+    catch (error) {
+      if (this.isMissingServer(error)) return null
       throw error
     }
   }

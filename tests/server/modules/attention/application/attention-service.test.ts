@@ -93,15 +93,22 @@ describe('AttentionService', () => {
     })
 
     await expect(service.create({
-      source: 'Hermes',
-      title: 'Generic bypass',
+      source: 'hermes',
+      title: 'Hermes turn completed',
       type: 'completed',
     })).rejects.toThrow(/dedicated lifecycle integration/i)
     await expect(service.createHermes({
       source: 'hermes',
       title: 'Hermes turn completed',
       type: 'completed',
+    })).rejects.toThrow()
+    await expect(service.createHermes({
+      sessionName: 'Bitveins',
+      source: 'hermes',
+      title: 'Hermes turn completed',
+      type: 'completed',
     })).resolves.toMatchObject({
+      sessionName: 'Bitveins',
       source: 'hermes',
       title: 'Hermes turn completed',
       type: 'completed',

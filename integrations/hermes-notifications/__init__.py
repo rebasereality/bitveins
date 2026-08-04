@@ -17,6 +17,7 @@ from typing import Any, Callable, NamedTuple
 _SOURCE = "hermes"
 _WINDOW_PATTERN = re.compile(r"^@\d+$")
 _PANE_PATTERN = re.compile(r"^%\d+$")
+_SOCKET_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]{1,80}$")
 _HTTP_TIMEOUT_SECONDS = 0.75
 _MAX_TRACKED_TURNS = 256
 _MAX_TRACKED_CHILDREN = 128
@@ -25,6 +26,7 @@ _MAX_TRACKED_CHILDREN = 128
 class ClientConfig(NamedTuple):
     port: int
     token: str
+    tmux_socket_name: str | None
 
 
 class _RejectRedirects(urllib.request.HTTPRedirectHandler):
@@ -86,6 +88,7 @@ def _load_client_config(path: Path | None = None) -> ClientConfig:
 
     token = values.get("BITVEINS_EVENT_TOKEN", "")
     port_text = values.get("PORT", "3000")
+    socket_name = values.get("BITVEINS_TMUX_SOCKET_NAME", "").strip() or None
     if not token or len(token) > 4096:
         raise ValueError("Bitveins integration token is missing or invalid")
     try:
@@ -94,21 +97,38 @@ def _load_client_config(path: Path | None = None) -> ClientConfig:
         raise ValueError("Bitveins port is invalid") from error
     if not 1 <= port <= 65535:
         raise ValueError("Bitveins port is invalid")
-    return ClientConfig(port=port, token=token)
+    if socket_name is not None and not _SOCKET_NAME_PATTERN.fullmatch(socket_name):
+        raise ValueError("Bitveins tmux socket name is invalid")
+    return ClientConfig(
+        port=port,
+        token=token,
+        tmux_socket_name=socket_name,
+    )
 
 
 def _detect_tmux_context(
     environ: dict[str, str] | os._Environ[str] | None = None,
     run: Callable[..., Any] = subprocess.run,
+    socket_name: str | None = None,
 ) -> dict[str, str]:
     environment = environ if environ is not None else os.environ
     pane = environment.get("TMUX_PANE", "")
     if not _PANE_PATTERN.fullmatch(pane):
         return {}
+    tmux_socket_path = environment.get("TMUX", "").split(",", 1)[0]
+    current_socket_name = Path(tmux_socket_path).name
+    expected_socket_name = socket_name or "default"
+    if (
+        not _SOCKET_NAME_PATTERN.fullmatch(current_socket_name)
+        or current_socket_name != expected_socket_name
+    ):
+        return {}
     try:
         result = run(
             [
                 "tmux",
+                "-L",
+                expected_socket_name,
                 "display-message",
                 "-p",
                 "-t",
@@ -141,13 +161,14 @@ def _detect_tmux_context(
 def _build_payload(
     event_type: str,
     lifecycle: str,
+    tmux_socket_name: str | None = None,
 ) -> dict[str, str]:
     payload = {
         "type": event_type,
         "source": _SOURCE,
         "lifecycle": lifecycle,
     }
-    context = _detect_tmux_context()
+    context = _detect_tmux_context(socket_name=tmux_socket_name)
     for key in ("windowId", "paneId"):
         if key in context:
             payload[key] = context[key]
@@ -168,7 +189,7 @@ def _post_event(
     try:
         config = _load_client_config()
         body = json.dumps(
-            _build_payload(event_type, lifecycle),
+            _build_payload(event_type, lifecycle, config.tmux_socket_name),
             separators=(",", ":"),
         ).encode("utf-8")
         request = urllib.request.Request(
