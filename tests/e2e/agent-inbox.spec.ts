@@ -204,6 +204,8 @@ test('opens the linked tmux window from Agent Inbox', async ({ page }) => {
     await expect(page.getByRole('tab', { name: new RegExp(`Tmux window ${tmuxWindow.index}:`) }))
       .toHaveAttribute('aria-selected', 'true')
     await expect.poll(() => new URL(page.url()).searchParams.get('event')).toBe(event.id)
+    await expect.poll(() => new URL(page.url()).pathname)
+      .toMatch(new RegExp(`^/s/${sessionName}~[A-Za-z0-9_-]{16}/t/${tmuxWindow.id.slice(1)}$`, 'u'))
 
     const inboxResponse = await page.request.get('/api/attention')
     const body = await inboxResponse.json() as { events: Array<{ id: string, readAt?: string }> }

@@ -128,6 +128,7 @@ export function createBitveinsContainer(): BitveinsContainer {
     },
     push,
     repository: new DrizzleAttentionRepository(useDrizzle()),
+    resolveSessionId: sessionName => sessions.findSessionIdByName(sessionName),
   })
   const hermesNotificationPreferences = new DrizzleHermesNotificationPreferenceRepository(useDrizzle())
   const hermesNotifications = new HermesNotificationService({

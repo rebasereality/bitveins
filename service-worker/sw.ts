@@ -49,7 +49,7 @@ self.addEventListener('notificationclick', (event) => {
     const url = resolveInternalNotificationUrl(raw, self.location.origin)
     const clients = await self.clients.matchAll({ includeUncontrolled: true, type: 'window' })
     for (const client of clients) {
-      if ('navigate' in client) await client.navigate(url)
+      client.postMessage({ type: 'bitveins:navigate', url })
       await client.focus()
       return
     }

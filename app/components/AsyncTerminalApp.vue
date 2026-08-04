@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { HistoryMessage, InputMode, TmuxWindow } from '~/types/session'
+import type { HistoryMessage, InputMode } from '~/types/session'
 import type {
   ResolvedExplorerDocument,
   TerminalFileResolution,
@@ -91,6 +91,7 @@ const {
   activeWindowValue,
   activeWindow,
   fetchWindows,
+  resetWindows,
   stopWindowRefresh,
   startWindowRefresh,
   handleWindowSelect,
@@ -152,6 +153,7 @@ async function openResolvedDocument(
   document: ResolvedExplorerDocument,
   reference: { line?: number, column?: number },
 ): Promise<void> {
+  permalinks.clearEventMetadata()
   await openPath(document.path, document.name, reference.line, reference.column)
   viewMode.value = 'explorer'
 }
@@ -214,12 +216,125 @@ const {
   activeSession,
   focusInputTarget,
   handleAuthError,
+  onSessionRenamed: () => permalinks.replaceNext(),
   openFiles,
   resetHistory,
+  resetWindows,
   startWindowRefresh,
   stopWindowRefresh,
   terminal,
 })
+
+const applyPermalinkTarget = usePermalinkTargetApplier({
+  activeFilePath,
+  activeSession,
+  attachSession,
+  attentionEvents,
+  detachSession,
+  error: attentionNavigationError,
+  fetchWindows,
+  handleAuthError,
+  inboxOpen,
+  isCurrent: token => permalinks.isCurrent(token),
+  markAttentionEventRead,
+  openPath,
+  refreshAttentionEvents,
+  refreshSessions,
+  selectTmuxWindow: (index, isCurrent) => selectTmuxWindow(index, isCurrent),
+  sessions,
+  settingsOpen,
+  viewMode,
+})
+
+const permalinks = useSessionPermalinkNavigation({
+  activeFilePath,
+  activeSession,
+  activeWindow,
+  applyTarget: applyPermalinkTarget,
+  onInvalid(message) {
+    attentionNavigationError.value = message
+  },
+  sessions,
+  viewMode,
+})
+
+function attachSessionFromUi(name: string): void {
+  permalinks.clearEventMetadata()
+  void attachSession(name)
+}
+
+function createSessionFromUi(payload: { name: string, path: string }): void {
+  permalinks.clearEventMetadata()
+  void createSession(payload)
+}
+
+function destroySessionFromUi(name: string): void {
+  permalinks.clearEventMetadata()
+  void destroySession(name)
+}
+
+function detachSessionFromUi(name: string): void {
+  permalinks.clearEventMetadata()
+  detachSession(name)
+}
+
+function openFileFromUi(file: Parameters<typeof openFile>[0]): void {
+  permalinks.clearEventMetadata()
+  void openFile(file)
+}
+
+function closeFileFromUi(path: string): void {
+  permalinks.clearEventMetadata()
+  closeFile(path)
+}
+
+function closeOtherFilesFromUi(path: string): void {
+  permalinks.clearEventMetadata()
+  closeOtherFiles(path)
+}
+
+function closeAllFilesFromUi(): void {
+  permalinks.clearEventMetadata()
+  closeAllFiles()
+}
+
+function deleteFileOrFolderFromUi(
+  node: Parameters<typeof deleteFileOrFolder>[0],
+  refresh?: () => void,
+): void {
+  permalinks.clearEventMetadata()
+  void deleteFileOrFolder(node, refresh)
+}
+
+async function openTransferFromUi(payload: { name: string, path: string }): Promise<boolean> {
+  permalinks.clearEventMetadata()
+  return openTransfer(payload)
+}
+
+function renameSessionFromUi(payload: { currentName: string, nextName: string }): void {
+  permalinks.replaceNext()
+  void renameSession(payload)
+}
+
+function selectExplorerFileFromUi(path: string): void {
+  permalinks.clearEventMetadata()
+  activeFilePath.value = path
+}
+
+function openPathFromUi(path: string): void {
+  permalinks.clearEventMetadata()
+  void openPath(path)
+}
+
+function openExplorerFromUi(): void {
+  permalinks.clearEventMetadata()
+  viewMode.value = 'explorer'
+}
+
+function returnToTerminalFromUi(): void {
+  permalinks.clearEventMetadata()
+  viewMode.value = 'terminal'
+}
 
 const appError = computed(() => attentionNavigationError.value ?? windowError.value ?? sessionError.value)
 
@@ -235,12 +350,12 @@ const {
 } = useTerminalContextMenu(
   sessions,
   activeSession,
-  (node, cb) => deleteFileOrFolder(node, cb),
+  deleteFileOrFolderFromUi,
   path => void downloadPath(path),
-  node => void openFile(node),
-  path => closeFile(path),
-  path => closeOtherFiles(path),
-  () => closeAllFiles(),
+  openFileFromUi,
+  closeFileFromUi,
+  closeOtherFilesFromUi,
+  closeAllFilesFromUi,
   file => void saveFileDirectly(file),
 )
 
@@ -257,7 +372,7 @@ const {
   explorer: explorerRef,
   focusInputTarget,
   input,
-  openTransfer,
+  openTransfer: openTransferFromUi,
   viewMode,
 })
 
@@ -276,82 +391,19 @@ async function loadActiveWindowHistory(): Promise<void> {
   }
 }
 
-async function selectTmuxWindow(value: string | number): Promise<void> {
+async function selectTmuxWindow(value: string | number, isCurrent?: () => boolean): Promise<void> {
   const windowIndex = typeof value === 'number' ? value : Number(value)
   if (Number.isNaN(windowIndex) || !terminal.value) return
-  await handleWindowSelect(windowIndex, (name, idx) => terminal.value!.attachWindow(name, idx))
+  await handleWindowSelect(windowIndex, (name, idx) => terminal.value!.attachWindow(name, idx), isCurrent)
 }
 
-async function openAttentionTarget(target: {
-  event?: AttentionEvent
-  sessionName?: string
-  windowId?: string
-}): Promise<void> {
-  attentionNavigationError.value = null
-  if (target.event && !target.event.readAt) {
-    await markAttentionEventRead(target.event.id).catch(() => undefined)
-  }
-  inboxOpen.value = false
-  settingsOpen.value = false
-  viewMode.value = 'terminal'
-
-  if (!target.sessionName) return
-  if (!sessions.value.some(session => session.name === target.sessionName)) {
-    attentionNavigationError.value = 'The linked tmux session is no longer available.'
-    return
-  }
-  let targetWindow: TmuxWindow | undefined
-  if (target.windowId) {
-    try {
-      const data = await $fetch<{ windows: TmuxWindow[] }>(`/api/sessions/${encodeURIComponent(target.sessionName)}/windows`)
-      targetWindow = data.windows.find(candidate => candidate.id === target.windowId)
-    }
-    catch (error) {
-      attentionNavigationError.value = apiErrorMessage(error, 'Unable to inspect the linked tmux session.')
-      handleAuthError(error)
-      return
-    }
-    if (!targetWindow) {
-      attentionNavigationError.value = 'The linked tmux window is no longer available.'
-      return
-    }
-  }
-  await attachSession(target.sessionName)
-  if (targetWindow) {
-    await fetchWindows()
-    await selectTmuxWindow(targetWindow.index)
-  }
-  if (target.event) {
-    window.history.replaceState(null, '', createAttentionDeepLink(target.event))
-  }
+async function selectTmuxWindowFromUi(value: string | number): Promise<void> {
+  permalinks.clearEventMetadata()
+  await selectTmuxWindow(value)
 }
 
 function openAttentionEvent(event: AttentionEvent): void {
-  void openAttentionTarget({
-    event,
-    sessionName: event.sessionName,
-    windowId: event.windowId,
-  })
-}
-
-async function openDeepLink(): Promise<void> {
-  const query = new URLSearchParams(window.location.search)
-  const eventId = query.get('event')
-  const sessionName = query.get('session')
-  const windowId = query.get('window')
-  await refreshSessions()
-  if (!eventId && !sessionName) return
-  if (windowId && !/^@\d+$/u.test(windowId)) return
-
-  await refreshAttentionEvents()
-  const event = eventId
-    ? attentionEvents.value.find(candidate => candidate.id === eventId)
-    : undefined
-  await openAttentionTarget({
-    event,
-    sessionName: event?.sessionName ?? sessionName ?? undefined,
-    windowId: event?.windowId ?? windowId ?? undefined,
-  })
+  void permalinks.applyUrl(createAttentionDeepLink(event), true)
 }
 
 async function createTmuxWindow(): Promise<void> {
@@ -360,6 +412,11 @@ async function createTmuxWindow(): Promise<void> {
     return
   }
   await handleCreateWindow((name, idx) => terminal.value!.attachWindow(name, idx))
+}
+
+function createTmuxWindowFromUi(): void {
+  permalinks.clearEventMetadata()
+  void createTmuxWindow()
 }
 
 function startTmuxWindowRename(windowIndex: number): void {
@@ -392,6 +449,12 @@ async function closeTmuxWindow(windowIndex: number): Promise<void> {
     windowError.value = apiErrorMessage(err, 'Unable to close tmux window.')
     handleAuthError(err)
   }
+}
+
+function closeTmuxWindowFromUi(windowIndex: number): void {
+  permalinks.clearEventMetadata()
+  permalinks.replaceNext()
+  void closeTmuxWindow(windowIndex)
 }
 
 async function handleCommandSubmit(payload: { command: string, terminator: '\r' | '\t' }): Promise<void> {
@@ -439,7 +502,7 @@ function updateExpandedPaths(sessionName: string, paths: string[]): void {
 }
 
 function handleFileDeleted(deletedPath: string): void {
-  closeFile(deletedPath)
+  closeFileFromUi(deletedPath)
 }
 
 onMounted(() => {
@@ -460,10 +523,11 @@ onMounted(() => {
     }
   }
 
-  void openDeepLink()
+  void permalinks.start()
 })
 
 onBeforeUnmount(() => {
+  permalinks.stop()
   stopWindowRefresh()
 })
 
@@ -499,15 +563,15 @@ watch(activeSession, () => {
         :sessions="sessions"
         :unread-attention-count="unreadAttentionCount"
         class="row-span-2 max-lg:row-span-1"
-        @attach="attachSession"
-        @create="createSession"
-        @destroy="destroySession"
-        @detach="detachSession"
+        @attach="attachSessionFromUi"
+        @create="createSessionFromUi"
+        @destroy="destroySessionFromUi"
+        @detach="detachSessionFromUi"
         @inbox="inboxOpen = true"
         @logout="emit('logout')"
         @open-dropzone="openDropzone"
         @refresh="refreshSessions"
-        @rename="renameSession"
+        @rename="renameSessionFromUi"
         @settings="settingsOpen = true"
       />
 
@@ -539,16 +603,16 @@ watch(activeSession, () => {
             @auth-expired="emit('authExpired')"
             @change-path-link-root="changePathLinkRoot"
             @cancel-tmux-window-rename="cancelTmuxWindowRename"
-            @close-tmux-window="closeTmuxWindow"
+            @close-tmux-window="closeTmuxWindowFromUi"
             @commit-tmux-window-rename="commitTmuxWindowRename"
             @connection-change="terminalConnected = $event"
-            @create-tmux-window="createTmuxWindow"
+            @create-tmux-window="createTmuxWindowFromUi"
             @file-link-activate="handleFileLinkActivate"
             @forget-all-path-link-roots="forgetAllPathLinkRoots"
             @forget-path-link-root="forgetPathLinkRoot"
-            @open-explorer="viewMode = 'explorer'"
+            @open-explorer="openExplorerFromUi"
             @ready="onTerminalReady"
-            @select-tmux-window="selectTmuxWindow"
+            @select-tmux-window="selectTmuxWindowFromUi"
             @start-tmux-window-rename="startTmuxWindowRename"
           />
 
@@ -562,16 +626,16 @@ watch(activeSession, () => {
             :expanded-paths="activeSession ? expandedPathsBySession[activeSession] || [] : []"
             :open-files="openFiles"
             class="absolute inset-0 z-10"
-            @close-file="closeFile"
+            @close-file="closeFileFromUi"
             @download-active-file="activeOpenFile && downloadExplorerItem(activeOpenFile.path)"
             @file-content-change="handleFileContentChange($event.file, $event.content)"
-            @file-dbl-click="openFile"
+            @file-dbl-click="openFileFromUi"
             @file-deleted="handleFileDeleted"
             @item-context-menu="handleItemContextMenu($event, () => explorerRef?.reloadFileTree())"
-            @open-path="openPath"
-            @return-to-terminal="viewMode = 'terminal'"
+            @open-path="openPathFromUi"
+            @return-to-terminal="returnToTerminalFromUi"
             @save-active-file="saveActiveFile"
-            @select-file="activeFilePath = $event"
+            @select-file="selectExplorerFileFromUi"
             @tab-context-menu="handleTabContextMenu($event)"
             @toggle-preview="toggleActiveFilePreview"
             @update-expanded-paths="activeSession && updateExpandedPaths(activeSession, $event)"
@@ -581,7 +645,7 @@ watch(activeSession, () => {
             v-if="!activeSession"
             :loading="loading"
             :sessions="sessions"
-            @attach="attachSession"
+            @attach="attachSessionFromUi"
             @create="openCreateSession"
           />
         </div>

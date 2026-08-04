@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { attentionWebSocketMessageSchema } from './attention'
 
 export const tmuxSessionSchema = z.object({
+  id: z.string().regex(/^[A-Za-z0-9_-]{16}$/u),
   name: z.string(),
   path: z.string(),
 })

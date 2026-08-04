@@ -20,11 +20,19 @@ export function useExplorerDocuments(activeSession: Ref<string | null>) {
     return `/api/sessions/${encodeURIComponent(sessionName)}/files/${media}?${query.toString()}`
   }
 
-  async function openPath(path: string, name?: string, line?: number, column?: number): Promise<void> {
-    if (!activeSession.value) return
+  async function openPath(
+    path: string,
+    name?: string,
+    line?: number,
+    column?: number,
+    reportError = true,
+    isCurrent: () => boolean = () => true,
+  ): Promise<boolean> {
+    if (!activeSession.value || !isCurrent()) return false
 
     const existing = openFiles.value.find(file => file.path === path)
     if (existing) {
+      if (!isCurrent()) return false
       if (isTextDocument(existing)) {
         existing.line = line
         existing.column = column
@@ -35,7 +43,7 @@ export function useExplorerDocuments(activeSession: Ref<string | null>) {
       }
       activeFilePath.value = existing.path
       isMobileTreeOpen.value = false
-      return
+      return true
     }
 
     try {
@@ -44,6 +52,7 @@ export function useExplorerDocuments(activeSession: Ref<string | null>) {
         `/api/sessions/${encodeURIComponent(sessionName)}/files/metadata`,
         { query: { path } },
       )
+      if (!isCurrent() || activeSession.value !== sessionName) return false
 
       if (metadata.kind === 'image') {
         openFiles.value.push({
@@ -82,6 +91,7 @@ export function useExplorerDocuments(activeSession: Ref<string | null>) {
           `/api/sessions/${encodeURIComponent(sessionName)}/files/content`,
           { query: { path: metadata.path } },
         )
+        if (!isCurrent() || activeSession.value !== sessionName) return false
         openFiles.value.push({
           kind: 'text',
           path: metadata.path,
@@ -99,9 +109,12 @@ export function useExplorerDocuments(activeSession: Ref<string | null>) {
       }
       activeFilePath.value = metadata.path
       isMobileTreeOpen.value = false
+      return true
     }
     catch (err: unknown) {
-      alert(`Error opening file: ${apiErrorMessage(err, 'File read error')}`)
+      if (!isCurrent()) return false
+      if (reportError) alert(`Error opening file: ${apiErrorMessage(err, 'File read error')}`)
+      return false
     }
   }
 

@@ -48,6 +48,34 @@ const input: CreateAttentionEvent = {
 }
 
 describe('AttentionService', () => {
+  it('adds a resolvable stable session identity before persistence and delivery', async () => {
+    const repository = new MemoryRepository()
+    const service = new AttentionService({
+      createId: () => 'evt_123456789012',
+      publisher: { publish: vi.fn() },
+      push: { notify: vi.fn().mockResolvedValue(undefined) },
+      repository,
+      resolveSessionId: vi.fn(async () => 'abcdefghijklmnop'),
+    })
+
+    await expect(service.create(input)).resolves.toMatchObject({ sessionId: 'abcdefghijklmnop' })
+    expect(repository.events[0]?.sessionId).toBe('abcdefghijklmnop')
+  })
+
+  it('does not invent or accept an identity for an unknown session', async () => {
+    const repository = new MemoryRepository()
+    const service = new AttentionService({
+      createId: () => 'evt_123456789012',
+      publisher: { publish: vi.fn() },
+      push: { notify: vi.fn().mockResolvedValue(undefined) },
+      repository,
+      resolveSessionId: vi.fn(async () => null),
+    })
+
+    await expect(service.create(input)).resolves.not.toHaveProperty('sessionId')
+    await expect(service.create({ ...input, sessionId: 'abcdefghijklmnop' } as never)).rejects.toThrow()
+  })
+
   it('persists before broadcasting and attempting push delivery', async () => {
     const repository = new MemoryRepository()
     const sequence: string[] = []

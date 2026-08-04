@@ -1,9 +1,16 @@
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 export const sessions = sqliteTable('sessions', {
-  name: text('name').primaryKey(),
+  id: text('id').primaryKey(),
+  name: text('name').notNull().unique(),
   path: text('path').notNull(),
+  tmuxBound: integer('tmux_bound', { mode: 'boolean' }).notNull().default(false),
   createdAt: integer('created_at').notNull(),
+})
+
+export const invalidatedSessionIds = sqliteTable('invalidated_session_ids', {
+  id: text('id').primaryKey(),
+  invalidatedAt: integer('invalidated_at').notNull(),
 })
 
 export const dropzones = sqliteTable('dropzones', {
@@ -33,6 +40,7 @@ export const attentionEvents = sqliteTable('attention_events', {
   summary: text('summary'),
   project: text('project'),
   sessionName: text('session_name'),
+  sessionId: text('session_id'),
   windowId: text('window_id'),
   paneId: text('pane_id'),
   createdAt: text('created_at').notNull(),
@@ -71,6 +79,7 @@ export const codexNotificationPreferences = sqliteTable('codex_notification_pref
 })
 
 export type Session = typeof sessions.$inferSelect
+export type InvalidatedSessionId = typeof invalidatedSessionIds.$inferSelect
 export type NewSession = typeof sessions.$inferInsert
 export type Dropzone = typeof dropzones.$inferSelect
 export type NewDropzone = typeof dropzones.$inferInsert

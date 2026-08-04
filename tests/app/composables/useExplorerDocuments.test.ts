@@ -6,6 +6,14 @@ import { useExplorerDocuments } from '../../../app/composables/useExplorerDocume
 
 const fetchStub = vi.fn()
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((done) => {
+    resolve = done
+  })
+  return { promise, resolve }
+}
+
 describe('useExplorerDocuments', () => {
   beforeEach(() => {
     fetchStub.mockReset()
@@ -136,5 +144,32 @@ describe('useExplorerDocuments', () => {
       line: 3,
       previewEnabled: false,
     })
+  })
+
+  it('does not mutate documents when a pending openPath becomes stale', async () => {
+    const metadata = deferred<{
+      kind: 'image'
+      mediaType: 'image/png'
+      name: string
+      path: string
+      size: number
+    }>()
+    fetchStub.mockReturnValueOnce(metadata.promise)
+    const explorer = useExplorerDocuments(ref('demo'))
+    let current = true
+
+    const opening = explorer.openPath('preview.png', undefined, undefined, undefined, false, () => current)
+    current = false
+    metadata.resolve({
+      kind: 'image',
+      mediaType: 'image/png',
+      name: 'preview.png',
+      path: 'preview.png',
+      size: 10,
+    })
+
+    await expect(opening).resolves.toBe(false)
+    expect(explorer.openFiles.value).toEqual([])
+    expect(explorer.activeFilePath.value).toBeNull()
   })
 })

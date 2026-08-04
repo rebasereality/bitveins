@@ -19,6 +19,7 @@ interface AttentionServiceOptions {
   publisher: AttentionEventPublisher
   push: AttentionPushNotifier
   repository: AttentionRepository
+  resolveSessionId?: (sessionName: string) => Promise<string | null>
 }
 
 export class AttentionService {
@@ -47,8 +48,12 @@ export class AttentionService {
   private async persist(
     validated: CreateAttentionEvent | CreateCodexAttentionEvent | CreateHermesAttentionEvent,
   ): Promise<AttentionEvent> {
+    const sessionId = validated.sessionName
+      ? await this.options.resolveSessionId?.(validated.sessionName).catch(() => null)
+      : null
     const event = this.options.repository.create({
       ...validated,
+      ...(sessionId ? { sessionId } : {}),
       id: this.createId(),
       createdAt: this.clock().toISOString(),
     })

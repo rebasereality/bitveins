@@ -1,4 +1,5 @@
-import type { TmuxSession, TmuxWindow } from '#shared/contracts/terminal'
+import type { TmuxWindow } from '#shared/contracts/terminal'
+import type { DiscoveredTmuxSession } from '../../ports/tmux-gateway'
 import { BITVEINS_SESSION_PREFIX, normalizeWindowIndex } from '../../model/session-validation'
 
 export interface BitveinsHelperSession {
@@ -12,16 +13,20 @@ export interface TmuxWindowWithPanePid {
   window: TmuxWindow
 }
 
-export function parseTmuxSessions(stdout: string): TmuxSession[] {
+export function parseTmuxSessions(stdout: string): DiscoveredTmuxSession[] {
   return stdout
     .split('\n')
     .map(line => line.trim())
     .filter(Boolean)
     .map((line) => {
-      const [name = '', ...pathParts] = line.split('|')
+      const parts = line.split('|')
+      const name = parts.shift() ?? ''
+      const hasOptionField = parts.length >= 2
+      const sessionId = hasOptionField ? parts.shift() ?? '' : ''
       return {
         name,
-        path: pathParts.join('|') || '~',
+        ...(sessionId ? { sessionId } : {}),
+        path: parts.join('|') || '~',
       }
     })
     .filter(session => !session.name.startsWith(BITVEINS_SESSION_PREFIX))

@@ -15,7 +15,9 @@ interface BitveinsAppSessionOptions {
   focusInputTarget: () => void
   handleAuthError: (error: unknown) => void
   openFiles: Ref<ExplorerDocument[]>
+  onSessionRenamed?: () => void
   resetHistory: () => void
+  resetWindows: () => void
   startWindowRefresh: () => void
   stopWindowRefresh: () => void
   terminal: Ref<SessionTerminalController | null>
@@ -28,7 +30,9 @@ export function useBitveinsAppSessions(options: BitveinsAppSessionOptions) {
     focusInputTarget,
     handleAuthError,
     openFiles,
+    onSessionRenamed,
     resetHistory,
+    resetWindows,
     startWindowRefresh,
     stopWindowRefresh,
     terminal,
@@ -44,10 +48,17 @@ export function useBitveinsAppSessions(options: BitveinsAppSessionOptions) {
     error.value = null
 
     try {
+      const previous = sessions.value.find(session => session.name === activeSession.value)
       const data = await $fetch<{ sessions: TmuxSession[] }>('/api/sessions')
       sessions.value = data.sessions
 
       if (activeSession.value && !data.sessions.some(session => session.name === activeSession.value)) {
+        const renamed = previous && data.sessions.find(session => session.id === previous.id)
+        if (renamed) {
+          onSessionRenamed?.()
+          activeSession.value = renamed.name
+          return
+        }
         terminal.value?.detach(activeSession.value)
         activeSession.value = null
         resetHistory()
@@ -69,6 +80,7 @@ export function useBitveinsAppSessions(options: BitveinsAppSessionOptions) {
       return
     }
 
+    resetWindows()
     activeSession.value = sessionName
     resetHistory()
     startWindowRefresh()
