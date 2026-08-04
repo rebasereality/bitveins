@@ -43,7 +43,7 @@ const hermesOptions: Array<{
     label: 'Completed tool turns',
   },
   {
-    description: 'When a parent turn finishes with a text response and no tool use. Off by default.',
+    description: 'When a parent turn finishes with a text response and no tool use.',
     key: 'completedWithoutTools',
     label: 'Text-only responses',
   },
@@ -96,14 +96,6 @@ const status = computed(() => {
       variant="subtle"
     />
 
-    <UAlert
-      v-if="hermesError"
-      class="mt-3"
-      color="error"
-      :title="hermesError"
-      variant="subtle"
-    />
-
     <div class="mt-4 flex flex-wrap gap-2">
       <UButton
         v-if="!subscribed"
@@ -150,7 +142,7 @@ const status = computed(() => {
           Show event details in system notifications
         </p>
         <p class="mt-1 text-xs leading-relaxed text-[var(--bitveins-shell-text-muted)]">
-          Off by default. When enabled, notifications may include a shortened event summary.
+          Notifications may include a shortened event summary when enabled.
         </p>
       </div>
       <USwitch
@@ -161,38 +153,62 @@ const status = computed(() => {
       />
     </div>
 
-    <div class="mt-5 border-t border-[var(--bitveins-shell-border)] pt-5">
+    <div class="mt-6 border-t border-[var(--bitveins-shell-border)] pt-5">
       <div>
-        <p class="text-sm font-medium">
-          Hermes lifecycle events
-        </p>
+        <h3 class="text-sm font-medium">
+          Agent integrations
+        </h3>
         <p class="mt-1 max-w-xl text-xs leading-relaxed text-[var(--bitveins-shell-text-muted)]">
-          Choose which Hermes parent-turn events enter Agent Inbox and reach subscribed devices. This global setting applies to every device; “Show event details” above only affects this device. Sub-agents and intentional interruptions remain silent.
+          Configure which lifecycle events each connected agent sends to Agent Inbox and subscribed devices.
         </p>
       </div>
 
-      <div class="mt-3 divide-y divide-[var(--bitveins-shell-border)]">
+      <AgentNotificationSettingsGroup
+        agent="hermes"
+        class="mt-4"
+        description="Choose which Hermes lifecycle events enter Agent Inbox and reach subscribed devices. These settings apply across devices. Sub-agents and intentional interruptions stay silent."
+        logo-src="/icons/hermes-agent.png"
+        title="Hermes Agent"
+      >
         <div
-          v-for="option in hermesOptions"
-          :key="option.key"
-          class="flex items-center justify-between gap-5 py-3"
+          v-if="hermesError"
+          class="border-b border-[var(--bitveins-shell-border)] py-3"
         >
-          <div>
-            <p class="text-sm">
-              {{ option.label }}
-            </p>
-            <p class="mt-0.5 text-xs leading-relaxed text-[var(--bitveins-shell-text-muted)]">
-              {{ option.description }}
-            </p>
-          </div>
-          <USwitch
-            :aria-label="option.label"
-            :disabled="hermesBusy"
-            :model-value="hermesPreference[option.key]"
-            @update:model-value="updateHermesPreference(option.key, $event)"
+          <UAlert
+            color="error"
+            :title="hermesError"
+            variant="subtle"
           />
         </div>
-      </div>
+
+        <div class="divide-y divide-[var(--bitveins-shell-border)]">
+          <div
+            v-for="option in hermesOptions"
+            :key="option.key"
+            class="flex items-start justify-between gap-4 py-3 sm:items-center sm:gap-6"
+            data-agent-notification-option
+          >
+            <div
+              class="min-w-0 flex-1"
+              data-agent-notification-copy
+            >
+              <p class="text-sm">
+                {{ option.label }}
+              </p>
+              <p class="mt-0.5 text-xs leading-relaxed text-[var(--bitveins-shell-text-muted)]">
+                {{ option.description }}
+              </p>
+            </div>
+            <USwitch
+              class="mt-0.5 shrink-0 sm:mt-0"
+              :aria-label="option.label"
+              :disabled="hermesBusy"
+              :model-value="hermesPreference[option.key]"
+              @update:model-value="updateHermesPreference(option.key, $event)"
+            />
+          </div>
+        </div>
+      </AgentNotificationSettingsGroup>
     </div>
 
     <p class="mt-4 text-xs leading-relaxed text-[var(--bitveins-shell-text-muted)]">

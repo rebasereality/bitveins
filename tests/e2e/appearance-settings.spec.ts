@@ -46,6 +46,18 @@ test('keeps desktop and mobile appearance profiles independent without remountin
     await page.getByRole('button', { name: 'Notifications', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'Notifications', exact: true })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Agent Inbox notifications' })).toBeVisible()
+    const hermesSettings = page.getByRole('region', { name: 'Hermes Agent' })
+    await expect(hermesSettings).toBeVisible()
+    await expect(hermesSettings.getByRole('heading', { name: 'Hermes Agent' })).toBeVisible()
+    const hermesLogo = hermesSettings.locator('[data-agent-notification-logo]')
+    await expect(hermesLogo).toHaveAttribute('src', '/icons/hermes-agent.png')
+    await expect(hermesLogo).toHaveCSS('height', '28px')
+    await expect(hermesLogo).toHaveCSS('width', '28px')
+    await expect.poll(() => hermesLogo.evaluate((image: HTMLImageElement) => ({
+      height: image.naturalHeight,
+      width: image.naturalWidth,
+    }))).toEqual({ height: 48, width: 48 })
+    await expect(page.getByText(/Off by default/)).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Test device display' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Test Web Push' })).toBeVisible()
     await expect(page.getByRole('switch', { name: 'Input requests' })).toBeChecked()
@@ -192,6 +204,28 @@ test('keeps desktop and mobile appearance profiles independent without remountin
     )).toBe('12px')
     await expect(page.locator('[data-appearance-setting="Terminal font size"] output')).toHaveText('14px')
     await expect(page.locator('[data-appearance-setting="Input font size"] output')).toHaveText('16px')
+    await page.getByRole('button', { name: 'Notifications', exact: true }).click()
+    await expect(hermesSettings).toBeVisible()
+    const mobileNotificationGeometry = await hermesSettings.evaluate((section) => {
+      const rows = Array.from(section.querySelectorAll<HTMLElement>('[data-agent-notification-option]'))
+      return {
+        noPageOverflow: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        rows: rows.map((row) => {
+          const copy = row.querySelector<HTMLElement>('[data-agent-notification-copy]')!
+          const control = row.querySelector<HTMLElement>('[role="switch"]')!
+          const copyBounds = copy.getBoundingClientRect()
+          const controlBounds = control.getBoundingClientRect()
+          return {
+            controlInside: controlBounds.right <= row.getBoundingClientRect().right + 1,
+            separated: copyBounds.right <= controlBounds.left,
+          }
+        }),
+      }
+    })
+    expect(mobileNotificationGeometry.noPageOverflow).toBe(true)
+    expect(mobileNotificationGeometry.rows).toHaveLength(5)
+    expect(mobileNotificationGeometry.rows.every(row => row.controlInside && row.separated)).toBe(true)
+    await page.getByRole('button', { name: 'Appearance', exact: true }).click()
     await expect.poll(() => page.locator('.xterm-char-measure-element').first().evaluate(
       element => getComputedStyle(element).fontSize,
     )).toBe('14px')
