@@ -37,7 +37,7 @@ const e2eSocketName = `bitveins-e2e-${e2eRunId}`
 const e2eDatabasePath = `/tmp/bitveins-e2e-${e2eRunId}.sqlite`
 const e2eServerPidPath = `/tmp/bitveins-e2e-${e2eRunId}.pid`
 const e2eWorkspace = `/tmp/bitveins-e2e-workspace-${e2eRunId}`
-const e2eEventToken = 'e'.repeat(64)
+const e2eEventToken = process.env.BITVEINS_EVENT_TOKEN ?? 'e'.repeat(64)
 const externalServer = process.env.BITVEINS_E2E_EXTERNAL_SERVER === '1'
 const webServer = externalServer
   ? undefined
