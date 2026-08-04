@@ -34,7 +34,7 @@ class MemoryRepository implements AttentionRepository {
 const input: CreateAttentionEvent = {
   project: 'Kouizine',
   sessionName: 'kouizine',
-  source: 'codex',
+  source: 'local-script',
   summary: 'Run database migrations?',
   title: 'Permission required',
   type: 'permission_required',
@@ -83,7 +83,7 @@ describe('AttentionService', () => {
     expect(publish).toHaveBeenCalledOnce()
   })
 
-  it('keeps generic Hermes input blocked while accepting only fixed internal Hermes events', async () => {
+  it('keeps generic agent input blocked while accepting only fixed internal agent events', async () => {
     const repository = new MemoryRepository()
     const service = new AttentionService({
       createId: () => 'evt_123456789012',
@@ -96,7 +96,7 @@ describe('AttentionService', () => {
       source: 'hermes',
       title: 'Hermes turn completed',
       type: 'completed',
-    })).rejects.toThrow(/dedicated lifecycle integration/i)
+    })).rejects.toThrow(/dedicated integration/i)
     await expect(service.createHermes({
       source: 'hermes',
       title: 'Hermes turn completed',
@@ -118,6 +118,22 @@ describe('AttentionService', () => {
       title: 'Arbitrary client text',
       type: 'completed',
     } as never)).rejects.toThrow()
+    await expect(service.create({
+      source: 'codex',
+      title: 'Codex turn completed',
+      type: 'completed',
+    })).rejects.toThrow(/dedicated integration/i)
+    await expect(service.createCodex({
+      sessionName: 'Bitveins',
+      source: 'codex',
+      title: 'Codex turn completed',
+      type: 'completed',
+    })).resolves.toMatchObject({
+      sessionName: 'Bitveins',
+      source: 'codex',
+      title: 'Codex turn completed',
+      type: 'completed',
+    })
   })
 
   it('returns after persistence without waiting for push delivery', async () => {

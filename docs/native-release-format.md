@@ -19,6 +19,10 @@ app/.output/
 share/bitveins/release.json
 share/bitveins/NODE-LICENSE
 share/bitveins/THIRD_PARTY_LICENSES.json
+share/bitveins/codex-marketplace/.agents/plugins/marketplace.json
+share/bitveins/codex-marketplace/plugins/bitveins-notifications/.codex-plugin/plugin.json
+share/bitveins/codex-marketplace/plugins/bitveins-notifications/hooks/hooks.json
+share/bitveins/codex-marketplace/plugins/bitveins-notifications/hooks/bitveins_notifications.py
 share/bitveins/hermes-plugin/__init__.py
 share/bitveins/hermes-plugin/plugin.yaml
 share/bitveins/hermes-plugin/README.md
@@ -41,10 +45,10 @@ manifest. The `.sha256` file detects transfer corruption. The
 `.sigstore.json` bundle authenticates the archive digest independently.
 
 The GitHub release workflow builds natively on Linux x86_64, executes all
-quality gates, runs the Hermes plugin tests, verifies the packaged CLI and loads
+quality gates, runs the Codex and Hermes plugin tests, verifies the packaged CLI and loads
 both native addons using the exact Node version pinned in `.node-version`. The
-archive verifier also requires the exact Hermes plugin allowlist, validates its
-manifest, compiles its Python and reruns its tests from the extracted archive.
+archive verifier validates both plugin manifests and hook registrations,
+compiles their Python, and reruns the Hermes tests from the extracted archive.
 An attested build refuses a dirty source checkout. Public-repository releases
 receive a GitHub SLSA v1 build-provenance attestation.
 

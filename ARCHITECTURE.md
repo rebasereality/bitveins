@@ -169,8 +169,18 @@ notification privacy preference. `AttentionService` persists an event before
 publishing it to active WebSocket peers and queues Push delivery independently;
 provider failures cannot fail event creation. `WebPushNotificationService`
 bounds subscription concurrency, removes endpoints rejected with HTTP 404/410
-and logs only redacted status information. SQLite access remains inside the two
+and logs only redacted status information. SQLite access remains inside focused
 Drizzle repositories.
+
+Hermes and Codex lifecycle integrations use source-specific schemas, preference
+repositories and application services before entering `AttentionService`.
+Both integrations accept only fixed lifecycle classifications and validated
+tmux IDs; user-facing titles and session names are constructed or resolved on
+the Bitveins server. The Codex plugin observes `PermissionRequest`,
+`PreToolUse`, `Stop`, `UserPromptSubmit` and `SessionEnd` hooks, but emits only
+the permission and completed-turn states that Codex exposes reliably. Plugin
+state consists of bounded opaque marker files under Codex's writable plugin
+data directory.
 
 The browser receives typed `attentionEvent` messages on the existing terminal
 WebSocket transport. Persistent inbox refresh remains authoritative across

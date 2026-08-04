@@ -1,0 +1,20 @@
+{
+  "name": "bitveins",
+  "interface": {
+    "displayName": "Bitveins"
+  },
+  "plugins": [
+    {
+      "name": "bitveins-notifications",
+      "source": {
+        "source": "local",
+        "path": "./plugins/bitveins-notifications"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

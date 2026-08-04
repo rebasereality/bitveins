@@ -9,6 +9,7 @@ import { BitveinsUpdater } from './application/bitveins-updater'
 import { resolveInstallationLayout } from './core/installation-layout'
 import { InstallationTransaction } from './application/installation/installation-transaction'
 import { FilesystemEnvironmentRepository } from './platform/filesystem-environment-repository'
+import { FilesystemCodexPluginInstaller } from './platform/filesystem-codex-plugin-installer'
 import { FilesystemHermesPluginInstaller } from './platform/filesystem-hermes-plugin-installer'
 import { FilesystemInstallationCleaner } from './platform/filesystem-installation-cleaner'
 import { FilesystemReleaseStore } from './platform/filesystem-release-store'
@@ -29,6 +30,7 @@ import type { PasswordReader } from './ports/password-reader'
 import { CliApplication } from './presentation/cli-application'
 import { CommandRegistry } from './presentation/command-registry'
 import { ConsoleOutput } from './presentation/console-output'
+import { CodexCommand } from './presentation/commands/codex-command'
 import { DoctorCommand } from './presentation/commands/doctor-command'
 import { EventCommand } from './presentation/commands/event-command'
 import { HelpCommand } from './presentation/commands/help-command'
@@ -128,6 +130,16 @@ export function createCliApplication(version: string): CliApplication {
     environment: process.env,
     output,
   }))
+  registry.register(new CodexCommand(
+    new FilesystemCodexPluginInstaller({
+      commands,
+      sourceDirectory: process.env.BITVEINS_RELEASE_ROOT
+        ? join(releaseRoot, 'share', 'bitveins', 'codex-marketplace')
+        : join(releaseRoot, 'integrations', 'codex-notifications'),
+      targetDirectory: join(layout.dataDirectory, 'codex-marketplace'),
+    }),
+    output,
+  ))
   registry.register(new HermesCommand(
     new FilesystemHermesPluginInstaller({
       commands,

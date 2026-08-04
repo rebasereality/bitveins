@@ -10,7 +10,59 @@ if (!eventToken || !runId || !workspace) {
 }
 const sessionName = `inbox_${runId.replaceAll(/[^A-Za-z0-9]/g, '').slice(-20)}`
 const staleWindowSessionName = `stale_${runId.replaceAll(/[^A-Za-z0-9]/g, '').slice(-20)}`
+const codexSessionName = `codex_${runId.replaceAll(/[^A-Za-z0-9]/g, '').slice(-20)}`
 const hermesSessionName = `hermes_${runId.replaceAll(/[^A-Za-z0-9]/g, '').slice(-20)}`
+
+test('persists a Codex permission event with a server-owned title and linked session', async ({ page }) => {
+  await mkdir(workspace, { recursive: true })
+  await authenticate(page)
+
+  try {
+    const sessionResponse = await page.request.post('/api/sessions', {
+      data: { name: codexSessionName, path: workspace },
+    })
+    expect(sessionResponse.ok(), await sessionResponse.text()).toBe(true)
+
+    const windowResponse = await page.request.post(`/api/sessions/${codexSessionName}/windows`)
+    expect(windowResponse.ok(), await windowResponse.text()).toBe(true)
+    const { window: tmuxWindow } = await windowResponse.json() as {
+      window: { id: string }
+    }
+
+    const eventResponse = await page.request.post('/api/integrations/events', {
+      data: {
+        lifecycle: 'permission_required',
+        source: 'codex',
+        type: 'permission_required',
+        windowId: tmuxWindow.id,
+      },
+      headers: { authorization: `Bearer ${eventToken}` },
+    })
+    expect(eventResponse.ok(), await eventResponse.text()).toBe(true)
+    const response = await eventResponse.json() as {
+      event: { id: string, sessionName?: string, title: string } | null
+      suppressed?: boolean
+    }
+    expect(response.event).toMatchObject({
+      sessionName: codexSessionName,
+      title: 'Codex needs permission',
+    })
+    expect(response.suppressed).toBeUndefined()
+
+    const inboxResponse = await page.request.get('/api/attention')
+    expect(inboxResponse.ok(), await inboxResponse.text()).toBe(true)
+    const inbox = await inboxResponse.json() as {
+      events: Array<{ id: string, sessionName?: string, source: string }>
+    }
+    expect(inbox.events.find(event => event.id === response.event?.id)).toMatchObject({
+      sessionName: codexSessionName,
+      source: 'codex',
+    })
+  }
+  finally {
+    await page.request.delete(`/api/sessions/${codexSessionName}`).catch(() => undefined)
+  }
+})
 
 test('persists a Hermes integration event with its resolved tmux session', async ({ page }) => {
   await mkdir(workspace, { recursive: true })

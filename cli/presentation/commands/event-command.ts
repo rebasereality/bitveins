@@ -12,7 +12,7 @@ export class EventCommand implements CliCommand {
   readonly usageDetails = [
     '<type>              input_required, permission_required, completed, failed or information.',
     '--type <type>       Backward-compatible alternative to the positional type.',
-    '--source <source>   Generic event source, for example shell or codex.',
+    '--source <source>   Generic event source, for example shell or local-script.',
     '--title <title>     Short event title.',
     '--summary <text>    Optional event summary.',
     '--project <name>    Optional project name.',

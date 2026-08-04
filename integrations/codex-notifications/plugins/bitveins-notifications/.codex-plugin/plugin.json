@@ -1,0 +1,25 @@
+{
+  "name": "bitveins-notifications",
+  "version": "1.2.0",
+  "description": "Send privacy-safe Codex lifecycle notifications to a local Bitveins instance.",
+  "author": {
+    "name": "Rebase Reality",
+    "url": "https://rebasereality.com/bitveins/"
+  },
+  "homepage": "https://rebasereality.com/bitveins/",
+  "repository": "https://github.com/rebasereality/bitveins",
+  "license": "MIT",
+  "keywords": ["bitveins", "codex", "notifications"],
+  "interface": {
+    "displayName": "Bitveins Notifications",
+    "shortDescription": "Local Codex lifecycle alerts",
+    "longDescription": "Send permission requests and completed-turn signals from Codex to the local Bitveins Agent Inbox without transmitting prompts or responses.",
+    "developerName": "Rebase Reality",
+    "category": "Productivity",
+    "capabilities": ["Notifications"],
+    "websiteURL": "https://rebasereality.com/bitveins/",
+    "defaultPrompt": [
+      "Show me how Bitveins lifecycle notifications work."
+    ]
+  }
+}

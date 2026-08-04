@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   attentionEventSchema,
+  codexLifecycleEventSchema,
+  codexNotificationPreferenceResponseSchema,
+  codexNotificationPreferenceSchema,
+  codexNotificationPreferenceUpdateSchema,
   createAttentionEventSchema,
   createAttentionDeepLink,
   hermesLifecycleEventSchema,
@@ -9,6 +13,7 @@ import {
   hermesNotificationPreferenceUpdateSchema,
   integrationAttentionEventResponseSchema,
   integrationAttentionEventSchema,
+  isCodexLifecycleEnabled,
   isHermesLifecycleEnabled,
   notificationPreferenceSchema,
   pushNotificationPayloadSchema,
@@ -19,26 +24,26 @@ describe('attention contracts', () => {
   it('accepts every generic attention type and normalizes optional context', () => {
     for (const type of ['input_required', 'permission_required', 'completed', 'failed', 'information'] as const) {
       expect(createAttentionEventSchema.parse({
-        source: 'codex',
+        source: 'other-agent',
         title: 'Attention required',
         type,
-      })).toEqual({ source: 'codex', title: 'Attention required', type })
+      })).toEqual({ source: 'other-agent', title: 'Attention required', type })
     }
   })
 
   it('rejects control characters, unknown fields and invalid tmux identifiers', () => {
     expect(() => createAttentionEventSchema.parse({
-      source: 'codex\nsecret',
+      source: 'other-agent\nsecret',
       title: 'Bad',
       type: 'information',
     })).toThrow()
     expect(() => createAttentionEventSchema.parse({
-      source: 'codex',
+      source: 'other-agent',
       title: 'Bad',
       type: 'unknown',
     })).toThrow()
     expect(() => createAttentionEventSchema.parse({
-      source: 'codex',
+      source: 'other-agent',
       title: 'Bad',
       type: 'information',
       windowId: '4',
@@ -95,6 +100,26 @@ describe('attention contracts', () => {
     })
     expect(isHermesLifecycleEnabled(preference, 'completed_with_tools')).toBe(true)
     expect(isHermesLifecycleEnabled(preference, 'completed_without_tools')).toBe(false)
+  })
+
+  it('keeps supported Codex lifecycle notifications enabled by default', () => {
+    const preference = codexNotificationPreferenceSchema.parse({})
+
+    expect(preference).toEqual({
+      completedWithTools: true,
+      completedWithoutTools: false,
+      permissionRequired: true,
+    })
+    expect(isCodexLifecycleEnabled(preference, 'completed_with_tools')).toBe(true)
+    expect(isCodexLifecycleEnabled(preference, 'completed_without_tools')).toBe(false)
+  })
+
+  it('accepts partial Codex preference updates but rejects empty updates', () => {
+    expect(codexNotificationPreferenceUpdateSchema.parse({
+      completedWithoutTools: true,
+    })).toEqual({ completedWithoutTools: true })
+    expect(() => codexNotificationPreferenceUpdateSchema.parse({})).toThrow()
+    expect(() => codexNotificationPreferenceUpdateSchema.parse({ unknown: true })).toThrow()
   })
 
   it('accepts partial Hermes preference updates but rejects empty updates', () => {
@@ -160,10 +185,10 @@ describe('attention contracts', () => {
       type: 'information',
     })).toThrow()
     expect(integrationAttentionEventSchema.parse({
-      source: 'codex',
+      source: 'other-agent',
       title: 'Generic integration',
       type: 'information',
-    })).toMatchObject({ source: 'codex', type: 'information' })
+    })).toMatchObject({ source: 'other-agent', type: 'information' })
     expect(() => createAttentionEventSchema.parse({
       source: 'hermes',
       title: 'Generic route bypass',
@@ -174,10 +199,45 @@ describe('attention contracts', () => {
       title: 'Case-insensitive generic route bypass',
       type: 'completed',
     })).toThrow()
+    expect(() => createAttentionEventSchema.parse({
+      source: 'Codex',
+      title: 'Generic route bypass',
+      type: 'completed',
+    })).toThrow()
+  })
+
+  it('requires privacy-safe typed lifecycle signals for Codex events', () => {
+    expect(codexLifecycleEventSchema.parse({
+      lifecycle: 'completed_with_tools',
+      source: 'codex',
+      type: 'completed',
+      windowId: '@4',
+      paneId: '%8',
+    })).toEqual({
+      lifecycle: 'completed_with_tools',
+      source: 'codex',
+      type: 'completed',
+      windowId: '@4',
+      paneId: '%8',
+    })
+    expect(() => codexLifecycleEventSchema.parse({
+      lifecycle: 'failed',
+      source: 'codex',
+      type: 'failed',
+    })).toThrow()
+    expect(() => codexLifecycleEventSchema.parse({
+      lifecycle: 'completed_with_tools',
+      source: 'codex',
+      title: 'private response',
+      type: 'completed',
+    })).toThrow()
   })
 
   it('validates normalized preference and suppressed integration responses', () => {
     expect(hermesNotificationPreferenceResponseSchema.parse({
+      preference: {},
+    }).preference.completedWithoutTools).toBe(false)
+    expect(codexNotificationPreferenceResponseSchema.parse({
       preference: {},
     }).preference.completedWithoutTools).toBe(false)
     expect(integrationAttentionEventResponseSchema.parse({

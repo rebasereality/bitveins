@@ -115,6 +115,53 @@ try {
     },
     stdio: 'pipe',
   })
+  const codexMarketplaceRoot = join(
+    releaseRoot,
+    'share',
+    'bitveins',
+    'codex-marketplace',
+  )
+  const codexPluginRoot = join(
+    codexMarketplaceRoot,
+    'plugins',
+    'bitveins-notifications',
+  )
+  const codexMarketplace = JSON.parse(await readFile(
+    join(codexMarketplaceRoot, '.agents', 'plugins', 'marketplace.json'),
+    'utf8',
+  )) as { name?: unknown, plugins?: Array<{ name?: unknown }> }
+  if (codexMarketplace.name !== 'bitveins'
+    || codexMarketplace.plugins?.[0]?.name !== 'bitveins-notifications') {
+    throw new Error('Packaged Codex marketplace metadata is invalid.')
+  }
+  const codexManifest = JSON.parse(await readFile(
+    join(codexPluginRoot, '.codex-plugin', 'plugin.json'),
+    'utf8',
+  )) as { name?: unknown, version?: unknown }
+  if (codexManifest.name !== 'bitveins-notifications'
+    || codexManifest.version !== packageVersion) {
+    throw new Error('Packaged Codex plugin manifest is invalid.')
+  }
+  const codexHooks = JSON.parse(await readFile(
+    join(codexPluginRoot, 'hooks', 'hooks.json'),
+    'utf8',
+  )) as { hooks?: Record<string, unknown> }
+  for (const hook of ['PermissionRequest', 'PreToolUse', 'SessionEnd', 'Stop', 'UserPromptSubmit']) {
+    if (!codexHooks.hooks?.[hook]) {
+      throw new Error(`Packaged Codex plugin is missing hook: ${hook}`)
+    }
+  }
+  execFileSync('python3', [
+    '-m',
+    'py_compile',
+    join(codexPluginRoot, 'hooks', 'bitveins_notifications.py'),
+  ], {
+    env: {
+      ...process.env,
+      PYTHONPYCACHEPREFIX: join(temporaryDirectory, 'python-cache'),
+    },
+    stdio: 'pipe',
+  })
   await assertNoForbiddenContent(
     releaseRoot,
     [...new Set([

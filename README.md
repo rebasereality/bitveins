@@ -41,7 +41,7 @@ Create an event from the VPS with the product CLI:
 ```bash
 bitveins event \
   --type permission_required \
-  --source codex \
+  --source local-script \
   --title "Permission required" \
   --summary "Run database migrations?" \
   --project Kouizine
@@ -51,6 +51,34 @@ Inside tmux, Bitveins detects the session, stable window ID and pane ID from the
 current pane. `--session`, `--window` and `--pane` explicitly override detected
 values. The command talks only to the loopback Bitveins service with a dedicated
 integration token; it never reuses the browser password.
+
+### Codex lifecycle integration
+
+Native Bitveins releases include an optional Codex plugin backed by Codex's
+lifecycle hooks. Install it with:
+
+```bash
+bitveins codex install
+```
+
+Start a new Codex session, open `/hooks`, and trust the Bitveins hook
+definition. Codex intentionally requires this review before non-managed plugin
+hooks can run and whenever their definition changes.
+
+The plugin emits the lifecycle states Codex exposes reliably: permission
+requests and completed parent turns, split by whether a local tool hook was
+observed. Codex does not currently expose distinct clarification-request or
+failed-turn hooks, so Bitveins does not guess those states from prompts,
+responses, or transcripts. Hosted tools outside the local function-tool hook
+path may not be counted as tool use. Text-only completion notifications remain
+opt-in under Settings -> Notifications.
+
+Delivery is fail-open and loopback-only. The plugin sends only a fixed typed
+lifecycle signal plus validated tmux window and pane IDs. It never sends
+prompts, responses, commands, tool inputs or outputs, model names, transcript
+paths, working directories, endpoints, or tokens. See
+[`integrations/codex-notifications/plugins/bitveins-notifications/README.md`](integrations/codex-notifications/plugins/bitveins-notifications/README.md)
+for the exact hook mapping and privacy boundaries.
 
 ### Hermes lifecycle integration
 
@@ -165,6 +193,7 @@ bitveins stop
 bitveins status
 bitveins doctor
 bitveins event --type completed --source shell --title "Command completed"
+bitveins codex install
 bitveins hermes install
 bitveins logs --follow
 bitveins restart
