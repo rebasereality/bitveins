@@ -12,10 +12,11 @@ export class LocalAttentionEventClient {
   async create(event: CreateAttentionEvent): Promise<string> {
     const environment = await this.options.environment.read()
     const fetcher = this.options.fetcher ?? fetch
+    const endpoint = `http://127.0.0.1:${environment.port}/api/integrations/events`
     let response: Response
     try {
       response = await fetcher(
-        `http://127.0.0.1:${environment.port}/api/integrations/events`,
+        endpoint,
         {
           body: JSON.stringify(event),
           headers: {
@@ -23,6 +24,7 @@ export class LocalAttentionEventClient {
             'Content-Type': 'application/json',
           },
           method: 'POST',
+          redirect: 'error',
           signal: AbortSignal.timeout(this.options.timeoutMs ?? 10_000),
         },
       )
@@ -31,6 +33,9 @@ export class LocalAttentionEventClient {
       throw new CliError('Unable to connect to the local Bitveins service.', { cause: error })
     }
 
+    if (response.url !== endpoint) {
+      throw new CliError('The local Bitveins service responded from an unexpected URL.')
+    }
     if (!response.ok) {
       throw new CliError(`Unable to create the Bitveins event (HTTP ${response.status}).`)
     }

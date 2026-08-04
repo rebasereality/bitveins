@@ -30,10 +30,11 @@ opening it attaches that exact context and marks the event as read.
 
 Open Settings → Agent Inbox notifications to enable Web Push for the current
 device. The permission prompt appears only after selecting **Enable
-notifications**. Notifications contain only the event title, project and source
-by default. The optional detailed mode adds a strictly shortened summary and is
-disabled by default. On iPhone and iPad, install Bitveins on the Home Screen
-before enabling notifications.
+notifications**. Notifications use a generic title and body by default so lock
+screens do not expose event details. The optional detailed mode adds the event
+title, project, source and a strictly shortened summary; it is disabled by
+default. On iPhone and iPad, install Bitveins on the Home Screen before enabling
+notifications.
 
 Create an event from the VPS with the product CLI:
 
@@ -50,6 +51,33 @@ Inside tmux, Bitveins detects the session, stable window ID and pane ID from the
 current pane. `--session`, `--window` and `--pane` explicitly override detected
 values. The command talks only to the loopback Bitveins service with a dedicated
 integration token; it never reuses the browser password.
+
+### Hermes lifecycle integration
+
+Native Bitveins releases include an optional Hermes Agent plugin. Install and
+enable it for the active Hermes profile with:
+
+```bash
+bitveins hermes install
+hermes gateway restart
+```
+
+This targets the `default` Hermes profile. For another existing profile, use
+`bitveins hermes install --profile <name>` and restart that profile with
+`hermes --profile <name> gateway restart`. Open a new Hermes CLI session after
+installation. The plugin sends typed lifecycle signals when Hermes requires
+input or permission, completes a parent turn, or fails without a deliberate
+interruption. Settings controls which signals create Agent Inbox events and
+Web Push notifications. The existing mapping remains enabled by default;
+text-only parent responses are available as an opt-in. Smart-mode approvals,
+deliberate interruptions and delegated child completions remain silent.
+
+Delivery is fail-open and loopback-only. The plugin never includes prompts,
+responses, commands, tool arguments, endpoints, tokens, the current working
+path or its project basename. Set `BITVEINS_NOTIFICATIONS=0` for a Hermes
+process to disable delivery from that process. See
+[`integrations/hermes-notifications/README.md`](integrations/hermes-notifications/README.md)
+for hook mappings and verification details.
 
 ## Explorer and terminal file links
 
@@ -137,6 +165,7 @@ bitveins stop
 bitveins status
 bitveins doctor
 bitveins event --type completed --source shell --title "Command completed"
+bitveins hermes install
 bitveins logs --follow
 bitveins restart
 bitveins password

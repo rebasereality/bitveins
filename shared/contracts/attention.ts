@@ -21,7 +21,45 @@ export const attentionEventTypeSchema = z.enum([
   'information',
 ])
 
-export const createAttentionEventSchema = z.object({
+export const hermesLifecycleSchema = z.enum([
+  'input_required',
+  'permission_required',
+  'completed_with_tools',
+  'completed_without_tools',
+  'failed',
+])
+
+const hermesNotificationPreferenceShape = {
+  completedWithTools: z.boolean(),
+  completedWithoutTools: z.boolean(),
+  failed: z.boolean(),
+  inputRequired: z.boolean(),
+  permissionRequired: z.boolean(),
+}
+
+export const hermesNotificationPreferenceSchema = z.object({
+  completedWithTools: hermesNotificationPreferenceShape.completedWithTools.default(true),
+  completedWithoutTools: hermesNotificationPreferenceShape.completedWithoutTools.default(false),
+  failed: hermesNotificationPreferenceShape.failed.default(true),
+  inputRequired: hermesNotificationPreferenceShape.inputRequired.default(true),
+  permissionRequired: hermesNotificationPreferenceShape.permissionRequired.default(true),
+}).strict()
+
+export const hermesNotificationPreferenceUpdateSchema = z.object({
+  completedWithTools: hermesNotificationPreferenceShape.completedWithTools.optional(),
+  completedWithoutTools: hermesNotificationPreferenceShape.completedWithoutTools.optional(),
+  failed: hermesNotificationPreferenceShape.failed.optional(),
+  inputRequired: hermesNotificationPreferenceShape.inputRequired.optional(),
+  permissionRequired: hermesNotificationPreferenceShape.permissionRequired.optional(),
+}).strict().refine(value => Object.values(value).some(item => item !== undefined), {
+  message: 'At least one Hermes notification preference is required.',
+})
+
+export const hermesNotificationPreferenceResponseSchema = z.object({
+  preference: hermesNotificationPreferenceSchema,
+}).strict()
+
+const attentionEventInputSchema = z.object({
   type: attentionEventTypeSchema,
   source: safeText('Source', 80),
   title: safeText('Title', 160),
@@ -32,7 +70,106 @@ export const createAttentionEventSchema = z.object({
   paneId: paneIdSchema.optional(),
 }).strict()
 
-export const attentionEventSchema = createAttentionEventSchema.extend({
+export const createAttentionEventSchema = attentionEventInputSchema.refine(
+  event => event.source.toLowerCase() !== 'hermes',
+  'Hermes events require the dedicated lifecycle integration.',
+)
+
+const hermesAttentionContextShape = {
+  paneId: paneIdSchema.optional(),
+  sessionName: sessionNameSchema,
+  source: z.literal('hermes'),
+  windowId: windowIdSchema.optional(),
+}
+
+export const createHermesAttentionEventSchema = z.discriminatedUnion('type', [
+  z.object({
+    ...hermesAttentionContextShape,
+    title: z.literal('Hermes is waiting for input'),
+    type: z.literal('input_required'),
+  }).strict(),
+  z.object({
+    ...hermesAttentionContextShape,
+    title: z.literal('Hermes needs permission'),
+    type: z.literal('permission_required'),
+  }).strict(),
+  z.object({
+    ...hermesAttentionContextShape,
+    title: z.literal('Hermes turn completed'),
+    type: z.literal('completed'),
+  }).strict(),
+  z.object({
+    ...hermesAttentionContextShape,
+    title: z.literal('Hermes turn failed'),
+    type: z.literal('failed'),
+  }).strict(),
+])
+
+const hermesLifecycleVariant = <
+  const Lifecycle extends z.infer<typeof hermesLifecycleSchema>,
+  const Type extends z.infer<typeof attentionEventTypeSchema>,
+>(lifecycle: Lifecycle, type: Type) => z.object({
+  lifecycle: z.literal(lifecycle),
+  source: z.literal('hermes'),
+  type: z.literal(type),
+  windowId: windowIdSchema.optional(),
+  paneId: paneIdSchema.optional(),
+}).strict()
+
+export const hermesLifecycleEventSchema = z.discriminatedUnion('lifecycle', [
+  hermesLifecycleVariant('input_required', 'input_required'),
+  hermesLifecycleVariant('permission_required', 'permission_required'),
+  hermesLifecycleVariant('completed_with_tools', 'completed'),
+  hermesLifecycleVariant('completed_without_tools', 'completed'),
+  hermesLifecycleVariant('failed', 'failed'),
+])
+
+const legacyHermesLifecycleByType = {
+  completed: 'completed_with_tools',
+  failed: 'failed',
+  input_required: 'input_required',
+  permission_required: 'permission_required',
+} as const
+
+const legacyHermesContextShape = {
+  source: z.literal('hermes'),
+  windowId: windowIdSchema.optional(),
+  paneId: paneIdSchema.optional(),
+}
+
+const legacyHermesLifecycleEventSchema = z.discriminatedUnion('type', [
+  z.object({
+    ...legacyHermesContextShape,
+    type: z.literal('input_required'),
+    title: z.literal('Hermes is waiting for input'),
+  }).strict(),
+  z.object({
+    ...legacyHermesContextShape,
+    type: z.literal('permission_required'),
+    title: z.literal('Hermes needs permission'),
+  }).strict(),
+  z.object({
+    ...legacyHermesContextShape,
+    type: z.literal('completed'),
+    title: z.enum(['Hermes task completed', 'Hermes turn completed']),
+  }).strict(),
+  z.object({
+    ...legacyHermesContextShape,
+    type: z.literal('failed'),
+    title: z.literal('Hermes turn failed'),
+  }).strict(),
+]).transform(({ title: _title, ...event }) => ({
+  ...event,
+  lifecycle: legacyHermesLifecycleByType[event.type],
+}))
+
+export const integrationAttentionEventSchema = z.union([
+  hermesLifecycleEventSchema,
+  legacyHermesLifecycleEventSchema,
+  createAttentionEventSchema,
+])
+
+export const attentionEventSchema = attentionEventInputSchema.extend({
   id: eventIdSchema,
   createdAt: isoTimestampSchema,
   readAt: isoTimestampSchema.optional(),
@@ -46,6 +183,14 @@ export const attentionEventListSchema = z.object({
 export const attentionEventResponseSchema = z.object({
   event: attentionEventSchema,
 }).strict()
+
+export const integrationAttentionEventResponseSchema = z.union([
+  attentionEventResponseSchema,
+  z.object({
+    event: z.null(),
+    suppressed: z.literal(true),
+  }).strict(),
+])
 
 const subscriptionKeySchema = z.string().min(1).max(512).regex(/^[A-Za-z0-9_-]+$/u)
 const pushServiceHosts = new Set([
@@ -127,12 +272,30 @@ export const pushNotificationPayloadSchema = z.object({
 }).strict()
 
 export type AttentionEventType = z.infer<typeof attentionEventTypeSchema>
+export type HermesLifecycle = z.infer<typeof hermesLifecycleSchema>
+export type HermesLifecycleEvent = z.infer<typeof hermesLifecycleEventSchema>
+export type HermesNotificationPreference = z.infer<typeof hermesNotificationPreferenceSchema>
+export type HermesNotificationPreferenceUpdate = z.infer<typeof hermesNotificationPreferenceUpdateSchema>
 export type CreateAttentionEvent = z.infer<typeof createAttentionEventSchema>
+export type CreateHermesAttentionEvent = z.infer<typeof createHermesAttentionEventSchema>
 export type AttentionEvent = z.infer<typeof attentionEventSchema>
 export type PushSubscriptionInput = z.infer<typeof pushSubscriptionSchema>
 export type NotificationPreference = z.infer<typeof notificationPreferenceSchema>
 export type AttentionWebSocketMessage = z.infer<typeof attentionWebSocketMessageSchema>
 export type PushNotificationPayload = z.infer<typeof pushNotificationPayloadSchema>
+
+export function isHermesLifecycleEnabled(
+  preference: HermesNotificationPreference,
+  lifecycle: HermesLifecycle,
+): boolean {
+  return {
+    completed_with_tools: preference.completedWithTools,
+    completed_without_tools: preference.completedWithoutTools,
+    failed: preference.failed,
+    input_required: preference.inputRequired,
+    permission_required: preference.permissionRequired,
+  }[lifecycle]
+}
 
 export function createAttentionDeepLink(event: Pick<AttentionEvent, 'id' | 'sessionName' | 'windowId'>): string {
   const query = new URLSearchParams()

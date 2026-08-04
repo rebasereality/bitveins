@@ -70,6 +70,51 @@ try {
   if (!releaseMetadataEquals(releaseBundle.metadata, manifest)) {
     throw new Error('Archive metadata does not match the release manifest.')
   }
+  const pluginFiles = ['README.md', '__init__.py', 'plugin.yaml', 'test_plugin.py']
+  const pluginRoot = join(releaseRoot, 'share', 'bitveins', 'hermes-plugin')
+  const packagedPluginFiles = (await readdir(pluginRoot)).sort()
+  if (JSON.stringify(packagedPluginFiles) !== JSON.stringify(pluginFiles)) {
+    throw new Error(`Packaged Hermes plugin contains unexpected files: ${packagedPluginFiles.join(', ')}`)
+  }
+  for (const file of pluginFiles) {
+    const content = await readFile(
+      join(pluginRoot, file),
+      'utf8',
+    )
+    if (!content.trim()) {
+      throw new Error(`Packaged Hermes plugin file is empty: ${file}`)
+    }
+  }
+  const pluginManifest = await readFile(join(pluginRoot, 'plugin.yaml'), 'utf8')
+  for (const expected of [
+    /^name: bitveins-notifications$/mu,
+    /^kind: standalone$/mu,
+    /^\s+- post_llm_call$/mu,
+  ]) {
+    if (!expected.test(pluginManifest)) {
+      throw new Error(`Packaged Hermes plugin manifest is invalid: ${expected.source}`)
+    }
+  }
+  execFileSync('python3', [
+    '-m',
+    'py_compile',
+    join(pluginRoot, '__init__.py'),
+    join(pluginRoot, 'test_plugin.py'),
+  ], {
+    env: {
+      ...process.env,
+      PYTHONPYCACHEPREFIX: join(temporaryDirectory, 'python-cache'),
+    },
+    stdio: 'pipe',
+  })
+  execFileSync('python3', ['-m', 'unittest', '-q', 'test_plugin.py'], {
+    cwd: pluginRoot,
+    env: {
+      ...process.env,
+      PYTHONPYCACHEPREFIX: join(temporaryDirectory, 'python-cache'),
+    },
+    stdio: 'pipe',
+  })
   await assertNoForbiddenContent(
     releaseRoot,
     [...new Set([

@@ -19,6 +19,10 @@ app/.output/
 share/bitveins/release.json
 share/bitveins/NODE-LICENSE
 share/bitveins/THIRD_PARTY_LICENSES.json
+share/bitveins/hermes-plugin/__init__.py
+share/bitveins/hermes-plugin/plugin.yaml
+share/bitveins/hermes-plugin/README.md
+share/bitveins/hermes-plugin/test_plugin.py
 share/licenses/
 share/systemd/user/bitveins.service
 docs/installation.md
@@ -37,10 +41,12 @@ manifest. The `.sha256` file detects transfer corruption. The
 `.sigstore.json` bundle authenticates the archive digest independently.
 
 The GitHub release workflow builds natively on Linux x86_64, executes all
-quality gates, verifies the packaged CLI and loads both native addons using the
-exact Node version pinned in `.node-version`. An attested build refuses a dirty
-source checkout. Public-repository releases receive a GitHub SLSA v1
-build-provenance attestation.
+quality gates, runs the Hermes plugin tests, verifies the packaged CLI and loads
+both native addons using the exact Node version pinned in `.node-version`. The
+archive verifier also requires the exact Hermes plugin allowlist, validates its
+manifest, compiles its Python and reruns its tests from the extracted archive.
+An attested build refuses a dirty source checkout. Public-repository releases
+receive a GitHub SLSA v1 build-provenance attestation.
 
 While the repository is private on a GitHub plan without private artifact
 attestations, tags publish source-only GitHub releases. Native archives remain

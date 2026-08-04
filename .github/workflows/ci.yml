@@ -41,6 +41,9 @@ jobs:
           pnpm test:coverage
           pnpm test:cli:coverage
 
+      - name: Hermes plugin tests
+        run: pnpm test:hermes-plugin
+
       - name: Production Build
         run: pnpm build
 

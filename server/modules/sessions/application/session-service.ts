@@ -35,6 +35,10 @@ export class SessionService {
     return this.options.tmux.listSessions()
   }
 
+  findSessionNameByWindowId(windowId: string): Promise<string | null> {
+    return this.options.tmux.findSessionNameByWindowId(windowId)
+  }
+
   async createSession(name: string, path: string): Promise<TmuxSession> {
     const sessionName = normalizeSessionName(name)
     const cwd = this.normalizePath(path)

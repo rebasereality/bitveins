@@ -100,6 +100,7 @@ await mkdir(join(releaseRoot, 'docs'), { recursive: true })
 await mkdir(join(releaseRoot, 'lib'), { recursive: true })
 await mkdir(join(releaseRoot, 'runtime', 'bin'), { recursive: true })
 await mkdir(join(releaseRoot, 'share', 'bitveins'), { recursive: true })
+await mkdir(join(releaseRoot, 'share', 'bitveins', 'hermes-plugin'), { recursive: true })
 await mkdir(join(releaseRoot, 'share', 'systemd', 'user'), { recursive: true })
 await mkdir(join(releaseRoot, 'share', 'licenses'), { recursive: true })
 
@@ -125,6 +126,12 @@ await copyFile(
 await copyFile(process.execPath, join(releaseRoot, 'runtime', 'bin', 'node'))
 await copyFile(join(root, 'LICENSE'), join(releaseRoot, 'LICENSE'))
 await copyFile(join(root, 'README.md'), join(releaseRoot, 'README.md'))
+for (const file of ['__init__.py', 'plugin.yaml', 'README.md', 'test_plugin.py']) {
+  await copyFile(
+    join(root, 'integrations', 'hermes-notifications', file),
+    join(releaseRoot, 'share', 'bitveins', 'hermes-plugin', file),
+  )
+}
 for (const document of ['ARCHITECTURE.md', 'CHANGELOG.md', 'CONTRIBUTING.md', 'SECURITY.md']) {
   await copyFile(join(root, document), join(releaseRoot, document))
 }

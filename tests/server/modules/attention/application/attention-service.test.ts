@@ -83,6 +83,43 @@ describe('AttentionService', () => {
     expect(publish).toHaveBeenCalledOnce()
   })
 
+  it('keeps generic Hermes input blocked while accepting only fixed internal Hermes events', async () => {
+    const repository = new MemoryRepository()
+    const service = new AttentionService({
+      createId: () => 'evt_123456789012',
+      publisher: { publish: vi.fn() },
+      push: { notify: vi.fn().mockResolvedValue(undefined) },
+      repository,
+    })
+
+    await expect(service.create({
+      source: 'hermes',
+      title: 'Hermes turn completed',
+      type: 'completed',
+    })).rejects.toThrow(/dedicated lifecycle integration/i)
+    await expect(service.createHermes({
+      source: 'hermes',
+      title: 'Hermes turn completed',
+      type: 'completed',
+    })).rejects.toThrow()
+    await expect(service.createHermes({
+      sessionName: 'Bitveins',
+      source: 'hermes',
+      title: 'Hermes turn completed',
+      type: 'completed',
+    })).resolves.toMatchObject({
+      sessionName: 'Bitveins',
+      source: 'hermes',
+      title: 'Hermes turn completed',
+      type: 'completed',
+    })
+    await expect(service.createHermes({
+      source: 'hermes',
+      title: 'Arbitrary client text',
+      type: 'completed',
+    } as never)).rejects.toThrow()
+  })
+
   it('returns after persistence without waiting for push delivery', async () => {
     const repository = new MemoryRepository()
     const pushDelivery = new Promise<void>(() => {})

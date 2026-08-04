@@ -39,6 +39,53 @@ function setup(options: { socketName?: string } = {}) {
 }
 
 describe('TmuxCliAdapter', () => {
+  it('resolves a window to its unique non-helper session', async () => {
+    const { adapter, runner } = setup()
+    runner.handler = async () => ({
+      stderr: '',
+      stdout: [
+        'Bitveins|@2709',
+        '_bitveins_helper|@2709',
+        'Other|@42',
+      ].join('\n'),
+    })
+
+    await expect(adapter.findSessionNameByWindowId('@2709')).resolves.toBe('Bitveins')
+    expect(runner.calls[0]).toMatchObject({
+      args: ['list-windows', '-a', '-F', '#{session_name}|#{window_id}'],
+      command: 'tmux',
+    })
+  })
+
+  it('does not guess when a window belongs to multiple user sessions', async () => {
+    const { adapter, runner } = setup()
+    runner.handler = async () => ({
+      stderr: '',
+      stdout: 'Bitveins|@2709\nShared|@2709\n_bitveins_helper|@2709\n',
+    })
+
+    await expect(adapter.findSessionNameByWindowId('@2709')).resolves.toBeNull()
+  })
+
+  it('rejects delimiter-forged external session names instead of creating a false match', async () => {
+    const { adapter, runner } = setup()
+    runner.handler = async () => ({
+      stderr: '',
+      stdout: 'evil|@2709|@2709\n',
+    })
+
+    await expect(adapter.findSessionNameByWindowId('@2709')).resolves.toBeNull()
+  })
+
+  it('rejects invalid window ids before invoking tmux', async () => {
+    const { adapter, runner } = setup()
+
+    await expect(adapter.findSessionNameByWindowId('2709')).rejects.toThrow(
+      'A valid tmux window id is required.',
+    )
+    expect(runner.calls).toHaveLength(0)
+  })
+
   it('parses sessions and keeps shell metacharacters as inert arguments', async () => {
     const { adapter, runner } = setup()
     runner.handler = async () => ({

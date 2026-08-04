@@ -1,6 +1,13 @@
 import { randomUUID } from 'node:crypto'
-import type { AttentionEvent, CreateAttentionEvent } from '#shared/contracts/attention'
-import { createAttentionEventSchema } from '#shared/contracts/attention'
+import type {
+  AttentionEvent,
+  CreateAttentionEvent,
+  CreateHermesAttentionEvent,
+} from '#shared/contracts/attention'
+import {
+  createAttentionEventSchema,
+  createHermesAttentionEventSchema,
+} from '#shared/contracts/attention'
 import type { AttentionRepository } from '../ports/attention-repository'
 import type { AttentionEventPublisher, AttentionPushNotifier } from '../ports/attention-delivery'
 
@@ -24,7 +31,14 @@ export class AttentionService {
   }
 
   async create(input: CreateAttentionEvent): Promise<AttentionEvent> {
-    const validated = createAttentionEventSchema.parse(input)
+    return this.persist(createAttentionEventSchema.parse(input))
+  }
+
+  async createHermes(input: CreateHermesAttentionEvent): Promise<AttentionEvent> {
+    return this.persist(createHermesAttentionEventSchema.parse(input))
+  }
+
+  private async persist(validated: CreateAttentionEvent | CreateHermesAttentionEvent): Promise<AttentionEvent> {
     const event = this.options.repository.create({
       ...validated,
       id: this.createId(),

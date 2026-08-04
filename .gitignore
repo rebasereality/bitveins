@@ -10,6 +10,8 @@ coverage
 coverage-cli
 playwright-report
 test-results
+__pycache__/
+*.py[cod]
 
 # Node dependencies
 node_modules

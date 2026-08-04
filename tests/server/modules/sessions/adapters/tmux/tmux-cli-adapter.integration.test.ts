@@ -53,6 +53,7 @@ describe('TmuxCliAdapter isolated integration', () => {
 
     const helper = await adapter.createWindowClientSession('integration', window.index)
     expect(helper.helperSessionName).toMatch(/^_bitveins_/)
+    await expect(adapter.findSessionNameByWindowId(window.id)).resolves.toBe('integration')
     await adapter.killBitveinsHelperSession(helper.helperSessionName)
 
     await adapter.killSession('integration')

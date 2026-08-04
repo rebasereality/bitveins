@@ -37,6 +37,7 @@ const e2eSocketName = `bitveins-e2e-${e2eRunId}`
 const e2eDatabasePath = `/tmp/bitveins-e2e-${e2eRunId}.sqlite`
 const e2eServerPidPath = `/tmp/bitveins-e2e-${e2eRunId}.pid`
 const e2eWorkspace = `/tmp/bitveins-e2e-workspace-${e2eRunId}`
+const e2eEventToken = process.env.BITVEINS_EVENT_TOKEN ?? 'e'.repeat(64)
 const externalServer = process.env.BITVEINS_E2E_EXTERNAL_SERVER === '1'
 const webServer = externalServer
   ? undefined
@@ -52,7 +53,10 @@ const webServer = externalServer
         BITVEINS_ALLOWED_ORIGINS: `http://127.0.0.1:${e2ePort}`,
         BITVEINS_AUTH_PASSWORD_HASH: '$scrypt$n=16384,r=8,p=1$gBJh+RfZmL0WCKMY8mD12Q$/MGcwEHKloyZMmolFZgFrHtKatncAWMy0nWlhKGSdVVKRScci2V94VnBpJtmh4Tio3TDjdCqHUq8Ga6V0FtjKA',
         BITVEINS_DATABASE_PATH: e2eDatabasePath,
+        BITVEINS_EVENT_TOKEN: e2eEventToken,
         BITVEINS_TMUX_SOCKET_NAME: e2eSocketName,
+        BITVEINS_VAPID_PRIVATE_KEY: 'p'.repeat(43),
+        BITVEINS_VAPID_PUBLIC_KEY: 'u'.repeat(87),
       },
       reuseExistingServer: false,
       url: `http://127.0.0.1:${e2ePort}/api/auth/session`,
@@ -62,6 +66,7 @@ process.env.BITVEINS_E2E_RUN_ID = e2eRunId
 process.env.BITVEINS_E2E_PORT = String(e2ePort)
 process.env.BITVEINS_E2E_TMUX_SOCKET_NAME = e2eSocketName
 process.env.BITVEINS_E2E_DATABASE_PATH = e2eDatabasePath
+process.env.BITVEINS_E2E_EVENT_TOKEN = e2eEventToken
 process.env.BITVEINS_E2E_SERVER_PID_PATH = e2eServerPidPath
 process.env.BITVEINS_E2E_WORKSPACE = e2eWorkspace
 
