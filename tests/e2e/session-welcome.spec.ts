@@ -49,7 +49,7 @@ test('turns the unselected workspace into a session launcher', async ({ page }) 
       data: { name: secondSession, path: workspace },
     })
     expect(createdSecond.ok(), await createdSecond.text()).toBe(true)
-    await page.reload()
+    await page.goto('/')
 
     await expect(welcome.getByRole('heading', { name: 'Pick up where you left off' })).toBeVisible()
     await expect(welcome.getByRole('button', { name: `Open session ${firstSession}` })).toBeVisible()
