@@ -1,4 +1,8 @@
-import { createAttentionEventSchema } from '#shared/contracts/attention'
+import {
+  createAttentionEventSchema,
+  hermesLifecycleEventSchema,
+  integrationAttentionEventSchema,
+} from '#shared/contracts/attention'
 import { useBitveinsContainer } from '../../composition/bitveins-container'
 import { assertEventIntegrationRequest } from '../../modules/attention/delivery/integration-auth'
 import { FixedWindowRateLimiter } from '../../modules/attention/delivery/event-rate-limiter'
@@ -21,6 +25,14 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 429, statusMessage: 'Event integration rate limit exceeded.' })
   }
 
-  const body = await readRequestBody(event, createAttentionEventSchema, 16_384, true)
-  return { event: await useBitveinsContainer().attention.create(body) }
+  const body = await readRequestBody(event, integrationAttentionEventSchema, 16_384, true)
+  const container = useBitveinsContainer()
+  const hermesEvent = hermesLifecycleEventSchema.safeParse(body)
+  if (hermesEvent.success) {
+    const created = await container.hermesNotifications.create(hermesEvent.data)
+    return created
+      ? { event: created }
+      : { event: null, suppressed: true as const }
+  }
+  return { event: await container.attention.create(createAttentionEventSchema.parse(body)) }
 })

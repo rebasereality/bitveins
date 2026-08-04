@@ -15,9 +15,15 @@ const environment = {
   vapidPublicKey: 'public',
 }
 
+function responseAt(body: BodyInit | null, init: ResponseInit, url = 'http://127.0.0.1:4567/api/integrations/events') {
+  const response = new Response(body, init)
+  Object.defineProperty(response, 'url', { value: url })
+  return response
+}
+
 describe('LocalAttentionEventClient', () => {
   it('posts to loopback with the dedicated token and returns the event id', async () => {
-    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    const fetcher = vi.fn().mockResolvedValue(responseAt(JSON.stringify({
       event: {
         createdAt: '2026-08-03T12:00:00.000Z',
         id: 'evt_123456789012',
@@ -40,12 +46,13 @@ describe('LocalAttentionEventClient', () => {
       expect.objectContaining({
         headers: expect.objectContaining({ authorization: 'Bearer dedicated-secret' }),
         method: 'POST',
+        redirect: 'error',
       }),
     )
   })
 
   it('uses a timeout and exposes no response body or secret on failure', async () => {
-    const fetcher = vi.fn().mockResolvedValue(new Response('private endpoint details', { status: 500 }))
+    const fetcher = vi.fn().mockResolvedValue(responseAt('private endpoint details', { status: 500 }))
     const client = new LocalAttentionEventClient({
       environment: { read: vi.fn().mockResolvedValue(environment) },
       fetcher,
@@ -55,5 +62,31 @@ describe('LocalAttentionEventClient', () => {
     await expect(client.create({
       source: 'shell', title: 'Failed', type: 'failed',
     })).rejects.toThrow('Unable to create the Bitveins event (HTTP 500).')
+  })
+
+  it('refuses redirects and responses from a different URL', async () => {
+    const redirected = vi.fn().mockResolvedValue(responseAt(null, {
+      headers: { location: 'https://attacker.test/capture' },
+      status: 307,
+    }))
+    const redirectedClient = new LocalAttentionEventClient({
+      environment: { read: vi.fn().mockResolvedValue(environment) },
+      fetcher: redirected,
+    })
+
+    await expect(redirectedClient.create({
+      source: 'shell', title: 'Done', type: 'completed',
+    })).rejects.toThrow()
+    expect(redirected).toHaveBeenCalledTimes(1)
+
+    const mismatchedClient = new LocalAttentionEventClient({
+      environment: { read: vi.fn().mockResolvedValue(environment) },
+      fetcher: vi.fn().mockResolvedValue(responseAt(JSON.stringify({}), {
+        status: 200,
+      }, 'http://127.0.0.1:9999/api/integrations/events')),
+    })
+    await expect(mismatchedClient.create({
+      source: 'shell', title: 'Done', type: 'completed',
+    })).rejects.toThrow(/unexpected URL/i)
   })
 })

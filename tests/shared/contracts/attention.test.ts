@@ -3,6 +3,13 @@ import {
   attentionEventSchema,
   createAttentionEventSchema,
   createAttentionDeepLink,
+  hermesLifecycleEventSchema,
+  hermesNotificationPreferenceResponseSchema,
+  hermesNotificationPreferenceSchema,
+  hermesNotificationPreferenceUpdateSchema,
+  integrationAttentionEventResponseSchema,
+  integrationAttentionEventSchema,
+  isHermesLifecycleEnabled,
   notificationPreferenceSchema,
   pushNotificationPayloadSchema,
   pushSubscriptionSchema,
@@ -74,6 +81,109 @@ describe('attention contracts', () => {
         keys: { auth: 'auth-key', p256dh: 'public-key' },
       })).toThrow()
     }
+  })
+
+  it('keeps the existing Hermes lifecycle mapping enabled by default', () => {
+    const preference = hermesNotificationPreferenceSchema.parse({})
+
+    expect(preference).toEqual({
+      completedWithTools: true,
+      completedWithoutTools: false,
+      failed: true,
+      inputRequired: true,
+      permissionRequired: true,
+    })
+    expect(isHermesLifecycleEnabled(preference, 'completed_with_tools')).toBe(true)
+    expect(isHermesLifecycleEnabled(preference, 'completed_without_tools')).toBe(false)
+  })
+
+  it('accepts partial Hermes preference updates but rejects empty updates', () => {
+    expect(hermesNotificationPreferenceUpdateSchema.parse({
+      completedWithoutTools: true,
+    })).toEqual({ completedWithoutTools: true })
+    expect(() => hermesNotificationPreferenceUpdateSchema.parse({})).toThrow()
+    expect(() => hermesNotificationPreferenceUpdateSchema.parse({ unknown: true })).toThrow()
+  })
+
+  it('requires privacy-safe typed lifecycle signals for Hermes events', () => {
+    expect(hermesLifecycleEventSchema.parse({
+      lifecycle: 'completed_without_tools',
+      source: 'hermes',
+      type: 'completed',
+      windowId: '@4',
+      paneId: '%8',
+    })).toEqual({
+      lifecycle: 'completed_without_tools',
+      source: 'hermes',
+      type: 'completed',
+      windowId: '@4',
+      paneId: '%8',
+    })
+    for (const forbidden of [
+      { title: 'private answer' },
+      { summary: 'tool arguments' },
+      { project: 'secret project' },
+      { sessionName: 'sensitive-session' },
+    ]) {
+      expect(() => hermesLifecycleEventSchema.parse({
+        lifecycle: 'completed_without_tools',
+        source: 'hermes',
+        type: 'completed',
+        ...forbidden,
+      })).toThrow()
+    }
+    expect(() => hermesLifecycleEventSchema.parse({
+      lifecycle: 'completed_without_tools',
+      source: 'codex',
+      type: 'completed',
+    })).toThrow()
+  })
+
+  it('normalizes legacy Hermes events into the filtered lifecycle path', () => {
+    expect(integrationAttentionEventSchema.parse({
+      source: 'hermes',
+      title: 'Hermes task completed',
+      type: 'completed',
+    })).toEqual({
+      lifecycle: 'completed_with_tools',
+      source: 'hermes',
+      type: 'completed',
+    })
+    expect(() => integrationAttentionEventSchema.parse({
+      source: 'hermes',
+      title: 'Attacker-controlled completed text',
+      type: 'completed',
+    })).toThrow()
+    expect(() => integrationAttentionEventSchema.parse({
+      source: 'hermes',
+      title: 'Generic bypass',
+      type: 'information',
+    })).toThrow()
+    expect(integrationAttentionEventSchema.parse({
+      source: 'codex',
+      title: 'Generic integration',
+      type: 'information',
+    })).toMatchObject({ source: 'codex', type: 'information' })
+    expect(() => createAttentionEventSchema.parse({
+      source: 'hermes',
+      title: 'Generic route bypass',
+      type: 'completed',
+    })).toThrow()
+    expect(() => createAttentionEventSchema.parse({
+      source: 'Hermes',
+      title: 'Case-insensitive generic route bypass',
+      type: 'completed',
+    })).toThrow()
+  })
+
+  it('validates normalized preference and suppressed integration responses', () => {
+    expect(hermesNotificationPreferenceResponseSchema.parse({
+      preference: {},
+    }).preference.completedWithoutTools).toBe(false)
+    expect(integrationAttentionEventResponseSchema.parse({
+      event: null,
+      suppressed: true,
+    })).toEqual({ event: null, suppressed: true })
   })
 
   it('validates the encrypted notification payload and internal deep link shape', () => {

@@ -1,7 +1,9 @@
 import type { TerminalPeer } from '../modules/terminal/application/terminal-peer-registry'
 import { AttentionService } from '../modules/attention/application/attention-service'
+import { HermesNotificationService } from '../modules/attention/application/hermes-notification-service'
 import { WebPushNotificationService } from '../modules/attention/application/web-push-notification-service'
 import { DrizzleAttentionRepository } from '../modules/attention/adapters/drizzle-attention-repository'
+import { DrizzleHermesNotificationPreferenceRepository } from '../modules/attention/adapters/drizzle-hermes-notification-preference-repository'
 import { DrizzlePushSubscriptionRepository } from '../modules/attention/adapters/drizzle-push-subscription-repository'
 import { NodeWebPushSender } from '../modules/attention/adapters/node-web-push-sender'
 import { ensureAttentionEnvironment } from '../modules/attention/adapters/attention-environment'
@@ -33,6 +35,7 @@ export interface BitveinsContainer {
   explorerDocuments: WorkspaceDocumentService
   explorerFileReferences: FileReferenceResolver
   history: HistoryService
+  hermesNotifications: HermesNotificationService
   sessions: SessionService
   terminalPeers: TerminalPeerRegistry<TerminalPeer>
   pushPublicKey: string
@@ -123,6 +126,11 @@ export function createBitveinsContainer(): BitveinsContainer {
     push,
     repository: new DrizzleAttentionRepository(useDrizzle()),
   })
+  const hermesNotificationPreferences = new DrizzleHermesNotificationPreferenceRepository(useDrizzle())
+  const hermesNotifications = new HermesNotificationService({
+    attention,
+    preferences: hermesNotificationPreferences,
+  })
 
   return {
     attention,
@@ -130,6 +138,7 @@ export function createBitveinsContainer(): BitveinsContainer {
     explorerDocuments,
     explorerFileReferences,
     history,
+    hermesNotifications,
     sessions,
     terminalPeers,
     pushPublicKey: environment.BITVEINS_VAPID_PUBLIC_KEY,

@@ -1,61 +1,90 @@
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { constants } from 'node:fs'
 import {
   open,
-  readFile,
-  rm,
 } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { ensurePrivateDirectory } from './secure-filesystem'
 import type { OperationLock } from '../ports/operation-lock'
+
+const FLOCK_EXECUTABLE = '/usr/bin/flock'
+const LOCK_HOLDER_EXECUTABLE = '/bin/cat'
+const LOCK_READY_MARKER = 'bitveins-lock-ready\n'
+
+async function acquireKernelLock(lockFile: string): Promise<ChildProcessWithoutNullStreams> {
+  const handle = await open(
+    lockFile,
+    constants.O_CREAT | constants.O_RDWR | constants.O_NOFOLLOW,
+    0o600,
+  ).catch((error) => {
+    if ((error as NodeJS.ErrnoException).code === 'EISDIR') {
+      throw new Error('The Bitveins installation lock is invalid.')
+    }
+    throw error
+  })
+  try {
+    const stats = await handle.stat({ bigint: true })
+    if (!stats.isFile()
+      || (typeof process.getuid === 'function' && stats.uid !== BigInt(process.getuid()))
+      || (stats.mode & 0o022n) !== 0n) {
+      throw new Error('The Bitveins installation lock is invalid.')
+    }
+
+    const child = spawn(
+      FLOCK_EXECUTABLE,
+      ['--exclusive', '--nonblock', '/proc/self/fd/3', LOCK_HOLDER_EXECUTABLE],
+      { stdio: ['pipe', 'pipe', 'pipe', handle.fd] },
+    ) as ChildProcessWithoutNullStreams
+    await new Promise<void>((resolve, reject) => {
+      let output = ''
+      let settled = false
+      const fail = (error: Error) => {
+        if (settled) return
+        settled = true
+        reject(error)
+      }
+      child.once('error', () => fail(new Error('Unable to start the Bitveins installation lock.')))
+      child.once('exit', code => fail(new Error(
+        code === 1
+          ? 'Another Bitveins installation operation is already running.'
+          : 'Unable to acquire the Bitveins installation lock.',
+      )))
+      child.stdout.on('data', (chunk: Buffer) => {
+        if (settled) return
+        output += chunk.toString('utf8')
+        if (output.includes(LOCK_READY_MARKER)) {
+          settled = true
+          resolve()
+        }
+      })
+      child.stdin.on('error', () => {})
+      child.stdin.write(LOCK_READY_MARKER)
+    })
+    return child
+  }
+  finally {
+    await handle.close()
+  }
+}
+
+async function releaseKernelLock(child: ChildProcessWithoutNullStreams): Promise<void> {
+  if (child.exitCode !== null) return
+  const exited = new Promise<void>(resolve => child.once('exit', () => resolve()))
+  child.stdin.end()
+  await exited
+}
 
 export async function withOperationLock<T>(
   lockFile: string,
   operation: () => Promise<T>,
 ): Promise<T> {
   await ensurePrivateDirectory(dirname(lockFile))
-  let handle
-
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      handle = await open(lockFile, 'wx', 0o600)
-      break
-    }
-    catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
-        throw error
-      }
-
-      const existingPid = Number.parseInt((await readFile(lockFile, 'utf8')).trim(), 10)
-      let active = Number.isSafeInteger(existingPid) && existingPid > 0
-      if (active) {
-        try {
-          process.kill(existingPid, 0)
-        }
-        catch (signalError) {
-          active = (signalError as NodeJS.ErrnoException).code !== 'ESRCH'
-        }
-      }
-
-      if (active || attempt > 0) {
-        throw new Error('Another Bitveins installation operation is already running.', {
-          cause: error,
-        })
-      }
-
-      await rm(lockFile, { force: true })
-    }
-  }
-
-  if (!handle) {
-    throw new Error('Unable to acquire the Bitveins installation lock.')
-  }
-
+  const child = await acquireKernelLock(lockFile)
   try {
-    await handle.writeFile(`${process.pid}\n`, 'utf8')
     return await operation()
   }
   finally {
-    await handle.close()
-    await rm(lockFile, { force: true })
+    await releaseKernelLock(child)
   }
 }
 

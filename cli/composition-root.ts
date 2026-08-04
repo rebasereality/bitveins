@@ -1,4 +1,4 @@
-import { dirname, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { BitveinsDoctor } from './application/bitveins-doctor'
@@ -9,6 +9,7 @@ import { BitveinsUpdater } from './application/bitveins-updater'
 import { resolveInstallationLayout } from './core/installation-layout'
 import { InstallationTransaction } from './application/installation/installation-transaction'
 import { FilesystemEnvironmentRepository } from './platform/filesystem-environment-repository'
+import { FilesystemHermesPluginInstaller } from './platform/filesystem-hermes-plugin-installer'
 import { FilesystemInstallationCleaner } from './platform/filesystem-installation-cleaner'
 import { FilesystemReleaseStore } from './platform/filesystem-release-store'
 import { FilesystemServiceUnitRepository } from './platform/filesystem-service-unit-repository'
@@ -31,6 +32,7 @@ import { ConsoleOutput } from './presentation/console-output'
 import { DoctorCommand } from './presentation/commands/doctor-command'
 import { EventCommand } from './presentation/commands/event-command'
 import { HelpCommand } from './presentation/commands/help-command'
+import { HermesCommand } from './presentation/commands/hermes-command'
 import { InstallCommand } from './presentation/commands/install-command'
 import { LifecycleCommand } from './presentation/commands/lifecycle-command'
 import {
@@ -61,6 +63,7 @@ export function createCliApplication(version: string): CliApplication {
   const service = new SystemdUserServiceManager(commands)
   const lock = new FileOperationLock(layout.lockFile)
   const home = resolve(process.env.HOME || homedir())
+  const releaseRoot = bundledReleaseRoot()
   const registry = new CommandRegistry()
   const environment = new FilesystemEnvironmentRepository(layout)
   const eventClient = new LocalAttentionEventClient({ environment })
@@ -97,7 +100,7 @@ export function createCliApplication(version: string): CliApplication {
     createInstaller,
     createPasswordReader,
     lock,
-    releaseRoot: bundledReleaseRoot(),
+    releaseRoot,
   }))
   for (const action of ['start', 'stop', 'restart'] as const) {
     registry.register(new LifecycleCommand(action, {
@@ -125,6 +128,17 @@ export function createCliApplication(version: string): CliApplication {
     environment: process.env,
     output,
   }))
+  registry.register(new HermesCommand(
+    new FilesystemHermesPluginInstaller({
+      commands,
+      hermesHome: process.env.HERMES_HOME?.trim() || join(home, '.hermes'),
+      home,
+      sourceDirectory: process.env.BITVEINS_RELEASE_ROOT
+        ? join(releaseRoot, 'share', 'bitveins', 'hermes-plugin')
+        : join(releaseRoot, 'integrations', 'hermes-notifications'),
+    }),
+    output,
+  ))
   registry.register(new PasswordCommand({
     createManager: passwordReader => new BitveinsPasswordManager({
       environment,

@@ -62,6 +62,9 @@ describe('EventCommand', () => {
     await expect(command.run([
       '--type', 'unknown', '--source', 'shell', '--title', 'Done',
     ])).rejects.toThrow(/Invalid/)
+    await expect(command.run([
+      'completed', '--source', 'hermes', '--title', 'Generic bypass',
+    ])).rejects.toThrow(/Hermes/i)
     expect(create).not.toHaveBeenCalled()
   })
 })

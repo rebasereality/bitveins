@@ -48,6 +48,26 @@ test('keeps desktop and mobile appearance profiles independent without remountin
     await expect(page.getByRole('heading', { name: 'Agent Inbox notifications' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Test device display' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Test Web Push' })).toBeVisible()
+    await expect(page.getByRole('switch', { name: 'Input requests' })).toBeChecked()
+    await expect(page.getByRole('switch', { name: 'Permission requests' })).toBeChecked()
+    await expect(page.getByRole('switch', { name: 'Completed tool turns' })).toBeChecked()
+    await expect(page.getByRole('switch', { name: 'Failed turns' })).toBeChecked()
+    const textOnlyResponses = page.getByRole('switch', { name: 'Text-only responses' })
+    await expect(textOnlyResponses).not.toBeChecked()
+    await Promise.all([
+      page.waitForResponse(response => response.url().endsWith('/api/attention/hermes/preferences')
+        && response.request().method() === 'PUT'
+        && response.ok()),
+      textOnlyResponses.click(),
+    ])
+    await expect(textOnlyResponses).toBeChecked()
+    const persistedHermesPreference = await page.request.get('/api/attention/hermes/preferences')
+    expect(persistedHermesPreference.ok()).toBe(true)
+    expect((await persistedHermesPreference.json()).preference.completedWithoutTools).toBe(true)
+    const restoredHermesPreference = await page.request.put('/api/attention/hermes/preferences', {
+      data: { completedWithoutTools: false },
+    })
+    expect(restoredHermesPreference.ok(), await restoredHermesPreference.text()).toBe(true)
     await expect(page.getByRole('heading', { name: 'Appearance' })).toHaveCount(0)
     await page.getByRole('button', { name: 'Appearance', exact: true }).click()
     await expect(page.locator('[data-appearance-device]')).toHaveText('Desktop')
