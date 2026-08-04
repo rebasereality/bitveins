@@ -6,6 +6,13 @@ until a release is tagged.
 
 ## Unreleased
 
+### Added
+
+- optional Codex lifecycle notifications for permission requests and completed
+  parent turns, with persistent per-event settings and a bundled local plugin;
+- `bitveins codex install` for securely installing and activating the bundled
+  Codex marketplace plugin.
+
 ## 1.2.0 - 2026-08-03
 
 ### Added

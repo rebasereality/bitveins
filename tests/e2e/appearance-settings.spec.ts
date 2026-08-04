@@ -47,6 +47,36 @@ test('keeps desktop and mobile appearance profiles independent without remountin
     await expect(page.getByRole('heading', { name: 'Notifications', exact: true })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Agent Inbox notifications' })).toBeVisible()
     const hermesSettings = page.getByRole('region', { name: 'Hermes Agent' })
+    const codexSettings = page.getByRole('region', { name: 'Codex', exact: true })
+    await expect(codexSettings).toBeVisible()
+    await expect(codexSettings.getByRole('heading', { name: 'Codex', exact: true })).toBeVisible()
+    await expect(codexSettings.getByText(/does not expose reliable clarification or failure events/)).toBeVisible()
+    const codexLogo = codexSettings.locator('[data-agent-notification-logo]')
+    await expect(codexLogo).toHaveAttribute('src', '/icons/codex.png')
+    await expect(codexLogo).toHaveCSS('height', '28px')
+    await expect(codexLogo).toHaveCSS('width', '28px')
+    await expect.poll(() => codexLogo.evaluate((image: HTMLImageElement) => ({
+      height: image.naturalHeight,
+      width: image.naturalWidth,
+    }))).toEqual({ height: 1024, width: 1024 })
+    await expect(page.getByRole('switch', { name: 'Codex permission requests' })).toBeChecked()
+    await expect(page.getByRole('switch', { name: 'Codex completed tool turns' })).toBeChecked()
+    const codexTextOnlyResponses = page.getByRole('switch', { name: 'Codex text-only responses' })
+    await expect(codexTextOnlyResponses).not.toBeChecked()
+    await Promise.all([
+      page.waitForResponse(response => response.url().endsWith('/api/attention/codex/preferences')
+        && response.request().method() === 'PUT'
+        && response.ok()),
+      codexTextOnlyResponses.click(),
+    ])
+    await expect(codexTextOnlyResponses).toBeChecked()
+    const persistedCodexPreference = await page.request.get('/api/attention/codex/preferences')
+    expect(persistedCodexPreference.ok()).toBe(true)
+    expect((await persistedCodexPreference.json()).preference.completedWithoutTools).toBe(true)
+    const restoredCodexPreference = await page.request.put('/api/attention/codex/preferences', {
+      data: { completedWithoutTools: false },
+    })
+    expect(restoredCodexPreference.ok(), await restoredCodexPreference.text()).toBe(true)
     await expect(hermesSettings).toBeVisible()
     await expect(hermesSettings.getByRole('heading', { name: 'Hermes Agent' })).toBeVisible()
     const hermesLogo = hermesSettings.locator('[data-agent-notification-logo]')
@@ -61,10 +91,10 @@ test('keeps desktop and mobile appearance profiles independent without remountin
     await expect(page.getByRole('button', { name: 'Test device display' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Test Web Push' })).toBeVisible()
     await expect(page.getByRole('switch', { name: 'Input requests' })).toBeChecked()
-    await expect(page.getByRole('switch', { name: 'Permission requests' })).toBeChecked()
-    await expect(page.getByRole('switch', { name: 'Completed tool turns' })).toBeChecked()
-    await expect(page.getByRole('switch', { name: 'Failed turns' })).toBeChecked()
-    const textOnlyResponses = page.getByRole('switch', { name: 'Text-only responses' })
+    await expect(page.getByRole('switch', { name: 'Permission requests', exact: true })).toBeChecked()
+    await expect(page.getByRole('switch', { name: 'Completed tool turns', exact: true })).toBeChecked()
+    await expect(page.getByRole('switch', { name: 'Failed turns', exact: true })).toBeChecked()
+    const textOnlyResponses = page.getByRole('switch', { name: 'Text-only responses', exact: true })
     await expect(textOnlyResponses).not.toBeChecked()
     await Promise.all([
       page.waitForResponse(response => response.url().endsWith('/api/attention/hermes/preferences')
@@ -205,6 +235,7 @@ test('keeps desktop and mobile appearance profiles independent without remountin
     await expect(page.locator('[data-appearance-setting="Terminal font size"] output')).toHaveText('14px')
     await expect(page.locator('[data-appearance-setting="Input font size"] output')).toHaveText('16px')
     await page.getByRole('button', { name: 'Notifications', exact: true }).click()
+    await expect(codexSettings).toBeVisible()
     await expect(hermesSettings).toBeVisible()
     const mobileNotificationGeometry = await hermesSettings.evaluate((section) => {
       const rows = Array.from(section.querySelectorAll<HTMLElement>('[data-agent-notification-option]'))

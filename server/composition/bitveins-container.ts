@@ -1,8 +1,10 @@
 import type { TerminalPeer } from '../modules/terminal/application/terminal-peer-registry'
 import { AttentionService } from '../modules/attention/application/attention-service'
+import { CodexNotificationService } from '../modules/attention/application/codex-notification-service'
 import { HermesNotificationService } from '../modules/attention/application/hermes-notification-service'
 import { WebPushNotificationService } from '../modules/attention/application/web-push-notification-service'
 import { DrizzleAttentionRepository } from '../modules/attention/adapters/drizzle-attention-repository'
+import { DrizzleCodexNotificationPreferenceRepository } from '../modules/attention/adapters/drizzle-codex-notification-preference-repository'
 import { DrizzleHermesNotificationPreferenceRepository } from '../modules/attention/adapters/drizzle-hermes-notification-preference-repository'
 import { DrizzlePushSubscriptionRepository } from '../modules/attention/adapters/drizzle-push-subscription-repository'
 import { NodeWebPushSender } from '../modules/attention/adapters/node-web-push-sender'
@@ -31,6 +33,7 @@ import { getValidatedEnv } from '../utils/env'
 
 export interface BitveinsContainer {
   attention: AttentionService
+  codexNotifications: CodexNotificationService
   dropzones: DropzoneService
   explorerDocuments: WorkspaceDocumentService
   explorerFileReferences: FileReferenceResolver
@@ -135,9 +138,19 @@ export function createBitveinsContainer(): BitveinsContainer {
     },
     windowSessions: sessions,
   })
+  const codexNotificationPreferences = new DrizzleCodexNotificationPreferenceRepository(useDrizzle())
+  const codexNotifications = new CodexNotificationService({
+    attention,
+    preferences: codexNotificationPreferences,
+    reportResolutionError: () => {
+      console.warn('Codex session resolution failed; event suppressed.')
+    },
+    windowSessions: sessions,
+  })
 
   return {
     attention,
+    codexNotifications,
     dropzones,
     explorerDocuments,
     explorerFileReferences,

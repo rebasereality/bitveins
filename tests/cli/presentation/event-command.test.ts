@@ -29,7 +29,7 @@ describe('EventCommand', () => {
 
     await command.run([
       'permission_required',
-      '--source', 'codex',
+      '--source', 'local-script',
       '--title', 'Permission required',
       '--summary', 'Run migrations?',
       '--project', 'explicit-project',
@@ -40,7 +40,7 @@ describe('EventCommand', () => {
       paneId: '%9',
       project: 'explicit-project',
       sessionName: 'detected-session',
-      source: 'codex',
+      source: 'local-script',
       summary: 'Run migrations?',
       title: 'Permission required',
       type: 'permission_required',
@@ -64,7 +64,10 @@ describe('EventCommand', () => {
     ])).rejects.toThrow(/Invalid/)
     await expect(command.run([
       'completed', '--source', 'hermes', '--title', 'Generic bypass',
-    ])).rejects.toThrow(/Hermes/i)
+    ])).rejects.toThrow(/dedicated integration/i)
+    await expect(command.run([
+      'completed', '--source', 'codex', '--title', 'Generic bypass',
+    ])).rejects.toThrow(/dedicated integration/i)
     expect(create).not.toHaveBeenCalled()
   })
 })

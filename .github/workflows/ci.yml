@@ -44,6 +44,9 @@ jobs:
       - name: Hermes plugin tests
         run: pnpm test:hermes-plugin
 
+      - name: Codex plugin tests
+        run: pnpm test:codex-plugin
+
       - name: Production Build
         run: pnpm build
 

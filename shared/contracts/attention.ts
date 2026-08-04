@@ -29,6 +29,12 @@ export const hermesLifecycleSchema = z.enum([
   'failed',
 ])
 
+export const codexLifecycleSchema = z.enum([
+  'permission_required',
+  'completed_with_tools',
+  'completed_without_tools',
+])
+
 const hermesNotificationPreferenceShape = {
   completedWithTools: z.boolean(),
   completedWithoutTools: z.boolean(),
@@ -59,6 +65,30 @@ export const hermesNotificationPreferenceResponseSchema = z.object({
   preference: hermesNotificationPreferenceSchema,
 }).strict()
 
+const codexNotificationPreferenceShape = {
+  completedWithTools: z.boolean(),
+  completedWithoutTools: z.boolean(),
+  permissionRequired: z.boolean(),
+}
+
+export const codexNotificationPreferenceSchema = z.object({
+  completedWithTools: codexNotificationPreferenceShape.completedWithTools.default(true),
+  completedWithoutTools: codexNotificationPreferenceShape.completedWithoutTools.default(false),
+  permissionRequired: codexNotificationPreferenceShape.permissionRequired.default(true),
+}).strict()
+
+export const codexNotificationPreferenceUpdateSchema = z.object({
+  completedWithTools: codexNotificationPreferenceShape.completedWithTools.optional(),
+  completedWithoutTools: codexNotificationPreferenceShape.completedWithoutTools.optional(),
+  permissionRequired: codexNotificationPreferenceShape.permissionRequired.optional(),
+}).strict().refine(value => Object.values(value).some(item => item !== undefined), {
+  message: 'At least one Codex notification preference is required.',
+})
+
+export const codexNotificationPreferenceResponseSchema = z.object({
+  preference: codexNotificationPreferenceSchema,
+}).strict()
+
 const attentionEventInputSchema = z.object({
   type: attentionEventTypeSchema,
   source: safeText('Source', 80),
@@ -71,8 +101,8 @@ const attentionEventInputSchema = z.object({
 }).strict()
 
 export const createAttentionEventSchema = attentionEventInputSchema.refine(
-  event => event.source.toLowerCase() !== 'hermes',
-  'Hermes events require the dedicated lifecycle integration.',
+  event => !['codex', 'hermes'].includes(event.source.toLowerCase()),
+  'Agent lifecycle events require their dedicated integration.',
 )
 
 const hermesAttentionContextShape = {
@@ -105,6 +135,26 @@ export const createHermesAttentionEventSchema = z.discriminatedUnion('type', [
   }).strict(),
 ])
 
+const codexAttentionContextShape = {
+  paneId: paneIdSchema.optional(),
+  sessionName: sessionNameSchema,
+  source: z.literal('codex'),
+  windowId: windowIdSchema.optional(),
+}
+
+export const createCodexAttentionEventSchema = z.discriminatedUnion('type', [
+  z.object({
+    ...codexAttentionContextShape,
+    title: z.literal('Codex needs permission'),
+    type: z.literal('permission_required'),
+  }).strict(),
+  z.object({
+    ...codexAttentionContextShape,
+    title: z.literal('Codex turn completed'),
+    type: z.literal('completed'),
+  }).strict(),
+])
+
 const hermesLifecycleVariant = <
   const Lifecycle extends z.infer<typeof hermesLifecycleSchema>,
   const Type extends z.infer<typeof attentionEventTypeSchema>,
@@ -122,6 +172,23 @@ export const hermesLifecycleEventSchema = z.discriminatedUnion('lifecycle', [
   hermesLifecycleVariant('completed_with_tools', 'completed'),
   hermesLifecycleVariant('completed_without_tools', 'completed'),
   hermesLifecycleVariant('failed', 'failed'),
+])
+
+const codexLifecycleVariant = <
+  const Lifecycle extends z.infer<typeof codexLifecycleSchema>,
+  const Type extends z.infer<typeof attentionEventTypeSchema>,
+>(lifecycle: Lifecycle, type: Type) => z.object({
+  lifecycle: z.literal(lifecycle),
+  source: z.literal('codex'),
+  type: z.literal(type),
+  windowId: windowIdSchema.optional(),
+  paneId: paneIdSchema.optional(),
+}).strict()
+
+export const codexLifecycleEventSchema = z.discriminatedUnion('lifecycle', [
+  codexLifecycleVariant('permission_required', 'permission_required'),
+  codexLifecycleVariant('completed_with_tools', 'completed'),
+  codexLifecycleVariant('completed_without_tools', 'completed'),
 ])
 
 const legacyHermesLifecycleByType = {
@@ -164,6 +231,7 @@ const legacyHermesLifecycleEventSchema = z.discriminatedUnion('type', [
 }))
 
 export const integrationAttentionEventSchema = z.union([
+  codexLifecycleEventSchema,
   hermesLifecycleEventSchema,
   legacyHermesLifecycleEventSchema,
   createAttentionEventSchema,
@@ -272,11 +340,16 @@ export const pushNotificationPayloadSchema = z.object({
 }).strict()
 
 export type AttentionEventType = z.infer<typeof attentionEventTypeSchema>
+export type CodexLifecycle = z.infer<typeof codexLifecycleSchema>
+export type CodexLifecycleEvent = z.infer<typeof codexLifecycleEventSchema>
+export type CodexNotificationPreference = z.infer<typeof codexNotificationPreferenceSchema>
+export type CodexNotificationPreferenceUpdate = z.infer<typeof codexNotificationPreferenceUpdateSchema>
 export type HermesLifecycle = z.infer<typeof hermesLifecycleSchema>
 export type HermesLifecycleEvent = z.infer<typeof hermesLifecycleEventSchema>
 export type HermesNotificationPreference = z.infer<typeof hermesNotificationPreferenceSchema>
 export type HermesNotificationPreferenceUpdate = z.infer<typeof hermesNotificationPreferenceUpdateSchema>
 export type CreateAttentionEvent = z.infer<typeof createAttentionEventSchema>
+export type CreateCodexAttentionEvent = z.infer<typeof createCodexAttentionEventSchema>
 export type CreateHermesAttentionEvent = z.infer<typeof createHermesAttentionEventSchema>
 export type AttentionEvent = z.infer<typeof attentionEventSchema>
 export type PushSubscriptionInput = z.infer<typeof pushSubscriptionSchema>
@@ -293,6 +366,17 @@ export function isHermesLifecycleEnabled(
     completed_without_tools: preference.completedWithoutTools,
     failed: preference.failed,
     input_required: preference.inputRequired,
+    permission_required: preference.permissionRequired,
+  }[lifecycle]
+}
+
+export function isCodexLifecycleEnabled(
+  preference: CodexNotificationPreference,
+  lifecycle: CodexLifecycle,
+): boolean {
+  return {
+    completed_with_tools: preference.completedWithTools,
+    completed_without_tools: preference.completedWithoutTools,
     permission_required: preference.permissionRequired,
   }[lifecycle]
 }

@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import type { HermesNotificationPreference } from '#shared/contracts/attention'
+import type {
+  CodexNotificationPreference,
+  HermesNotificationPreference,
+} from '#shared/contracts/attention'
 
 const {
   busy,
@@ -16,11 +19,40 @@ const {
 } = useWebPushNotifications()
 
 const {
+  busy: codexBusy,
+  error: codexError,
+  preference: codexPreference,
+  setPreference: setCodexPreference,
+} = useCodexNotificationPreferences()
+
+const {
   busy: hermesBusy,
   error: hermesError,
   preference: hermesPreference,
   setPreference: setHermesPreference,
 } = useHermesNotificationPreferences()
+
+const codexOptions: Array<{
+  description: string
+  key: keyof CodexNotificationPreference
+  label: string
+}> = [
+  {
+    description: 'When Codex asks for approval before a protected action.',
+    key: 'permissionRequired',
+    label: 'Codex permission requests',
+  },
+  {
+    description: 'When a parent Codex turn finishes after an observable local tool call.',
+    key: 'completedWithTools',
+    label: 'Codex completed tool turns',
+  },
+  {
+    description: 'When a parent Codex turn finishes without an observable local tool call.',
+    key: 'completedWithoutTools',
+    label: 'Codex text-only responses',
+  },
+]
 
 const hermesOptions: Array<{
   description: string
@@ -59,6 +91,13 @@ function updateHermesPreference(
   value: boolean,
 ): void {
   void setHermesPreference(key, value)
+}
+
+function updateCodexPreference(
+  key: keyof CodexNotificationPreference,
+  value: boolean,
+): void {
+  void setCodexPreference(key, value)
 }
 
 const status = computed(() => {
@@ -162,6 +201,53 @@ const status = computed(() => {
           Configure which lifecycle events each connected agent sends to Agent Inbox and subscribed devices.
         </p>
       </div>
+
+      <AgentNotificationSettingsGroup
+        agent="codex"
+        class="mt-4"
+        description="Choose which lifecycle events Codex sends to Agent Inbox and subscribed devices. Codex currently exposes permission requests and turn completion; it does not expose reliable clarification or failure events."
+        logo-src="/icons/codex.png"
+        title="Codex"
+      >
+        <div
+          v-if="codexError"
+          class="border-b border-[var(--bitveins-shell-border)] py-3"
+        >
+          <UAlert
+            color="error"
+            :title="codexError"
+            variant="subtle"
+          />
+        </div>
+
+        <div class="divide-y divide-[var(--bitveins-shell-border)]">
+          <div
+            v-for="option in codexOptions"
+            :key="option.key"
+            class="flex items-start justify-between gap-4 py-3 sm:items-center sm:gap-6"
+            data-agent-notification-option
+          >
+            <div
+              class="min-w-0 flex-1"
+              data-agent-notification-copy
+            >
+              <p class="text-sm">
+                {{ option.label }}
+              </p>
+              <p class="mt-0.5 text-xs leading-relaxed text-[var(--bitveins-shell-text-muted)]">
+                {{ option.description }}
+              </p>
+            </div>
+            <USwitch
+              class="mt-0.5 shrink-0 sm:mt-0"
+              :aria-label="option.label"
+              :disabled="codexBusy"
+              :model-value="codexPreference[option.key]"
+              @update:model-value="updateCodexPreference(option.key, $event)"
+            />
+          </div>
+        </div>
+      </AgentNotificationSettingsGroup>
 
       <AgentNotificationSettingsGroup
         agent="hermes"

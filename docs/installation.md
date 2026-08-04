@@ -6,6 +6,12 @@ contains the product CLI, the Nitro application, Node 24 and the native
 
 No development checkout, Node installation or package manager is required.
 
+Codex lifecycle notifications are optional and require an existing Codex CLI.
+After Bitveins is installed, run `bitveins codex install`, start a new Codex
+session, and trust the Bitveins definition from `/hooks`. The plugin is copied
+to Bitveins' stable data directory so future Bitveins releases can update the
+same local marketplace safely.
+
 ## Before installing
 
 The host must provide:

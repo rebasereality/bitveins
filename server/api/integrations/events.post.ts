@@ -1,4 +1,5 @@
 import {
+  codexLifecycleEventSchema,
   createAttentionEventSchema,
   hermesLifecycleEventSchema,
   integrationAttentionEventSchema,
@@ -27,6 +28,13 @@ export default defineEventHandler(async (event) => {
 
   const body = await readRequestBody(event, integrationAttentionEventSchema, 16_384, true)
   const container = useBitveinsContainer()
+  const codexEvent = codexLifecycleEventSchema.safeParse(body)
+  if (codexEvent.success) {
+    const created = await container.codexNotifications.create(codexEvent.data)
+    return created
+      ? { event: created }
+      : { event: null, suppressed: true as const }
+  }
   const hermesEvent = hermesLifecycleEventSchema.safeParse(body)
   if (hermesEvent.success) {
     const created = await container.hermesNotifications.create(hermesEvent.data)

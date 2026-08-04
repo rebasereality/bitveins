@@ -58,6 +58,7 @@ jobs:
           pnpm lint
           pnpm test:coverage
           pnpm test:cli:coverage
+          pnpm test:codex-plugin
           pnpm test:hermes-plugin
 
       - name: Build native release

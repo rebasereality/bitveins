@@ -24,12 +24,15 @@ const temporaryDirectories: string[] = []
 
 vi.mock('../../cli/platform/node-command-runner', () => ({
   NodeCommandRunner: class {
-    async run() {
+    async run(_command: string, args: readonly string[] = []) {
+      if (args.join(' ') === 'plugin marketplace list --json') {
+        return { exitCode: 0, stderr: '', stdout: '{"marketplaces":[]}' }
+      }
       return { exitCode: 0, stderr: '', stdout: '' }
     }
 
-    async which() {
-      return '/usr/bin/hermes'
+    async which(command: string) {
+      return `/usr/bin/${command}`
     }
   },
 }))
@@ -94,5 +97,39 @@ describe('CLI composition root', () => {
     const target = join(hermesHome, 'plugins', 'bitveins-notifications')
     expect((await lstat(target)).mode & 0o777).toBe(0o700)
     expect((await lstat(join(target, 'plugin.yaml'))).mode & 0o777).toBe(0o600)
+  })
+
+  it('wires the packaged Codex marketplace into the stable data directory', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bitveins-composition-codex-'))
+    temporaryDirectories.push(root)
+    const home = join(root, 'home')
+    const releaseRoot = join(root, 'release')
+    const marketplaceSource = join(releaseRoot, 'share', 'bitveins', 'codex-marketplace')
+    const relativeFiles = [
+      '.agents/plugins/marketplace.json',
+      'plugins/bitveins-notifications/.codex-plugin/plugin.json',
+      'plugins/bitveins-notifications/README.md',
+      'plugins/bitveins-notifications/hooks/hooks.json',
+      'plugins/bitveins-notifications/hooks/bitveins_notifications.py',
+    ]
+    await mkdir(home, { recursive: true })
+    for (const relativePath of relativeFiles) {
+      const path = join(marketplaceSource, relativePath)
+      await mkdir(join(path, '..'), { recursive: true })
+      await writeFile(path, `fixture:${relativePath}\n`, { mode: 0o644 })
+    }
+    vi.stubEnv('HOME', home)
+    vi.stubEnv('BITVEINS_RELEASE_ROOT', releaseRoot)
+    vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
+
+    await expect(createCliApplication('1.2.3').run(['codex', 'install']))
+      .resolves.toBe(CliExitCode.Success)
+
+    const target = join(
+      home,
+      '.local/share/bitveins/codex-marketplace/plugins/bitveins-notifications',
+    )
+    expect((await lstat(target)).mode & 0o777).toBe(0o700)
+    expect((await lstat(join(target, 'hooks', 'hooks.json'))).mode & 0o777).toBe(0o600)
   })
 })

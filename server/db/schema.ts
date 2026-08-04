@@ -62,6 +62,14 @@ export const hermesNotificationPreferences = sqliteTable('hermes_notification_pr
   updatedAt: integer('updated_at').notNull(),
 })
 
+export const codexNotificationPreferences = sqliteTable('codex_notification_preferences', {
+  id: integer('id').primaryKey(),
+  completedWithTools: integer('completed_with_tools', { mode: 'boolean' }).notNull().default(true),
+  completedWithoutTools: integer('completed_without_tools', { mode: 'boolean' }).notNull().default(false),
+  permissionRequired: integer('permission_required', { mode: 'boolean' }).notNull().default(true),
+  updatedAt: integer('updated_at').notNull(),
+})
+
 export type Session = typeof sessions.$inferSelect
 export type NewSession = typeof sessions.$inferInsert
 export type Dropzone = typeof dropzones.$inferSelect
@@ -71,3 +79,4 @@ export type NewAsyncMessage = typeof asyncMessages.$inferInsert
 export type AttentionEventRow = typeof attentionEvents.$inferSelect
 export type WebPushSubscriptionRow = typeof webPushSubscriptions.$inferSelect
 export type HermesNotificationPreferenceRow = typeof hermesNotificationPreferences.$inferSelect
+export type CodexNotificationPreferenceRow = typeof codexNotificationPreferences.$inferSelect

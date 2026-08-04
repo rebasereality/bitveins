@@ -47,6 +47,21 @@ if (process.version !== expectedNodeVersion) {
 }
 const version = process.env.BITVEINS_VERSION || projectVersion
 const artifact = releaseArtifactPaths(root, version)
+const codexPluginManifest = JSON.parse(await readFile(
+  join(
+    root,
+    'integrations',
+    'codex-notifications',
+    'plugins',
+    'bitveins-notifications',
+    '.codex-plugin',
+    'plugin.json',
+  ),
+  'utf8',
+)) as { version?: unknown }
+if (codexPluginManifest.version !== projectVersion) {
+  throw new Error('Codex plugin version must match the Bitveins package version.')
+}
 
 if (process.platform !== 'linux' || process.arch !== 'x64') {
   throw new Error('Release artifacts must be built natively on Linux x86_64.')
@@ -100,6 +115,7 @@ await mkdir(join(releaseRoot, 'docs'), { recursive: true })
 await mkdir(join(releaseRoot, 'lib'), { recursive: true })
 await mkdir(join(releaseRoot, 'runtime', 'bin'), { recursive: true })
 await mkdir(join(releaseRoot, 'share', 'bitveins'), { recursive: true })
+await mkdir(join(releaseRoot, 'share', 'bitveins', 'codex-marketplace'), { recursive: true })
 await mkdir(join(releaseRoot, 'share', 'bitveins', 'hermes-plugin'), { recursive: true })
 await mkdir(join(releaseRoot, 'share', 'systemd', 'user'), { recursive: true })
 await mkdir(join(releaseRoot, 'share', 'licenses'), { recursive: true })
@@ -130,6 +146,26 @@ for (const file of ['__init__.py', 'plugin.yaml', 'README.md', 'test_plugin.py']
   await copyFile(
     join(root, 'integrations', 'hermes-notifications', file),
     join(releaseRoot, 'share', 'bitveins', 'hermes-plugin', file),
+  )
+}
+for (const relativePath of [
+  '.agents/plugins/marketplace.json',
+  'plugins/bitveins-notifications/.codex-plugin/plugin.json',
+  'plugins/bitveins-notifications/README.md',
+  'plugins/bitveins-notifications/hooks/hooks.json',
+  'plugins/bitveins-notifications/hooks/bitveins_notifications.py',
+]) {
+  const target = join(
+    releaseRoot,
+    'share',
+    'bitveins',
+    'codex-marketplace',
+    relativePath,
+  )
+  await mkdir(dirname(target), { recursive: true })
+  await copyFile(
+    join(root, 'integrations', 'codex-notifications', relativePath),
+    target,
   )
 }
 for (const document of ['ARCHITECTURE.md', 'CHANGELOG.md', 'CONTRIBUTING.md', 'SECURITY.md']) {
