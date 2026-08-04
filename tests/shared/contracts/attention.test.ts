@@ -7,6 +7,8 @@ import {
   codexNotificationPreferenceUpdateSchema,
   createAttentionEventSchema,
   createAttentionDeepLink,
+  dismissAllAttentionEventsResponseSchema,
+  dismissAllAttentionEventsSchema,
   hermesLifecycleEventSchema,
   hermesNotificationPreferenceResponseSchema,
   hermesNotificationPreferenceSchema,
@@ -64,6 +66,19 @@ describe('attention contracts', () => {
 
     expect(createAttentionDeepLink(event)).toBe('/?session=kouizine&window=%404&event=evt_123456789012')
     expect(() => attentionEventSchema.parse({ ...event, readAt: 'yesterday' })).toThrow()
+  })
+
+  it('strictly validates bulk dismissal requests and responses', () => {
+    expect(dismissAllAttentionEventsSchema.parse({ action: 'dismiss' }))
+      .toEqual({ action: 'dismiss' })
+    expect(() => dismissAllAttentionEventsSchema.parse({ action: 'read' })).toThrow()
+    expect(dismissAllAttentionEventsResponseSchema.parse({
+      dismissedAt: '2026-08-03T12:00:00.000Z',
+      ids: ['evt_123456789012'],
+    })).toEqual({
+      dismissedAt: '2026-08-03T12:00:00.000Z',
+      ids: ['evt_123456789012'],
+    })
   })
 
   it('strictly validates push subscriptions and keeps details disabled by default', () => {

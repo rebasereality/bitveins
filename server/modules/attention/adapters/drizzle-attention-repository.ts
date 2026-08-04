@@ -1,4 +1,4 @@
-import { desc, eq, sql } from 'drizzle-orm'
+import { desc, eq, isNull, sql } from 'drizzle-orm'
 import type { AttentionEvent, AttentionEventType } from '#shared/contracts/attention'
 import { attentionEventSchema } from '#shared/contracts/attention'
 import { attentionEvents, type AttentionEventRow } from '../../../db/schema'
@@ -47,6 +47,15 @@ export class DrizzleAttentionRepository implements AttentionRepository {
 
   dismiss(id: string, dismissedAt: string): AttentionEvent | null {
     return this.update(id, { dismissedAt })
+  }
+
+  dismissAll(dismissedAt: string): string[] {
+    return this.database.update(attentionEvents)
+      .set({ dismissedAt })
+      .where(isNull(attentionEvents.dismissedAt))
+      .returning({ id: attentionEvents.id })
+      .all()
+      .map(row => row.id)
   }
 
   list(): AttentionEvent[] {

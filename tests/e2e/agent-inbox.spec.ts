@@ -113,6 +113,41 @@ test('persists a Hermes integration event with its resolved tmux session', async
   }
 })
 
+test('dismisses every Agent Inbox event with one action', async ({ page }) => {
+  await authenticate(page)
+  const eventIds: string[] = []
+
+  for (const index of [1, 2, 3]) {
+    const eventResponse = await page.request.post('/api/attention', {
+      data: {
+        source: 'test-agent',
+        title: `Bulk dismissal event ${index}`,
+        type: 'information',
+      },
+    })
+    expect(eventResponse.ok(), await eventResponse.text()).toBe(true)
+    const { event } = await eventResponse.json() as { event: { id: string } }
+    eventIds.push(event.id)
+  }
+
+  await page.getByLabel('Open Agent Inbox').click()
+  for (const id of eventIds) {
+    await expect(page.locator(`[data-event-id="${id}"]`)).toBeVisible()
+  }
+
+  await page.getByRole('button', { exact: true, name: 'Dismiss all' }).click()
+  await expect(page.getByText('No events yet.')).toBeVisible()
+
+  const inboxResponse = await page.request.get('/api/attention')
+  expect(inboxResponse.ok(), await inboxResponse.text()).toBe(true)
+  const body = await inboxResponse.json() as {
+    events: Array<{ dismissedAt?: string, id: string }>
+  }
+  for (const id of eventIds) {
+    expect(body.events.find(event => event.id === id)?.dismissedAt).toBeTruthy()
+  }
+})
+
 test('opens the linked tmux window from Agent Inbox', async ({ page }) => {
   await mkdir(workspace, { recursive: true })
   await authenticate(page)

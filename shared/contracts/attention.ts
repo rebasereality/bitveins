@@ -320,6 +320,15 @@ export const attentionStateUpdateSchema = z.object({
   action: z.enum(['read', 'dismiss']),
 }).strict()
 
+export const dismissAllAttentionEventsSchema = z.object({
+  action: z.literal('dismiss'),
+}).strict()
+
+export const dismissAllAttentionEventsResponseSchema = z.object({
+  dismissedAt: isoTimestampSchema,
+  ids: z.array(eventIdSchema),
+}).strict()
+
 export const pushPublicConfigurationSchema = z.object({
   preference: notificationPreferenceSchema,
   publicKey: z.string().min(80).max(200),

@@ -117,6 +117,7 @@ describe('CodexNotificationService', () => {
       repository: {
         create: persist,
         dismiss: vi.fn().mockReturnValue(null),
+        dismissAll: vi.fn().mockReturnValue([]),
         list: vi.fn().mockReturnValue([]),
         markRead: vi.fn().mockReturnValue(null),
       },

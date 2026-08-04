@@ -1,5 +1,10 @@
 import type { AttentionEvent } from '#shared/contracts/attention'
-import { attentionEventListSchema, attentionEventResponseSchema, attentionEventSchema } from '#shared/contracts/attention'
+import {
+  attentionEventListSchema,
+  attentionEventResponseSchema,
+  attentionEventSchema,
+  dismissAllAttentionEventsResponseSchema,
+} from '#shared/contracts/attention'
 import { BrowserWebSocketTransportFactory } from '~/terminal/browser-websocket-transport'
 import type { TerminalTransport } from '~/terminal/terminal-transport'
 import { mergeAttentionSnapshots } from '~/attention/inbox-state'
@@ -12,6 +17,7 @@ function attentionWebSocketUrl(): string {
 export function useAttentionInbox() {
   const events = ref<AttentionEvent[]>([])
   const loading = ref(false)
+  const dismissingAll = ref(false)
   const error = ref<string | null>(null)
   let disposed = false
   let reconnectDelayMs = 1_000
@@ -46,6 +52,29 @@ export function useAttentionInbox() {
       method: 'PATCH',
     }))
     merge(response.event)
+  }
+
+  async function dismissAll(): Promise<void> {
+    if (dismissingAll.value || visibleEvents.value.length === 0) return
+    dismissingAll.value = true
+    error.value = null
+    try {
+      const response = dismissAllAttentionEventsResponseSchema.parse(await $fetch('/api/attention', {
+        body: { action: 'dismiss' },
+        method: 'PATCH',
+      }))
+      const dismissedIds = new Set(response.ids)
+      const dismissedEvents = events.value
+        .filter(event => dismissedIds.has(event.id))
+        .map(event => ({ ...event, dismissedAt: response.dismissedAt }))
+      events.value = mergeAttentionSnapshots(events.value, dismissedEvents)
+    }
+    catch {
+      error.value = 'Unable to dismiss Agent Inbox.'
+    }
+    finally {
+      dismissingAll.value = false
+    }
   }
 
   function handleRealtime(event: Event): void {
@@ -91,6 +120,8 @@ export function useAttentionInbox() {
 
   return {
     dismiss: (id: string) => update(id, 'dismiss'),
+    dismissAll,
+    dismissingAll,
     error,
     events: visibleEvents,
     loading,

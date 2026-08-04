@@ -3,6 +3,7 @@ import type { AttentionEvent, AttentionEventType } from '#shared/contracts/atten
 
 const props = defineProps<{
   error: string | null
+  dismissingAll: boolean
   events: AttentionEvent[]
   loading: boolean
   open: boolean
@@ -13,6 +14,7 @@ let previouslyFocused: HTMLElement | null = null
 
 const emit = defineEmits<{
   'dismiss': [event: AttentionEvent]
+  'dismiss-all': []
   'select': [event: AttentionEvent]
   'update:open': [open: boolean]
 }>()
@@ -104,15 +106,26 @@ onBeforeUnmount(restoreFocus)
               Attention, completions and failures
             </p>
           </div>
-          <UButton
-            aria-label="Close Agent Inbox"
-            color="neutral"
-            icon="i-lucide-x"
-            size="xs"
-            square
-            variant="ghost"
-            @click="close"
-          />
+          <div class="flex items-center gap-1">
+            <UButton
+              v-if="events.length > 0"
+              color="neutral"
+              label="Dismiss all"
+              :loading="dismissingAll"
+              size="xs"
+              variant="ghost"
+              @click="emit('dismiss-all')"
+            />
+            <UButton
+              aria-label="Close Agent Inbox"
+              color="neutral"
+              icon="i-lucide-x"
+              size="xs"
+              square
+              variant="ghost"
+              @click="close"
+            />
+          </div>
         </header>
 
         <div class="min-h-0 flex-1 overflow-y-auto p-2">
