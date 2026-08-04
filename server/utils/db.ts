@@ -4,6 +4,7 @@ import Database from 'better-sqlite3'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import * as schema from '../db/schema'
+import { createSessionId } from '../modules/sessions/model/session-identity'
 
 export type RawDatabase = InstanceType<typeof Database>
 export type DrizzleDatabase = BetterSQLite3Database<typeof schema>
@@ -242,6 +243,42 @@ function runMigrations(dbInstance: RawDatabase): void {
             permission_required,
             updated_at
           ) VALUES (1, 1, 0, 1, 0);
+        `)
+      },
+    },
+    {
+      id: 7,
+      name: '007_add_stable_session_identity',
+      up: () => {
+        ensureColumn(dbInstance, 'sessions', 'id', 'TEXT')
+        ensureColumn(dbInstance, 'sessions', 'tmux_bound', 'INTEGER')
+        dbInstance.exec('UPDATE sessions SET tmux_bound = 0 WHERE tmux_bound IS NULL')
+        const rows = dbInstance.prepare('SELECT name FROM sessions WHERE id IS NULL OR id = ?').all('') as Array<{ name: string }>
+        const update = dbInstance.prepare('UPDATE sessions SET id = ? WHERE name = ?')
+        for (const row of rows) update.run(createSessionId(), row.name)
+        dbInstance.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_id ON sessions (id)')
+
+        ensureColumn(dbInstance, 'attention_events', 'session_id', 'TEXT')
+        dbInstance.exec(`
+          UPDATE attention_events
+          SET session_id = (
+            SELECT sessions.id FROM sessions WHERE sessions.name = attention_events.session_name
+          )
+          WHERE session_id IS NULL AND session_name IS NOT NULL;
+          CREATE INDEX IF NOT EXISTS idx_attention_events_session_id
+            ON attention_events (session_id);
+        `)
+      },
+    },
+    {
+      id: 8,
+      name: '008_add_invalidated_session_id_tombstones',
+      up: () => {
+        dbInstance.exec(`
+          CREATE TABLE IF NOT EXISTS invalidated_session_ids (
+            id TEXT PRIMARY KEY,
+            invalidated_at INTEGER NOT NULL
+          );
         `)
       },
     },

@@ -33,15 +33,23 @@ export function useTmuxWindows(
     }
   }
 
-  async function fetchWindows(): Promise<void> {
+  function resetWindows(): void {
+    windows.value = []
+    selectedWindowIndex.value = null
+  }
+
+  async function fetchWindows(isCurrent: () => boolean = () => true): Promise<void> {
     if (!activeSession.value) {
+      if (!isCurrent()) return
       windows.value = []
       selectedWindowIndex.value = null
       return
     }
 
     try {
-      const data = await $fetch<{ windows: TmuxWindow[] }>(`/api/sessions/${encodeURIComponent(activeSession.value)}/windows`)
+      const sessionName = activeSession.value
+      const data = await $fetch<{ windows: TmuxWindow[] }>(`/api/sessions/${encodeURIComponent(sessionName)}/windows`)
+      if (!isCurrent() || activeSession.value !== sessionName) return
       windows.value = data.windows
 
       if (data.windows.length > 0 && (selectedWindowIndex.value === null || !data.windows.some(w => w.index === selectedWindowIndex.value))) {
@@ -50,6 +58,7 @@ export function useTmuxWindows(
       }
     }
     catch (err) {
+      if (!isCurrent()) return
       handleAuthError(err)
     }
   }
@@ -63,15 +72,22 @@ export function useTmuxWindows(
     }, 3000)
   }
 
-  async function handleWindowSelect(windowIndex: number, attachWindowFn: (sessionName: string, windowIndex: number) => Promise<void>): Promise<void> {
-    if (!activeSession.value) return
+  async function handleWindowSelect(
+    windowIndex: number,
+    attachWindowFn: (sessionName: string, windowIndex: number) => Promise<void>,
+    isCurrent: () => boolean = () => true,
+  ): Promise<void> {
+    if (!activeSession.value || !isCurrent()) return
+    const sessionName = activeSession.value
     error.value = null
     selectedWindowIndex.value = windowIndex
     try {
-      await attachWindowFn(activeSession.value, windowIndex)
-      await fetchWindows()
+      await attachWindowFn(sessionName, windowIndex)
+      if (!isCurrent() || activeSession.value !== sessionName) return
+      await fetchWindows(isCurrent)
     }
     catch (err) {
+      if (!isCurrent()) return
       error.value = apiErrorMessage(err, 'Unable to select tmux window.')
       handleAuthError(err)
     }
@@ -143,6 +159,7 @@ export function useTmuxWindows(
     activeWindowValue,
     activeWindow,
     stopWindowRefresh,
+    resetWindows,
     fetchWindows,
     startWindowRefresh,
     handleWindowSelect,

@@ -1,36 +1,77 @@
 import { describe, expect, it, vi } from 'vitest'
 import { SessionService } from '../../../../../server/modules/sessions/application/session-service'
 import type { PathInspector } from '../../../../../server/modules/sessions/ports/path-inspector'
-import type { SessionRepository } from '../../../../../server/modules/sessions/ports/session-repository'
+import type { PersistedSession, SessionRepository } from '../../../../../server/modules/sessions/ports/session-repository'
 import type { SessionPathResolver } from '../../../../../server/modules/sessions/ports/session-path-resolver'
 import type { TmuxGateway } from '../../../../../server/modules/sessions/ports/tmux-gateway'
 
 class MemorySessionRepository implements SessionRepository {
+  readonly invalidIds = new Set<string>()
   readonly paths = new Map<string, string>()
+  readonly ids = new Map<string, string>()
   failSave = false
+
+  clearSessionIdInvalid(id: string): void {
+    this.invalidIds.delete(id)
+  }
 
   deletePath(name: string): void {
     this.paths.delete(name)
+    this.ids.delete(name)
+  }
+
+  findById(id: string): PersistedSession | null {
+    const name = [...this.ids].find(([, candidate]) => candidate === id)?.[0]
+    return name ? this.findByName(name) : null
+  }
+
+  findByName(name: string): PersistedSession | null {
+    const path = this.paths.get(name)
+    if (!path) return null
+    return { createdAt: 123, id: this.ids.get(name) ?? 'abcdefghijklmnop', name, path, tmuxBound: false }
   }
 
   findPath(name: string): string | null {
     return this.paths.get(name) ?? null
   }
 
-  renamePath(currentName: string, nextName: string, path: string, _now: number): void {
-    this.paths.delete(currentName)
-    this.paths.set(nextName, path)
+  list(): PersistedSession[] {
+    return [...this.paths.keys()].map(name => this.findByName(name)!)
   }
 
-  savePath(name: string, path: string, _now: number): void {
+  isSessionIdInvalid(id: string): boolean {
+    return this.invalidIds.has(id)
+  }
+
+  markSessionIdInvalid(id: string): void {
+    this.invalidIds.add(id)
+  }
+
+  renamePath(currentName: string, nextName: string, path: string): void {
+    const id = this.ids.get(currentName) ?? 'abcdefghijklmnop'
+    this.paths.delete(currentName)
+    this.ids.delete(currentName)
+    this.paths.set(nextName, path)
+    this.ids.set(nextName, id)
+  }
+
+  saveIdentity(session: PersistedSession): void {
+    if (this.failSave) throw new Error('database unavailable')
+    this.paths.set(session.name, session.path)
+    this.ids.set(session.name, session.id)
+  }
+
+  savePath(name: string, path: string, _now: number, id?: string): void {
     if (this.failSave) throw new Error('database unavailable')
     this.paths.set(name, path)
+    if (id) this.ids.set(name, id)
   }
 }
 
 function createTmux(overrides: Partial<TmuxGateway> = {}): TmuxGateway {
   return {
     captureWindowSnapshot: vi.fn(async () => ''),
+    clearSessionId: vi.fn(async () => {}),
     createSession: vi.fn(async () => {}),
     createWindow: vi.fn(async () => ({
       active: true,
@@ -56,6 +97,7 @@ function createTmux(overrides: Partial<TmuxGateway> = {}): TmuxGateway {
     renameSession: vi.fn(async () => {}),
     renameWindow: vi.fn(async () => null),
     selectWindow: vi.fn(async () => {}),
+    setSessionId: vi.fn(async () => {}),
     ...overrides,
   }
 }
@@ -69,8 +111,11 @@ function setup(tmux = createTmux()) {
   const sessionPathResolver: SessionPathResolver = {
     normalize: path => path === '~' ? '/home/test' : path,
   }
+  const generatedIds = ['abcdefghijklmnop', 'qrstuvwxyzABCDEF', '0123456789_-ABCD']
+  let generatedIdIndex = 0
   const service = new SessionService({
     clock: () => 123,
+    createId: () => generatedIds[generatedIdIndex++]!,
     home: '/home/test',
     logger: {
       error(message, error) {
@@ -101,31 +146,59 @@ describe('SessionService', () => {
       }),
     })
     const context = setup(tmux)
-    const originalSave = context.repository.savePath.bind(context.repository)
-    context.repository.savePath = (name, path, now) => {
+    const originalSave = context.repository.saveIdentity.bind(context.repository)
+    context.repository.saveIdentity = (session) => {
       order.push('repository')
-      originalSave(name, path, now)
+      originalSave(session)
     }
 
-    await expect(context.service.createSession('main', '~')).resolves.toEqual({
+    await expect(context.service.createSession('main', '~')).resolves.toMatchObject({
       name: 'main',
       path: '/home/test',
     })
-    expect(order).toEqual(['tmux', 'repository'])
+    expect(order).toEqual(['tmux', 'repository', 'repository'])
     expect(context.repository.findPath('main')).toBe('/home/test')
+    expect(context.repository.isSessionIdInvalid('abcdefghijklmnop')).toBe(false)
   })
 
-  it('keeps a created tmux session when persistence is unavailable', async () => {
+  it('never returns a created tmux session with an unpersisted identity', async () => {
     const context = setup()
     context.repository.failSave = true
 
-    await expect(context.service.createSession('main', '/workspace')).resolves.toEqual({
-      name: 'main',
-      path: '/workspace',
-    })
+    await expect(context.service.createSession('main', '/workspace'))
+      .rejects.toThrow('Unable to establish a stable tmux session identity.')
     expect(context.tmux.createSession).toHaveBeenCalledOnce()
-    expect(context.tmux.killSession).not.toHaveBeenCalled()
-    expect(context.errors[0]?.message).toBe('Failed to save session path.')
+    expect(context.tmux.clearSessionId).toHaveBeenCalledWith('main')
+    expect(context.tmux.killSession).toHaveBeenCalledWith('main')
+    expect(context.repository.isSessionIdInvalid('abcdefghijklmnop')).toBe(true)
+  })
+
+  it('kills a created session without touching its tmux option when identity reservation fails', async () => {
+    const context = setup()
+    context.repository.markSessionIdInvalid = vi.fn(() => {
+      throw new Error('database unavailable')
+    })
+
+    await expect(context.service.createSession('main', '/workspace'))
+      .rejects.toThrow('Unable to reserve a stable tmux session identity.')
+    expect(context.tmux.setSessionId).not.toHaveBeenCalled()
+    expect(context.tmux.clearSessionId).not.toHaveBeenCalled()
+    expect(context.tmux.killSession).toHaveBeenCalledWith('main')
+    expect(context.repository.findByName('main')).toBeNull()
+  })
+
+  it('removes the row and created tmux session when set-option fails', async () => {
+    const tmux = createTmux({
+      setSessionId: vi.fn(async () => { throw new Error('set-option failed') }),
+    })
+    const context = setup(tmux)
+
+    await expect(context.service.createSession('main', '/workspace'))
+      .rejects.toThrow('Unable to establish a stable tmux session identity.')
+    expect(context.repository.findByName('main')).toBeNull()
+    expect(tmux.clearSessionId).toHaveBeenCalledWith('main')
+    expect(tmux.killSession).toHaveBeenCalledWith('main')
+    expect(context.repository.isSessionIdInvalid('abcdefghijklmnop')).toBe(true)
   })
 
   it('rejects a target that is not a directory before calling tmux', async () => {
@@ -141,7 +214,7 @@ describe('SessionService', () => {
     const context = setup()
 
     await expect(context.service.openTransferSession('Dépôt Documentation', '~'))
-      .resolves.toEqual({
+      .resolves.toMatchObject({
         created: true,
         session: {
           name: 'depot-documentation',
@@ -160,7 +233,7 @@ describe('SessionService', () => {
     })
     const context = setup(tmux)
 
-    await expect(context.service.openTransferSession('Docs', '~')).resolves.toEqual({
+    await expect(context.service.openTransferSession('Docs', '~')).resolves.toMatchObject({
       created: false,
       session: {
         name: 'docs',
@@ -179,7 +252,7 @@ describe('SessionService', () => {
     })
     const context = setup(tmux)
 
-    await expect(context.service.openTransferSession('Docs', '/workspace/docs')).resolves.toEqual({
+    await expect(context.service.openTransferSession('Docs', '/workspace/docs')).resolves.toMatchObject({
       created: false,
       session: {
         name: 'docs-2',
@@ -198,7 +271,7 @@ describe('SessionService', () => {
     })
     const context = setup(tmux)
 
-    await expect(context.service.openTransferSession('Docs', '/workspace/docs')).resolves.toEqual({
+    await expect(context.service.openTransferSession('Docs', '/workspace/docs')).resolves.toMatchObject({
       created: true,
       session: {
         name: 'docs-2',
@@ -223,7 +296,7 @@ describe('SessionService', () => {
     })
     const context = setup(tmux)
 
-    await expect(context.service.openTransferSession('Docs', '/workspace/docs')).resolves.toEqual({
+    await expect(context.service.openTransferSession('Docs', '/workspace/docs')).resolves.toMatchObject({
       created: false,
       session: {
         name: 'docs',
@@ -249,7 +322,7 @@ describe('SessionService', () => {
         order.push('helpers')
       }),
       listSessions: vi.fn(async () => [{
-        name: 'next',
+        name: 'main',
         path: '/workspace',
       }]),
       renameSession: vi.fn(async () => {
@@ -259,12 +332,12 @@ describe('SessionService', () => {
     const context = setup(tmux)
     context.repository.paths.set('main', '/workspace')
     const originalRename = context.repository.renamePath.bind(context.repository)
-    context.repository.renamePath = (current, next, path, now) => {
+    context.repository.renamePath = (current, next, path) => {
       order.push('repository')
-      originalRename(current, next, path, now)
+      originalRename(current, next, path)
     }
 
-    await expect(context.service.renameSession('main', 'next')).resolves.toEqual({
+    await expect(context.service.renameSession('main', 'next')).resolves.toMatchObject({
       name: 'next',
       path: '/workspace',
     })
@@ -276,6 +349,7 @@ describe('SessionService', () => {
   it('falls back to tmux and caches a missing session path', async () => {
     const tmux = createTmux({
       displaySessionPath: vi.fn(async () => '/from/tmux'),
+      listSessions: vi.fn(async () => [{ name: 'main', path: '/from/tmux' }]),
     })
     const context = setup(tmux)
 
@@ -318,9 +392,11 @@ describe('SessionService', () => {
   })
 
   it('treats an unchanged rename as a no-op', async () => {
-    const context = setup()
+    const context = setup(createTmux({
+      listSessions: vi.fn(async () => [{ name: 'main', path: '~' }]),
+    }))
 
-    await expect(context.service.renameSession('main', ' main ')).resolves.toEqual({
+    await expect(context.service.renameSession('main', ' main ')).resolves.toMatchObject({
       name: 'main',
       path: '~',
     })
@@ -328,12 +404,14 @@ describe('SessionService', () => {
   })
 
   it('returns a stable fallback when tmux does not list the renamed session', async () => {
-    const context = setup()
+    const context = setup(createTmux({
+      listSessions: vi.fn(async () => [{ name: 'main', path: '/workspace' }]),
+    }))
     context.repository.paths.set('main', '/workspace')
 
-    await expect(context.service.renameSession('main', 'next')).resolves.toEqual({
+    await expect(context.service.renameSession('main', 'next')).resolves.toMatchObject({
       name: 'next',
-      path: '~',
+      path: '/workspace',
     })
   })
 

@@ -1,4 +1,10 @@
-import type { TmuxSession, TmuxWindow } from '#shared/contracts/terminal'
+import type { TmuxWindow } from '#shared/contracts/terminal'
+
+export interface DiscoveredTmuxSession {
+  name: string
+  path: string
+  sessionId?: string
+}
 
 export interface WindowClientSession {
   helperSessionName: string
@@ -8,6 +14,7 @@ export interface WindowClientSession {
 
 export interface TmuxGateway {
   captureWindowSnapshot(name: string, index: unknown, lines?: number): Promise<string>
+  clearSessionId(name: string): Promise<void>
   createSession(name: string, path: string): Promise<void>
   createWindow(name: string, path: string): Promise<TmuxWindow>
   createWindowClientSession(name: string, index: unknown): Promise<WindowClientSession>
@@ -19,11 +26,12 @@ export interface TmuxGateway {
   killBitveinsHelpersForBase(name: string): Promise<void>
   killStaleBitveinsHelpers(activeHelpers?: ReadonlySet<string>, owner?: string): Promise<void>
   killWindow(name: string, index: unknown): Promise<void>
-  listSessions(): Promise<TmuxSession[]>
+  listSessions(): Promise<DiscoveredTmuxSession[]>
   listWindows(name: string): Promise<TmuxWindow[]>
   prepareTerminalWheel(name: string, direction: 'down' | 'up'): Promise<boolean>
   resetTerminalScroll(name: string): Promise<void>
   renameSession(name: string, nextName: string): Promise<void>
   renameWindow(name: string, index: unknown, nextName: string): Promise<TmuxWindow | null>
   selectWindow(name: string, index: unknown): Promise<void>
+  setSessionId(name: string, id: string): Promise<void>
 }

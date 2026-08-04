@@ -1,4 +1,4 @@
-import type { TmuxSession, TmuxWindow } from '#shared/contracts/terminal'
+import type { TmuxWindow } from '#shared/contracts/terminal'
 import { SessionError } from '../../model/session-error'
 import {
   isMissingTmuxServerError,
@@ -16,7 +16,7 @@ import {
   normalizeWindowIndex,
   normalizeWindowName,
 } from '../../model/session-validation'
-import type { TmuxGateway, WindowClientSession } from '../../ports/tmux-gateway'
+import type { DiscoveredTmuxSession, TmuxGateway, WindowClientSession } from '../../ports/tmux-gateway'
 import type { CommandRunner } from './command-runner'
 
 interface TmuxCliAdapterOptions {
@@ -39,9 +39,9 @@ export class TmuxCliAdapter implements TmuxGateway {
     this.randomId = options.randomId ?? (() => Math.random().toString(36).slice(2, 8))
   }
 
-  async listSessions(): Promise<TmuxSession[]> {
+  async listSessions(): Promise<DiscoveredTmuxSession[]> {
     try {
-      return parseTmuxSessions(await this.run(['ls', '-F', '#{session_name}|#{session_path}']))
+      return parseTmuxSessions(await this.run(['ls', '-F', '#{session_name}|#{@bitveins_session_id}|#{session_path}']))
     }
     catch (error) {
       if (this.isMissingServer(error)) return []
@@ -89,6 +89,14 @@ export class TmuxCliAdapter implements TmuxGateway {
 
   async renameSession(name: string, nextName: string): Promise<void> {
     await this.run(['rename-session', '-t', normalizeSessionName(name), normalizeSessionName(nextName)])
+  }
+
+  async setSessionId(name: string, id: string): Promise<void> {
+    await this.run(['set-option', '-t', normalizeSessionName(name), '@bitveins_session_id', id])
+  }
+
+  async clearSessionId(name: string): Promise<void> {
+    await this.run(['set-option', '-u', '-t', normalizeSessionName(name), '@bitveins_session_id'])
   }
 
   async listWindows(name: string): Promise<TmuxWindow[]> {

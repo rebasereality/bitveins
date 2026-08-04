@@ -98,7 +98,7 @@ describe('TmuxCliAdapter', () => {
       path: '/workspace',
     }])
     expect(runner.calls[0]).toMatchObject({
-      args: ['ls', '-F', '#{session_name}|#{session_path}'],
+      args: ['ls', '-F', '#{session_name}|#{@bitveins_session_id}|#{session_path}'],
       command: 'tmux',
     })
     await expect(adapter.createSession('bad;name', '/tmp')).rejects.toThrow(
@@ -121,6 +121,18 @@ describe('TmuxCliAdapter', () => {
       'main',
       '-c',
       '/workspace',
+    ])
+  })
+
+  it('sets and clears the stable session id through a tmux user option', async () => {
+    const { adapter, runner } = setup()
+
+    await adapter.setSessionId('main', 'abcdefghijklmnop')
+    await adapter.clearSessionId('main')
+
+    expect(runner.calls.map(call => call.args)).toEqual([
+      ['set-option', '-t', 'main', '@bitveins_session_id', 'abcdefghijklmnop'],
+      ['set-option', '-u', '-t', 'main', '@bitveins_session_id'],
     ])
   })
 

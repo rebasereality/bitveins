@@ -50,6 +50,13 @@ describe('attention contracts', () => {
       type: 'information',
       windowId: '4',
     })).toThrow()
+    expect(() => createAttentionEventSchema.parse({
+      sessionId: 'abcdefghijklmnop',
+      sessionName: 'main',
+      source: 'other-agent',
+      title: 'Injected identity',
+      type: 'information',
+    })).toThrow()
   })
 
   it('validates persisted lifecycle timestamps and generates only internal deep links', () => {
@@ -65,6 +72,15 @@ describe('attention contracts', () => {
     })
 
     expect(createAttentionDeepLink(event)).toBe('/?session=kouizine&window=%404&event=evt_123456789012')
+    expect(createAttentionDeepLink({
+      ...event,
+      sessionId: 'abcdefghijklmnop',
+    })).toBe('/s/kouizine~abcdefghijklmnop/t/4?event=evt_123456789012')
+    expect(createAttentionDeepLink({
+      id: event.id,
+      sessionId: 'abcdefghijklmnop',
+      sessionName: 'kouizine',
+    })).toBe('/s/kouizine~abcdefghijklmnop?event=evt_123456789012')
     expect(() => attentionEventSchema.parse({ ...event, readAt: 'yesterday' })).toThrow()
   })
 

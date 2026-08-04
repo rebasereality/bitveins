@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isSessionId, parseSessionRoute, stableSessionRoute, terminalSessionRoute } from '../navigation/session-route'
 
 const safeText = (label: string, max: number) => z.string()
   .trim()
@@ -10,6 +11,7 @@ const optionalSafeText = (label: string, max: number) => safeText(label, max).op
 const isoTimestampSchema = z.iso.datetime({ offset: true })
 const eventIdSchema = z.string().regex(/^evt_[A-Za-z0-9_-]{12,80}$/u, 'A valid attention event id is required.')
 const sessionNameSchema = safeText('Session name', 80)
+const sessionIdSchema = z.string().refine(isSessionId, 'A valid session id is required.')
 const windowIdSchema = z.string().regex(/^@\d+$/u, 'A valid tmux window id is required.')
 const paneIdSchema = z.string().regex(/^%\d+$/u, 'A valid tmux pane id is required.')
 
@@ -239,6 +241,7 @@ export const integrationAttentionEventSchema = z.union([
 
 export const attentionEventSchema = attentionEventInputSchema.extend({
   id: eventIdSchema,
+  sessionId: sessionIdSchema.optional(),
   createdAt: isoTimestampSchema,
   readAt: isoTimestampSchema.optional(),
   dismissedAt: isoTimestampSchema.optional(),
@@ -342,7 +345,16 @@ export const attentionWebSocketMessageSchema = z.object({
 export const pushNotificationPayloadSchema = z.object({
   body: z.string().min(1).max(240).refine(value => !/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/u.test(value)),
   data: z.object({
-    url: z.string().max(512).regex(/^\/\?(?:[A-Za-z]+=[^&]*&?)+$/u),
+    url: z.string().min(1).max(2048).startsWith('/').refine((value) => {
+      try {
+        const url = new URL(value, 'https://bitveins.invalid')
+        return url.origin === 'https://bitveins.invalid'
+          && parseSessionRoute(url.pathname, url.search).valid
+      }
+      catch {
+        return false
+      }
+    }, 'A valid internal Bitveins route is required.'),
   }).strict(),
   tag: z.string().regex(/^attention:evt_[A-Za-z0-9_-]{12,80}$/u),
   title: safeText('Notification title', 80),
@@ -390,7 +402,18 @@ export function isCodexLifecycleEnabled(
   }[lifecycle]
 }
 
-export function createAttentionDeepLink(event: Pick<AttentionEvent, 'id' | 'sessionName' | 'windowId'>): string {
+export function createAttentionDeepLink(event: Pick<AttentionEvent, 'id' | 'sessionId' | 'sessionName' | 'windowId'>): string {
+  if (event.sessionId && event.sessionName) {
+    try {
+      const session = { id: event.sessionId, name: event.sessionName }
+      return event.windowId
+        ? terminalSessionRoute(session, event.windowId, event.id)
+        : stableSessionRoute(session, event.id)
+    }
+    catch {
+      // Fall back to the strict legacy link for historical or externally supplied names.
+    }
+  }
   const query = new URLSearchParams()
   if (event.sessionName) query.set('session', event.sessionName)
   if (event.windowId) query.set('window', event.windowId)
