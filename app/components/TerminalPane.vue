@@ -11,6 +11,7 @@ import { TerminalFileLinkProvider } from '~/terminal/file-link-provider'
 import { createTerminalInputRouter } from '~/terminal/terminal-input-router'
 import { createTerminalOutputNormalizer } from '~/terminal/terminal-output-normalizer'
 import { terminalThemeForAccent } from '~/terminal/terminal-theme'
+import { TerminalUrlLinkProvider } from '~/terminal/url-link-provider'
 import { parseSelectedFileReferences } from '~/utils/file-reference-parser'
 import { suppressMobileTerminalKeyboard } from '~/utils/mobile-terminal-input'
 import { buildUploadDestinationPath } from '~/utils/upload-path'
@@ -45,6 +46,8 @@ let terminalBinaryDisposable: IDisposable | null = null
 let terminalSelectionDisposable: IDisposable | null = null
 let terminalFileLinkDisposable: IDisposable | null = null
 let terminalFileLinkProvider: TerminalFileLinkProvider | null = null
+let terminalUrlLinkDisposable: IDisposable | null = null
+let terminalUrlLinkProvider: TerminalUrlLinkProvider | null = null
 let terminalResizeObserver: ResizeObserver | null = null
 let disposed = false
 
@@ -157,6 +160,10 @@ async function openSelectedFileReference(): Promise<void> {
   catch (error: unknown) {
     console.warn('Unable to resolve the selected terminal path.', error)
   }
+}
+
+function openUrlInNewTab(url: string): void {
+  window.open(url, '_blank', 'noopener,noreferrer')
 }
 
 function focus(): void {
@@ -304,6 +311,8 @@ function dispose(): void {
   terminalSelectionDisposable?.dispose()
   terminalFileLinkDisposable?.dispose()
   terminalFileLinkProvider?.dispose()
+  terminalUrlLinkDisposable?.dispose()
+  terminalUrlLinkProvider?.dispose()
   terminalResizeObserver?.disconnect()
   terminalInputRouter.dispose()
   terminalSelection.dispose()
@@ -356,6 +365,11 @@ onMounted(async () => {
     activate: resolution => emit('fileLinkActivate', resolution),
   })
   terminalFileLinkDisposable = term.registerLinkProvider(terminalFileLinkProvider)
+  terminalUrlLinkProvider = new TerminalUrlLinkProvider({
+    terminal: term,
+    activate: openUrlInNewTab,
+  })
+  terminalUrlLinkDisposable = term.registerLinkProvider(terminalUrlLinkProvider)
 
   await nextTick()
   applyInputMode()
