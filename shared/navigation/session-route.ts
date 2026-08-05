@@ -56,6 +56,16 @@ function readEvent(search: string): { eventId?: string, valid: boolean } {
   return { eventId, valid: true }
 }
 
+function readHomeEvent(search: string): { eventId?: string, valid: boolean } {
+  const query = new URLSearchParams(search)
+  const sources = query.getAll('source')
+  if (sources.length > 1 || (sources.length === 1 && sources[0] !== 'pwa')) {
+    return { valid: false }
+  }
+  query.delete('source')
+  return readEvent(query.toString())
+}
+
 function parseLegacy(search: string): ParsedSessionRoute | null {
   const query = new URLSearchParams(search)
   const keys = [...query.keys()]
@@ -77,7 +87,7 @@ export function parseSessionRoute(pathname: string, search = ''): ParsedSessionR
   if (pathname === '/') {
     const legacy = parseLegacy(search)
     if (legacy) return legacy
-    const event = readEvent(search)
+    const event = readHomeEvent(search)
     return event.valid
       ? { valid: true, target: { kind: 'home', ...(event.eventId ? { eventId: event.eventId } : {}) } }
       : invalid('Invalid query parameters.')

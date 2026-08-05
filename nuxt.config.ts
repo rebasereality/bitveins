@@ -92,7 +92,7 @@ export default defineNuxtConfig({
       display_override: ['standalone', 'fullscreen'],
       orientation: 'portrait',
       scope: '/',
-      start_url: '/?source=pwa',
+      start_url: '/',
       categories: ['productivity', 'utilities', 'developer'],
       icons: [
         {
