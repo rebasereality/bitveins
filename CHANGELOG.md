@@ -6,12 +6,49 @@ until a release is tagged.
 
 ## Unreleased
 
+## 1.3.0 - 2026-08-05
+
 ### Added
 
+- Agent Inbox for persistent attention events linked to the exact tmux session
+  and window that needs attention;
+- privacy-safe Web Push subscriptions, per-device detail controls, diagnostics
+  and notification tests;
+- `bitveins event` for creating authenticated local Agent Inbox events from
+  commands and scripts without reusing browser credentials;
+- optional Hermes Agent lifecycle notifications for input, permission,
+  completed parent turns and failures, with global controls per event class;
+- `bitveins hermes install [--profile <name>]` for securely installing and
+  activating the bundled Hermes plugin;
 - optional Codex lifecycle notifications for permission requests and completed
-  parent turns, with persistent per-event settings and a bundled local plugin;
+  parent turns, with persistent controls per event class and a bundled local
+  plugin;
 - `bitveins codex install` for securely installing and activating the bundled
-  Codex marketplace plugin.
+  Codex marketplace plugin;
+- one-click dismissal of all visible Agent Inbox events;
+- stable, browser-native permalinks and history for sessions, terminal windows
+  and Explorer paths;
+- `Ctrl`/`Cmd` terminal links for HTTP(S) URLs and bare IPv4 addresses, opened
+  in a separate browser tab.
+
+### Changed
+
+- native release archives now bundle and verify the Codex and Hermes lifecycle
+  plugins so installations never require a source checkout;
+- the installer now creates and preserves the local integration token and VAPID
+  identity used by Agent Inbox and Web Push;
+- agent lifecycle preferences are grouped by integration, while notification
+  detail visibility remains private to each subscribed device;
+- time-sensitive input and permission notifications are delivered ahead of
+  routine completion events.
+
+### Fixed
+
+- unavailable or reserved helper deep-link targets no longer attach an
+  unrelated tmux session;
+- legacy database files are hardened to owner-only permissions on startup;
+- previously installed PWAs using `/?source=pwa` load sessions normally and
+  canonicalize to the home route.
 
 ## 1.2.0 - 2026-08-03
 
