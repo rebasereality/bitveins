@@ -38,6 +38,7 @@ describe('session route codec', () => {
 
   it('accepts strict convenience and legacy links', () => {
     expect(parseSessionRoute('/s/kouizine')).toMatchObject({ valid: true, target: { kind: 'session' } })
+    expect(parseSessionRoute('/', '?source=pwa')).toEqual({ valid: true, target: { kind: 'home' } })
     expect(parseSessionRoute('/', '?session=kouizine&window=%404&event=evt_123456789012')).toMatchObject({
       valid: true,
       target: { kind: 'legacy', sessionName: 'kouizine', windowId: '@4' },
@@ -55,7 +56,10 @@ describe('session route codec', () => {
     ['/s/name~abcdefghijklmnop/e/%00secret', ''],
     ['/', '?session=main&session=other'],
     ['/', '?session=main&next=https://attacker.test'],
+    ['/', '?source=browser'],
+    ['/', '?source=pwa&source=pwa'],
     ['/s/main', '?window=%404'],
+    ['/s/main', '?source=pwa'],
   ])('rejects unsafe or ambiguous input %s%s', (pathname, search) => {
     expect(parseSessionRoute(pathname, search).valid).toBe(false)
   })
