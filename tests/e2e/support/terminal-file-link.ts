@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test'
 
 export async function ctrlHoverFirstTerminalLink(
   page: Page,
-  resolutionRequestCount: () => number,
+  resolutionRequestCount: () => number = () => 0,
 ): Promise<boolean> {
   const screen = page.locator('.xterm-screen').first()
   const screenBox = await screen.boundingBox()
