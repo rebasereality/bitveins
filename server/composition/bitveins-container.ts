@@ -6,6 +6,7 @@ import { WebPushNotificationService } from '../modules/attention/application/web
 import { DrizzleAttentionRepository } from '../modules/attention/adapters/drizzle-attention-repository'
 import { DrizzleCodexNotificationPreferenceRepository } from '../modules/attention/adapters/drizzle-codex-notification-preference-repository'
 import { DrizzleHermesNotificationPreferenceRepository } from '../modules/attention/adapters/drizzle-hermes-notification-preference-repository'
+import { DrizzlePushSessionMuteRepository } from '../modules/attention/adapters/drizzle-push-session-mute-repository'
 import { DrizzlePushSubscriptionRepository } from '../modules/attention/adapters/drizzle-push-subscription-repository'
 import { NodeWebPushSender } from '../modules/attention/adapters/node-web-push-sender'
 import { ensureAttentionEnvironment } from '../modules/attention/adapters/attention-environment'
@@ -42,6 +43,7 @@ export interface BitveinsContainer {
   sessions: SessionService
   terminalPeers: TerminalPeerRegistry<TerminalPeer>
   pushPublicKey: string
+  pushSessionMutes: DrizzlePushSessionMuteRepository
   pushSubscriptions: DrizzlePushSubscriptionRepository
 }
 
@@ -108,6 +110,7 @@ export function createBitveinsContainer(): BitveinsContainer {
     sessions,
   })
   const pushSubscriptions = new DrizzlePushSubscriptionRepository(useDrizzle())
+  const pushSessionMutes = new DrizzlePushSessionMuteRepository(useDrizzle())
   const push = new WebPushNotificationService({
     logger: {
       warn(message, details) {
@@ -119,6 +122,7 @@ export function createBitveinsContainer(): BitveinsContainer {
       privateKey: environment.BITVEINS_VAPID_PRIVATE_KEY,
       publicKey: environment.BITVEINS_VAPID_PUBLIC_KEY,
     }),
+    sessionMutes: pushSessionMutes,
   })
   const attention = new AttentionService({
     publisher: {
@@ -129,6 +133,10 @@ export function createBitveinsContainer(): BitveinsContainer {
     push,
     repository: new DrizzleAttentionRepository(useDrizzle()),
     resolveSessionId: sessionName => sessions.findSessionIdByName(sessionName),
+    resolveWindowName: async (sessionName, windowId) => {
+      const windows = await sessions.listWindows(sessionName)
+      return windows.find(window => window.id === windowId)?.name ?? null
+    },
   })
   const hermesNotificationPreferences = new DrizzleHermesNotificationPreferenceRepository(useDrizzle())
   const hermesNotifications = new HermesNotificationService({
@@ -160,6 +168,7 @@ export function createBitveinsContainer(): BitveinsContainer {
     sessions,
     terminalPeers,
     pushPublicKey: environment.BITVEINS_VAPID_PUBLIC_KEY,
+    pushSessionMutes,
     pushSubscriptions,
   }
 }

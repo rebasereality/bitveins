@@ -34,6 +34,14 @@ function timestamp(value: string): string {
   }).format(new Date(value))
 }
 
+function tmuxContext(event: AttentionEvent): string {
+  if (!event.sessionName) return 'No linked session'
+  if (event.windowName) {
+    return `tmux: ${event.sessionName} / ${event.windowName}${event.windowId ? ` (${event.windowId})` : ''}`
+  }
+  return `tmux: ${event.sessionName}${event.windowId ? ` / ${event.windowId}` : ''}`
+}
+
 function close(): void {
   emit('update:open', false)
 }
@@ -181,7 +189,7 @@ onBeforeUnmount(restoreFocus)
               </p>
               <div class="mt-2 flex items-center justify-between gap-2 text-[10px] text-[var(--bitveins-shell-text-subtle)]">
                 <span class="truncate">
-                  {{ event.sessionName ? `tmux: ${event.sessionName}${event.windowId ? ` / ${event.windowId}` : ''}` : 'No linked session' }}
+                  {{ tmuxContext(event) }}
                 </span>
                 <span class="shrink-0">{{ timestamp(event.createdAt) }}</span>
               </div>

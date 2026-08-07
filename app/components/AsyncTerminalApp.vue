@@ -44,6 +44,7 @@ const pendingFileResolution = ref<AmbiguousResolution | null>(null)
 const settingsOpen = ref(false)
 const inboxOpen = ref(false)
 const attentionNavigationError = ref<string | null>(null)
+let shouldSuppressAttentionEvent = (_event: AttentionEvent): boolean => false
 
 const {
   dismiss: dismissAttentionEvent,
@@ -51,11 +52,14 @@ const {
   dismissingAll: dismissingAllAttentionEvents,
   error: attentionError,
   events: attentionEvents,
+  lookupEvents: attentionLookupEvents,
   loading: attentionLoading,
   markRead: markAttentionEventRead,
   refresh: refreshAttentionEvents,
   unreadCount: unreadAttentionCount,
-} = useAttentionInbox()
+} = useAttentionInbox({
+  shouldSuppress: event => shouldSuppressAttentionEvent(event),
+})
 
 function resetHistory(): void {
   historyMessages.value = []
@@ -225,11 +229,26 @@ const {
   terminal,
 })
 
+const activeSessionId = computed(() => (
+  sessions.value.find(session => session.name === activeSession.value)?.id ?? null
+))
+const {
+  available: notificationMuteAvailable,
+  busy: notificationMuteBusy,
+  error: notificationMuteError,
+  muted: notificationMuted,
+  suppresses: suppressesAttentionEvent,
+  toggle: toggleNotificationMute,
+} = useSessionNotificationMute({
+  sessionId: activeSessionId,
+})
+shouldSuppressAttentionEvent = suppressesAttentionEvent
+
 const applyPermalinkTarget = usePermalinkTargetApplier({
   activeFilePath,
   activeSession,
   attachSession,
-  attentionEvents,
+  attentionEvents: attentionLookupEvents,
   detachSession,
   error: attentionNavigationError,
   fetchWindows,
@@ -597,6 +616,10 @@ watch(activeSession, () => {
             :editing-window-index="editingWindowIndex"
             :has-path-link-roots="hasPathLinkRoots"
             :input-mode="inputMode"
+            :notification-mute-available="notificationMuteAvailable"
+            :notification-mute-busy="notificationMuteBusy"
+            :notification-mute-error="notificationMuteError"
+            :notification-muted="notificationMuted"
             :path-link-root="pathLinkRoot"
             :window-tab-items="windowTabItems"
             :windows="windows"
@@ -614,6 +637,7 @@ watch(activeSession, () => {
             @ready="onTerminalReady"
             @select-tmux-window="selectTmuxWindowFromUi"
             @start-tmux-window-rename="startTmuxWindowRename"
+            @toggle-notification-mute="toggleNotificationMute"
           />
 
           <AsyncTerminalExplorer

@@ -1,5 +1,6 @@
-import type { AttentionEvent } from '#shared/contracts/attention'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
+  type AttentionEvent,
   attentionEventListSchema,
   attentionEventResponseSchema,
   attentionEventSchema,
@@ -7,15 +8,30 @@ import {
 } from '#shared/contracts/attention'
 import { BrowserWebSocketTransportFactory } from '~/terminal/browser-websocket-transport'
 import type { TerminalTransport } from '~/terminal/terminal-transport'
-import { mergeAttentionSnapshots } from '~/attention/inbox-state'
+import {
+  mergeAttentionSnapshots,
+  MUTED_ATTENTION_EVENT_IDS_KEY,
+  parseMutedAttentionEventIds,
+  rememberMutedAttentionEvents,
+} from '~/attention/inbox-state'
+import { SESSION_NOTIFICATION_MUTES_CHANGED_EVENT } from '~/attention/push-subscription-events'
 
 function attentionWebSocketUrl(): string {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   return `${protocol}//${window.location.host}/api/ws`
 }
 
-export function useAttentionInbox() {
+interface AttentionInboxOptions {
+  shouldSuppress?: (event: AttentionEvent) => boolean
+}
+
+function sameIds(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
+  return left.size === right.size && [...left].every(id => right.has(id))
+}
+
+export function useAttentionInbox(options: AttentionInboxOptions = {}) {
   const events = ref<AttentionEvent[]>([])
+  const mutedEventIds = ref<Set<string>>(new Set())
   const loading = ref(false)
   const dismissingAll = ref(false)
   const error = ref<string | null>(null)
@@ -24,11 +40,21 @@ export function useAttentionInbox() {
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
   let refreshTimer: ReturnType<typeof setInterval> | null = null
   let transport: TerminalTransport | null = null
-  const visibleEvents = computed(() => events.value.filter(event => !event.dismissedAt))
-  const unreadCount = computed(() => events.value.filter(event => !event.readAt && !event.dismissedAt).length)
+  const navigableEvents = computed(() => events.value.filter(event => !event.dismissedAt))
+  const visibleEvents = computed(() => navigableEvents.value.filter(event => !mutedEventIds.value.has(event.id)))
+  const unreadCount = computed(() => visibleEvents.value.filter(event => !event.readAt).length)
 
-  function merge(event: AttentionEvent): void {
-    events.value = mergeAttentionSnapshots(events.value, [event])
+  function merge(incoming: AttentionEvent[]): void {
+    const nextMutedIds = rememberMutedAttentionEvents(
+      mutedEventIds.value,
+      incoming,
+      event => options.shouldSuppress?.(event) ?? false,
+    )
+    if (!sameIds(nextMutedIds, mutedEventIds.value)) {
+      mutedEventIds.value = nextMutedIds
+      window.localStorage.setItem(MUTED_ATTENTION_EVENT_IDS_KEY, JSON.stringify([...nextMutedIds]))
+    }
+    events.value = mergeAttentionSnapshots(events.value, incoming)
   }
 
   async function refresh(): Promise<void> {
@@ -36,7 +62,7 @@ export function useAttentionInbox() {
     error.value = null
     try {
       const response = attentionEventListSchema.parse(await $fetch('/api/attention'))
-      events.value = mergeAttentionSnapshots(events.value, response.events)
+      merge(response.events)
     }
     catch {
       error.value = 'Unable to load Agent Inbox.'
@@ -51,7 +77,7 @@ export function useAttentionInbox() {
       body: { action },
       method: 'PATCH',
     }))
-    merge(response.event)
+    merge([response.event])
   }
 
   async function dismissAll(): Promise<void> {
@@ -79,7 +105,17 @@ export function useAttentionInbox() {
 
   function handleRealtime(event: Event): void {
     const parsed = attentionEventSchema.safeParse((event as CustomEvent).detail)
-    if (parsed.success) merge(parsed.data)
+    if (parsed.success) merge([parsed.data])
+  }
+
+  function handleStorage(event: StorageEvent): void {
+    if (event.key === MUTED_ATTENTION_EVENT_IDS_KEY) {
+      mutedEventIds.value = parseMutedAttentionEventIds(event.newValue)
+    }
+  }
+
+  function handleSessionMutesChanged(): void {
+    merge(events.value)
   }
 
   function connectAttentionSocket(): void {
@@ -105,7 +141,12 @@ export function useAttentionInbox() {
   }
 
   onMounted(() => {
+    mutedEventIds.value = parseMutedAttentionEventIds(
+      window.localStorage.getItem(MUTED_ATTENTION_EVENT_IDS_KEY),
+    )
     window.addEventListener('bitveins:attention-event', handleRealtime)
+    window.addEventListener(SESSION_NOTIFICATION_MUTES_CHANGED_EVENT, handleSessionMutesChanged)
+    window.addEventListener('storage', handleStorage)
     connectAttentionSocket()
     refreshTimer = setInterval(() => void refresh(), 15_000)
     void refresh()
@@ -113,6 +154,8 @@ export function useAttentionInbox() {
   onBeforeUnmount(() => {
     disposed = true
     window.removeEventListener('bitveins:attention-event', handleRealtime)
+    window.removeEventListener(SESSION_NOTIFICATION_MUTES_CHANGED_EVENT, handleSessionMutesChanged)
+    window.removeEventListener('storage', handleStorage)
     transport?.close()
     if (reconnectTimer) clearTimeout(reconnectTimer)
     if (refreshTimer) clearInterval(refreshTimer)
@@ -124,6 +167,7 @@ export function useAttentionInbox() {
     dismissingAll,
     error,
     events: visibleEvents,
+    lookupEvents: navigableEvents,
     loading,
     markRead: (id: string) => update(id, 'read'),
     refresh,

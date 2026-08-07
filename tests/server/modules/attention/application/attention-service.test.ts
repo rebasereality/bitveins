@@ -56,10 +56,15 @@ describe('AttentionService', () => {
       push: { notify: vi.fn().mockResolvedValue(undefined) },
       repository,
       resolveSessionId: vi.fn(async () => 'abcdefghijklmnop'),
+      resolveWindowName: vi.fn(async () => 'codex'),
     })
 
-    await expect(service.create(input)).resolves.toMatchObject({ sessionId: 'abcdefghijklmnop' })
+    await expect(service.create(input)).resolves.toMatchObject({
+      sessionId: 'abcdefghijklmnop',
+      windowName: 'codex',
+    })
     expect(repository.events[0]?.sessionId).toBe('abcdefghijklmnop')
+    expect(repository.events[0]?.windowName).toBe('codex')
   })
 
   it('does not invent or accept an identity for an unknown session', async () => {

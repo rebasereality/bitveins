@@ -6,6 +6,18 @@ until a release is tagged.
 
 ## Unreleased
 
+### Added
+
+- per-device notification mute controls for each session, shared across browser
+  tabs and applied to both Web Push and the local Agent Inbox;
+- session and tmux window context in detailed Web Push notifications and Agent
+  Inbox entries.
+
+### Changed
+
+- session notification mute controls now appear only when Web Push is enabled
+  on the current device.
+
 ## 1.3.0 - 2026-08-05
 
 ### Added

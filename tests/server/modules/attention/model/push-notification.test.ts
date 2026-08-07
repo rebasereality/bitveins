@@ -12,6 +12,7 @@ const event: AttentionEvent = {
   title: 'Permission required',
   type: 'permission_required',
   windowId: '@4',
+  windowName: 'codex',
 }
 
 describe('push notification model', () => {
@@ -35,6 +36,7 @@ describe('push notification model', () => {
     expect(payload.body.length).toBeLessThanOrEqual(240)
     expect(payload.body).toContain('x')
     expect(payload.body).toContain('Project: Kouizine')
+    expect(payload.body).toContain('Session: kouizine · Window: codex (@4)')
   })
 
   it('redacts endpoints, subscription keys and arbitrary provider messages', () => {

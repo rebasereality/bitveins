@@ -20,6 +20,7 @@ interface AttentionServiceOptions {
   push: AttentionPushNotifier
   repository: AttentionRepository
   resolveSessionId?: (sessionName: string) => Promise<string | null>
+  resolveWindowName?: (sessionName: string, windowId: string) => Promise<string | null>
 }
 
 export class AttentionService {
@@ -51,9 +52,13 @@ export class AttentionService {
     const sessionId = validated.sessionName
       ? await this.options.resolveSessionId?.(validated.sessionName).catch(() => null)
       : null
+    const windowName = validated.sessionName && validated.windowId
+      ? await this.options.resolveWindowName?.(validated.sessionName, validated.windowId).catch(() => null)
+      : null
     const event = this.options.repository.create({
       ...validated,
       ...(sessionId ? { sessionId } : {}),
+      ...(windowName ? { windowName } : {}),
       id: this.createId(),
       createdAt: this.clock().toISOString(),
     })

@@ -13,6 +13,10 @@ defineProps<{
   editingWindowIndex: number | null
   hasPathLinkRoots: boolean
   inputMode: InputMode
+  notificationMuteAvailable: boolean
+  notificationMuteBusy: boolean
+  notificationMuteError: boolean
+  notificationMuted: boolean
   pathLinkRoot: string | null
   windowTabItems: TmuxWindowTabItem[]
   windows: TmuxWindow[]
@@ -30,6 +34,7 @@ const emit = defineEmits<{
   forgetAllPathLinkRoots: []
   forgetPathLinkRoot: []
   openExplorer: []
+  toggleNotificationMute: []
   ready: []
   selectTmuxWindow: [value: string]
   startTmuxWindowRename: [index: number]
@@ -69,6 +74,10 @@ defineExpose({
       :windows="windows"
       :path-link-root="pathLinkRoot"
       :has-path-link-roots="hasPathLinkRoots"
+      :notification-mute-available="notificationMuteAvailable"
+      :notification-mute-busy="notificationMuteBusy"
+      :notification-mute-error="notificationMuteError"
+      :notification-muted="notificationMuted"
       @change-path-link-root="emit('changePathLinkRoot')"
       @cancel-tmux-window-rename="emit('cancelTmuxWindowRename')"
       @close-tmux-window="emit('closeTmuxWindow', $event)"
@@ -77,6 +86,7 @@ defineExpose({
       @forget-all-path-link-roots="emit('forgetAllPathLinkRoots')"
       @forget-path-link-root="emit('forgetPathLinkRoot')"
       @open-explorer="emit('openExplorer')"
+      @toggle-notification-mute="emit('toggleNotificationMute')"
       @select-tmux-window="emit('selectTmuxWindow', $event)"
       @start-tmux-window-rename="emit('startTmuxWindowRename', $event)"
     />

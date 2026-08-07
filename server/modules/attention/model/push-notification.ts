@@ -10,6 +10,16 @@ function bounded(value: string, max: number): string {
   return value.length <= max ? value : `${value.slice(0, Math.max(0, max - 1))}…`
 }
 
+function eventLocation(event: AttentionEvent): string | null {
+  if (!event.sessionName) return null
+  const window = event.windowName
+    ? `${event.windowName}${event.windowId ? ` (${event.windowId})` : ''}`
+    : event.windowId
+  return window
+    ? `Session: ${event.sessionName} · Window: ${window}`
+    : `Session: ${event.sessionName}`
+}
+
 export function buildPushPayload(
   event: AttentionEvent,
   preference: NotificationPreference,
@@ -17,6 +27,7 @@ export function buildPushPayload(
   const title = preference.showDetails ? event.title : 'Bitveins needs your attention'
   const body = preference.showDetails
     ? [
+        eventLocation(event),
         event.project ? `Project: ${event.project}` : null,
         `Source: ${event.source}`,
         event.summary ?? null,

@@ -9,6 +9,10 @@ defineProps<{
   windows: TmuxWindow[]
   pathLinkRoot: string | null
   hasPathLinkRoots: boolean
+  notificationMuteAvailable: boolean
+  notificationMuteBusy: boolean
+  notificationMuteError: boolean
+  notificationMuted: boolean
 }>()
 
 const emit = defineEmits<{
@@ -20,6 +24,7 @@ const emit = defineEmits<{
   forgetAllPathLinkRoots: []
   forgetPathLinkRoot: []
   openExplorer: []
+  toggleNotificationMute: []
   selectTmuxWindow: [value: string]
   startTmuxWindowRename: [index: number]
 }>()
@@ -52,6 +57,24 @@ const editingWindowName = defineModel<string>('editingWindowName', { default: ''
     >
       No terminal windows
     </div>
+
+    <UButton
+      v-if="notificationMuteAvailable"
+      :aria-label="notificationMuted ? 'Unmute notifications for this session' : 'Mute notifications for this session'"
+      :aria-pressed="notificationMuted"
+      class="mb-1 size-6 shrink-0 justify-center p-0"
+      :color="notificationMuteError ? 'error' : 'neutral'"
+      :disabled="notificationMuteBusy"
+      :icon="notificationMuted ? 'i-lucide-bell-off' : 'i-lucide-bell'"
+      size="xs"
+      :title="notificationMuteError
+        ? 'Unable to update notification mute'
+        : notificationMuted
+          ? 'Notifications are muted for this session on this device'
+          : 'Mute notifications for this session on this device'"
+      variant="ghost"
+      @click="emit('toggleNotificationMute')"
+    />
 
     <UButton
       aria-label="Files"

@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 export const sessions = sqliteTable('sessions', {
   id: text('id').primaryKey(),
@@ -42,6 +42,7 @@ export const attentionEvents = sqliteTable('attention_events', {
   sessionName: text('session_name'),
   sessionId: text('session_id'),
   windowId: text('window_id'),
+  windowName: text('window_name'),
   paneId: text('pane_id'),
   createdAt: text('created_at').notNull(),
   readAt: text('read_at'),
@@ -59,6 +60,15 @@ export const webPushSubscriptions = sqliteTable('web_push_subscriptions', {
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 })
+
+export const webPushSessionMutes = sqliteTable('web_push_session_mutes', {
+  endpoint: text('endpoint').notNull(),
+  sessionId: text('session_id').notNull(),
+  createdAt: integer('created_at').notNull(),
+}, table => [
+  primaryKey({ columns: [table.endpoint, table.sessionId] }),
+  index('idx_web_push_session_mutes_session_id').on(table.sessionId),
+])
 
 export const hermesNotificationPreferences = sqliteTable('hermes_notification_preferences', {
   id: integer('id').primaryKey(),
@@ -87,5 +97,6 @@ export type AsyncMessage = typeof asyncMessages.$inferSelect
 export type NewAsyncMessage = typeof asyncMessages.$inferInsert
 export type AttentionEventRow = typeof attentionEvents.$inferSelect
 export type WebPushSubscriptionRow = typeof webPushSubscriptions.$inferSelect
+export type WebPushSessionMuteRow = typeof webPushSessionMutes.$inferSelect
 export type HermesNotificationPreferenceRow = typeof hermesNotificationPreferences.$inferSelect
 export type CodexNotificationPreferenceRow = typeof codexNotificationPreferences.$inferSelect
