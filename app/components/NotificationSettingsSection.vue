@@ -181,7 +181,7 @@ const status = computed(() => {
           Show event details in system notifications
         </p>
         <p class="mt-1 text-xs leading-relaxed text-[var(--bitveins-shell-text-muted)]">
-          Notifications may include a shortened event summary when enabled.
+          Notifications include session and tmux window context, and may include a shortened event summary when enabled.
         </p>
       </div>
       <USwitch

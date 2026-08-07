@@ -1,4 +1,5 @@
 import { BrowserPushManager, type PushEnableResult } from '~/attention/browser-push-manager'
+import { announcePushSubscriptionChanged } from '~/attention/push-subscription-events'
 import { pushPublicConfigurationSchema } from '#shared/contracts/attention'
 
 export function useWebPushNotifications() {
@@ -69,6 +70,7 @@ export function useWebPushNotifications() {
       permission.value = manager!.permission
       subscribed.value = result === 'subscribed'
       if (subscribed.value) showDetails.value = false
+      announcePushSubscriptionChanged()
     })
     return result
   }
@@ -78,6 +80,7 @@ export function useWebPushNotifications() {
       await manager?.disable()
       subscribed.value = false
       showDetails.value = false
+      announcePushSubscriptionChanged()
     })
   }
 

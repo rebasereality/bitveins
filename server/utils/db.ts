@@ -282,6 +282,30 @@ function runMigrations(dbInstance: RawDatabase): void {
         `)
       },
     },
+    {
+      id: 9,
+      name: '009_add_attention_window_name',
+      up: () => {
+        ensureColumn(dbInstance, 'attention_events', 'window_name', 'TEXT')
+      },
+    },
+    {
+      id: 10,
+      name: '010_add_web_push_session_mutes',
+      up: () => {
+        dbInstance.exec(`
+          CREATE TABLE IF NOT EXISTS web_push_session_mutes (
+            endpoint TEXT NOT NULL,
+            session_id TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            PRIMARY KEY (endpoint, session_id),
+            FOREIGN KEY (endpoint) REFERENCES web_push_subscriptions(endpoint) ON DELETE CASCADE
+          );
+          CREATE INDEX IF NOT EXISTS idx_web_push_session_mutes_session_id
+            ON web_push_session_mutes (session_id);
+        `)
+      },
+    },
   ]
 
   for (const migration of migrations) {

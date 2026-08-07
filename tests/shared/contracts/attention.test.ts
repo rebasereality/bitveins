@@ -18,6 +18,8 @@ import {
   isCodexLifecycleEnabled,
   isHermesLifecycleEnabled,
   notificationPreferenceSchema,
+  notificationSessionMuteListSchema,
+  notificationSessionMuteUpdateSchema,
   pushNotificationPayloadSchema,
   pushSubscriptionSchema,
 } from '../../../shared/contracts/attention'
@@ -117,6 +119,24 @@ describe('attention contracts', () => {
         keys: { auth: 'auth-key', p256dh: 'public-key' },
       })).toThrow()
     }
+  })
+
+  it('requires an exact per-device session mute target', () => {
+    const endpoint = 'https://fcm.googleapis.com/fcm/send/subscription'
+    expect(notificationSessionMuteUpdateSchema.parse({
+      endpoint,
+      muted: true,
+      sessionId: 'abcdefghijklmnop',
+    })).toMatchObject({ muted: true, sessionId: 'abcdefghijklmnop' })
+    expect(notificationSessionMuteListSchema.parse({
+      sessionIds: ['abcdefghijklmnop'],
+      subscribed: true,
+    })).toEqual({ sessionIds: ['abcdefghijklmnop'], subscribed: true })
+    expect(() => notificationSessionMuteUpdateSchema.parse({
+      endpoint,
+      muted: true,
+      sessionId: 'invalid',
+    })).toThrow()
   })
 
   it('keeps the existing Hermes lifecycle mapping enabled by default', () => {

@@ -242,6 +242,7 @@ export const integrationAttentionEventSchema = z.union([
 export const attentionEventSchema = attentionEventInputSchema.extend({
   id: eventIdSchema,
   sessionId: sessionIdSchema.optional(),
+  windowName: safeText('Window name', 80).optional(),
   createdAt: isoTimestampSchema,
   readAt: isoTimestampSchema.optional(),
   dismissedAt: isoTimestampSchema.optional(),
@@ -319,6 +320,20 @@ export const unsubscribePushSchema = z.object({
   endpoint: pushSubscriptionSchema.shape.endpoint,
 }).strict()
 
+export const notificationSessionMuteQuerySchema = z.object({
+  endpoint: pushSubscriptionSchema.shape.endpoint,
+}).strict()
+
+export const notificationSessionMuteUpdateSchema = notificationSessionMuteQuerySchema.extend({
+  muted: z.boolean(),
+  sessionId: sessionIdSchema,
+}).strict()
+
+export const notificationSessionMuteListSchema = z.object({
+  sessionIds: z.array(sessionIdSchema),
+  subscribed: z.boolean(),
+}).strict()
+
 export const attentionStateUpdateSchema = z.object({
   action: z.enum(['read', 'dismiss']),
 }).strict()
@@ -375,6 +390,7 @@ export type CreateHermesAttentionEvent = z.infer<typeof createHermesAttentionEve
 export type AttentionEvent = z.infer<typeof attentionEventSchema>
 export type PushSubscriptionInput = z.infer<typeof pushSubscriptionSchema>
 export type NotificationPreference = z.infer<typeof notificationPreferenceSchema>
+export type NotificationSessionMuteUpdate = z.infer<typeof notificationSessionMuteUpdateSchema>
 export type AttentionWebSocketMessage = z.infer<typeof attentionWebSocketMessageSchema>
 export type PushNotificationPayload = z.infer<typeof pushNotificationPayloadSchema>
 

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { AttentionEvent } from '../../../shared/contracts/attention'
-import { mergeAttentionSnapshots } from '../../../app/attention/inbox-state'
+import {
+  mergeAttentionSnapshots,
+  parseMutedAttentionEventIds,
+  rememberMutedAttentionEvents,
+} from '../../../app/attention/inbox-state'
 
 const event = (id: string, overrides: Partial<AttentionEvent> = {}): AttentionEvent => ({
   createdAt: '2026-08-03T12:00:00.000Z',
@@ -25,5 +29,20 @@ describe('mergeAttentionSnapshots', () => {
       event('evt_123456789012', { dismissedAt, readAt }),
       event('evt_ABCDEFGHIJKL'),
     ])
+  })
+
+  it('remembers only valid event ids that arrive while their session is muted', () => {
+    const muted = rememberMutedAttentionEvents(
+      new Set(['evt_000000000001']),
+      [
+        event('evt_000000000002', { sessionId: 'abcdefghijklmnop', windowId: '@4' }),
+        event('evt_000000000003', { sessionId: 'qrstuvwxyzabcdef', windowId: '@5' }),
+      ],
+      incoming => incoming.sessionId === 'abcdefghijklmnop',
+    )
+
+    expect([...muted]).toEqual(['evt_000000000001', 'evt_000000000002'])
+    expect(parseMutedAttentionEventIds(JSON.stringify([...muted, 'invalid']))).toEqual(muted)
+    expect(parseMutedAttentionEventIds('{broken')).toEqual(new Set())
   })
 })

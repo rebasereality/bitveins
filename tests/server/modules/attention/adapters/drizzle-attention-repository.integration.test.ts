@@ -34,9 +34,14 @@ describe('DrizzleAttentionRepository integration', () => {
       source: 'shell',
       title: 'Failed',
       type: 'failed',
+      sessionId: 'abcdefghijklmnop',
+      sessionName: 'bitveins',
+      windowId: '@4',
+      windowName: 'codex',
     })
 
     expect(repository.list().map(event => event.id)).toEqual([second.id, first.id])
+    expect(repository.list()[0]).toMatchObject({ windowId: '@4', windowName: 'codex' })
     expect(repository.markRead(first.id, '2026-08-03T12:02:00.000Z')?.readAt).toBe('2026-08-03T12:02:00.000Z')
     expect(repository.dismiss(second.id, '2026-08-03T12:03:00.000Z')?.dismissedAt).toBe('2026-08-03T12:03:00.000Z')
     expect(repository.dismissAll('2026-08-03T12:04:00.000Z')).toEqual([first.id])

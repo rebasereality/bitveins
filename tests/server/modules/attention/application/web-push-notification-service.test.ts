@@ -53,6 +53,7 @@ describe('WebPushNotificationService', () => {
     const repository = new MemorySubscriptions()
     repository.subscriptions = [subscription(1), subscription(2), subscription(3)]
     const warn = vi.fn()
+    const removeEndpoint = vi.fn()
     const send = vi.fn(async (target: PushSubscriptionInput) => {
       if (target.endpoint.endsWith('/1')) throw Object.assign(new Error(target.endpoint), { statusCode: 410 })
       if (target.endpoint.endsWith('/2')) throw Object.assign(new Error('private auth token'), { statusCode: 503 })
@@ -61,6 +62,12 @@ describe('WebPushNotificationService', () => {
       logger: { warn },
       repository,
       sender: { send },
+      sessionMutes: {
+        isMuted: vi.fn(),
+        list: vi.fn(),
+        removeEndpoint,
+        setMuted: vi.fn(),
+      },
     })
 
     await expect(service.notify(event)).resolves.toBeUndefined()
@@ -75,6 +82,7 @@ describe('WebPushNotificationService', () => {
     })
     expect(JSON.stringify(warn.mock.calls)).not.toContain('push.example.test/2')
     expect(JSON.stringify(warn.mock.calls)).not.toContain('private auth token')
+    expect(removeEndpoint).toHaveBeenCalledWith('https://push.example.test/1')
   })
 
   it('uses bounded concurrency and sends each event once per subscription', async () => {
@@ -109,5 +117,29 @@ describe('WebPushNotificationService', () => {
 
     expect(send.mock.calls[0]?.[1].body).not.toContain('Private migration prompt')
     expect(send.mock.calls[1]?.[1].body).toContain('Private migration prompt')
+  })
+
+  it('does not send a push to a subscription that muted the matching session', async () => {
+    const repository = new MemorySubscriptions()
+    repository.subscriptions = [subscription(1), subscription(2)]
+    const send = vi.fn()
+    const isMuted = vi.fn((endpoint: string) => endpoint.endsWith('/1'))
+    const service = new WebPushNotificationService({
+      repository,
+      sender: { send },
+      sessionMutes: {
+        isMuted,
+        list: vi.fn(),
+        removeEndpoint: vi.fn(),
+        setMuted: vi.fn(),
+      },
+    })
+
+    await service.notify({ ...event, sessionId: 'abcdefghijklmnop' })
+
+    expect(isMuted).toHaveBeenCalledTimes(2)
+    expect(isMuted).toHaveBeenCalledWith('https://push.example.test/1', 'abcdefghijklmnop')
+    expect(send).toHaveBeenCalledOnce()
+    expect(send.mock.calls[0]?.[0].endpoint).toBe('https://push.example.test/2')
   })
 })
