@@ -31,7 +31,7 @@ async function swipeTerminal(
   const x = box.x + box.width / 2
   const rows = await page.locator('.xterm-rows > div').count()
   const distance = lineCount
-    ? box.height / rows * (lineCount + 0.05)
+    ? box.height / rows * (lineCount + 0.5)
     : box.height * 0.6
   const upperY = box.y + (box.height - distance) / 2
   const lowerY = upperY + distance
