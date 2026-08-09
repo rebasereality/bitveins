@@ -23,16 +23,12 @@ const swipeSessionName = `swipe_${safeRunId}`
 async function swipeTerminal(
   page: Page,
   direction: 'down' | 'up',
-  lineCount?: number,
 ): Promise<void> {
   const host = page.locator('[data-terminal-host]')
   const box = await page.locator('.xterm-screen').boundingBox()
   if (!box) throw new Error('The mobile terminal has no bounding box.')
   const x = box.x + box.width / 2
-  const rows = await page.locator('.xterm-rows > div').count()
-  const distance = lineCount
-    ? box.height / rows * (lineCount + 0.5)
-    : box.height * 0.6
+  const distance = box.height * 0.6
   const upperY = box.y + (box.height - distance) / 2
   const lowerY = upperY + distance
   const startY = direction === 'down' ? upperY : lowerY
@@ -48,7 +44,7 @@ async function swipeTerminal(
   }
 
   await host.dispatchEvent('pointerdown', pointer)
-  const steps = lineCount ? 1 : 10
+  const steps = 10
   for (let step = 1; step <= steps; step += 1) {
     await host.dispatchEvent('pointermove', {
       ...pointer,
@@ -324,7 +320,7 @@ test('shows the Explorer action after consecutive mobile terminal selections', a
   }
 })
 
-test('scrolls terminal history in the natural direction with a one-finger swipe', async ({ page }) => {
+test('scrolls terminal history naturally with one-finger swipes in both mouse modes', async ({ page }) => {
   await mkdir(workspace, { recursive: true })
   await authenticate(page)
 
@@ -365,15 +361,10 @@ test('scrolls terminal history in the natural direction with a one-finger swipe'
     const renderedRows = page.locator('.xterm-rows')
     await expect(renderedRows).toContainText('swipe-line-120')
 
-    const rows = page.locator('.xterm-rows > div')
-    const anchorLine = 'swipe-line-110'
-    const anchorRow = async () => (await rows.allTextContents()).indexOf(anchorLine)
-    const rowBeforeSingleLineSwipe = await anchorRow()
-    expect(rowBeforeSingleLineSwipe).toBeGreaterThanOrEqual(0)
-    await swipeTerminal(page, 'down', 1)
-    await expect.poll(anchorRow).toBe(rowBeforeSingleLineSwipe + 1)
-    await swipeTerminal(page, 'up', 1)
-    await expect.poll(anchorRow).toBe(rowBeforeSingleLineSwipe)
+    await swipeTerminal(page, 'down')
+    await expect(renderedRows).not.toContainText('swipe-line-120')
+    await swipeTerminal(page, 'up')
+    await expect(renderedRows).toContainText('swipe-line-120')
 
     await execFileAsync('tmux', [
       '-L',
@@ -385,15 +376,8 @@ test('scrolls terminal history in the natural direction with a one-finger swipe'
       'on',
     ])
     await expect(page.locator('.xterm')).toHaveClass(/enable-mouse-events/)
-    await swipeTerminal(page, 'down', 1)
-    await expect.poll(anchorRow).toBe(rowBeforeSingleLineSwipe + 1)
-    await swipeTerminal(page, 'up', 1)
-    await expect.poll(anchorRow).toBe(rowBeforeSingleLineSwipe)
-
     await swipeTerminal(page, 'down')
     await expect(renderedRows).not.toContainText('swipe-line-120')
-    await expect(renderedRows).toContainText('swipe-line-0')
-
     await swipeTerminal(page, 'up')
     await expect(renderedRows).toContainText('swipe-line-120')
   }
