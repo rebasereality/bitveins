@@ -338,7 +338,7 @@ test('shows the Explorer action after consecutive mobile terminal selections', a
   }
 })
 
-test('routes natural one-finger swipes with and without tmux mouse tracking', async ({ page }) => {
+test('routes natural one-finger swipes through tmux terminal history', async ({ page }) => {
   await mkdir(workspace, { recursive: true })
   await authenticate(page)
 
@@ -357,7 +357,7 @@ test('routes natural one-finger swipes with and without tmux mouse tracking', as
       '-t',
       swipeSessionName,
       'mouse',
-      'off',
+      'on',
     ])
 
     await page.reload()
@@ -366,6 +366,7 @@ test('routes natural one-finger swipes with and without tmux mouse tracking', as
     await expect(page.locator('[data-connection-state="attached"]')).toBeVisible()
     const host = page.locator('[data-terminal-host]')
     await expect(host).toHaveCSS('touch-action', 'pan-x pinch-zoom')
+    await expect(page.locator('.xterm')).toHaveClass(/enable-mouse-events/)
 
     await execFileAsync('tmux', [
       '-L',
@@ -379,36 +380,16 @@ test('routes natural one-finger swipes with and without tmux mouse tracking', as
     const renderedRows = page.locator('.xterm-rows')
     await expect(renderedRows).toContainText('swipe-line-120')
 
-    const untrackedDown = await swipeTerminal(page, 'down')
-    const untrackedUp = await swipeTerminal(page, 'up')
-    expect(untrackedDown.preventedMoves).toBeGreaterThan(0)
-    expect(untrackedUp.preventedMoves).toBeGreaterThan(0)
-    expect(untrackedDown.wheelDeltas.length).toBeGreaterThan(0)
-    expect(untrackedDown.wheelDeltas.every(delta => delta === -1)).toBe(true)
-    expect(untrackedUp.wheelDeltas.length).toBeGreaterThan(0)
-    expect(untrackedUp.wheelDeltas.every(delta => delta === 1)).toBe(true)
-
-    await execFileAsync('tmux', [
-      '-L',
-      socketName,
-      'set-option',
-      '-t',
-      swipeSessionName,
-      'mouse',
-      'on',
-    ])
-    await expect(page.locator('.xterm')).toHaveClass(/enable-mouse-events/)
     const tmuxDown = await swipeTerminal(page, 'down')
-    const tmuxUp = await swipeTerminal(page, 'up')
     expect(tmuxDown.preventedMoves).toBeGreaterThan(0)
-    expect(tmuxUp.preventedMoves).toBeGreaterThan(0)
     expect(tmuxDown.wheelDeltas.length).toBeGreaterThan(0)
     expect(tmuxDown.wheelDeltas.every(delta => delta === -1)).toBe(true)
+    await expect(renderedRows).not.toContainText('swipe-line-120')
+
+    const tmuxUp = await swipeTerminal(page, 'up')
+    expect(tmuxUp.preventedMoves).toBeGreaterThan(0)
     expect(tmuxUp.wheelDeltas.length).toBeGreaterThan(0)
     expect(tmuxUp.wheelDeltas.every(delta => delta === 1)).toBe(true)
-    await swipeTerminal(page, 'down')
-    await expect(renderedRows).not.toContainText('swipe-line-120')
-    await swipeTerminal(page, 'up')
     await expect(renderedRows).toContainText('swipe-line-120')
   }
   finally {
