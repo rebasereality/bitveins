@@ -83,6 +83,7 @@ const wheelInputSchema = z.object({
   payload: z.object({
     data: inputDataSchema,
     encoding: z.enum(['binary', 'utf8']).optional(),
+    lineCount: z.literal(1).optional(),
   }, { error: 'A payload object is required.' }).superRefine((payload, context) => {
     if (payload.encoding === 'binary') {
       const validLegacyReport = payload.data.length === 6

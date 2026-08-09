@@ -8,6 +8,8 @@ until a release is tagged.
 
 ### Added
 
+- one-finger line-by-line terminal scrolling on touch devices, with natural
+  swipe direction and tmux mouse-mode support;
 - per-device notification mute controls for each session, shared across browser
   tabs and applied to both Web Push and the local Agent Inbox;
 - session and tmux window context in detailed Web Push notifications and Agent

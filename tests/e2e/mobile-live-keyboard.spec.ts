@@ -18,6 +18,57 @@ const sessionName = `mobile_${safeRunId}`
 const selectionSessionName = `selection_${safeRunId}`
 const commandSessionName = `command_${safeRunId}`
 const historySessionName = `history_${safeRunId}`
+const swipeSessionName = `swipe_${safeRunId}`
+
+async function swipeTerminal(
+  page: Page,
+  direction: 'down' | 'up',
+): Promise<number> {
+  const host = page.locator('[data-terminal-host]')
+  const box = await page.locator('.xterm-screen').boundingBox()
+  if (!box) throw new Error('The mobile terminal has no bounding box.')
+  const x = box.x + box.width / 2
+  const distance = box.height * 0.6
+  const upperY = box.y + (box.height - distance) / 2
+  const lowerY = upperY + distance
+  const startY = direction === 'down' ? upperY : lowerY
+  const endY = direction === 'down' ? lowerY : upperY
+  return await host.evaluate((element, coordinates) => {
+    const pointer = {
+      bubbles: true,
+      button: 0,
+      buttons: 1,
+      cancelable: true,
+      clientX: coordinates.x,
+      clientY: coordinates.startY,
+      isPrimary: true,
+      pointerId: 7,
+      pointerType: 'touch',
+    }
+    element.dispatchEvent(new PointerEvent('pointerdown', pointer))
+    let preventedMoves = 0
+    const steps = 10
+    for (let step = 1; step <= steps; step += 1) {
+      const move = new PointerEvent('pointermove', {
+        ...pointer,
+        clientY: coordinates.startY
+          + (coordinates.endY - coordinates.startY) * (step / steps),
+      })
+      element.dispatchEvent(move)
+      if (move.defaultPrevented) preventedMoves += 1
+    }
+    element.dispatchEvent(new PointerEvent('pointerup', {
+      ...pointer,
+      buttons: 0,
+      clientY: coordinates.endY,
+    }))
+    return preventedMoves
+  }, {
+    endY,
+    startY,
+    x,
+  })
+}
 
 async function selectTerminalRange(
   page: Page,
@@ -278,6 +329,34 @@ test('shows the Explorer action after consecutive mobile terminal selections', a
   }
   finally {
     await page.request.delete(`/api/sessions/${selectionSessionName}`).catch(() => undefined)
+  }
+})
+
+test('recognizes one-finger vertical swipes on the mobile terminal', async ({ page }) => {
+  await mkdir(workspace, { recursive: true })
+  await authenticate(page)
+
+  try {
+    const created = await page.request.post('/api/sessions', {
+      data: {
+        name: swipeSessionName,
+        path: workspace,
+      },
+    })
+    expect(created.ok(), await created.text()).toBe(true)
+
+    await page.reload()
+    await page.getByLabel('Open sessions').click()
+    await page.getByRole('button', { name: swipeSessionName, exact: true }).click()
+    await expect(page.locator('[data-connection-state="attached"]')).toBeVisible()
+    const host = page.locator('[data-terminal-host]')
+    await expect(host).toHaveCSS('touch-action', 'pan-x pinch-zoom')
+
+    expect(await swipeTerminal(page, 'down')).toBeGreaterThan(0)
+    expect(await swipeTerminal(page, 'up')).toBeGreaterThan(0)
+  }
+  finally {
+    await page.request.delete(`/api/sessions/${swipeSessionName}`).catch(() => undefined)
   }
 })
 

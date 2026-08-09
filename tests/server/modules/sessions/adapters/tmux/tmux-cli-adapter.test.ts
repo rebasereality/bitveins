@@ -143,7 +143,7 @@ describe('TmuxCliAdapter', () => {
       stdout: args[0] === 'display-message' ? '0|0\n' : '',
     })
 
-    await expect(adapter.prepareTerminalWheel('main', 'up')).resolves.toBe(true)
+    await expect(adapter.prepareTerminalWheel('main', 'up', 1)).resolves.toBe(true)
 
     expect(runner.calls.map(call => call.args)).toEqual([
       [
@@ -154,7 +154,7 @@ describe('TmuxCliAdapter', () => {
         '#{pane_in_mode}|#{mouse_any_flag}',
       ],
       ['copy-mode', '-eH', '-t', 'main'],
-      ['send-keys', '-N', '5', '-X', '-t', 'main', 'scroll-up'],
+      ['send-keys', '-N', '1', '-X', '-t', 'main', 'scroll-up'],
     ])
 
     runner.calls.length = 0

@@ -295,11 +295,12 @@ describe('TerminalPeerSession', () => {
 
     const wheelInput = context.peer.enqueue(JSON.stringify({
       action: 'wheelInput',
-      payload: { data: '\u001B[<64;20;8M' },
+      payload: { data: '\u001B[<64;20;8M', lineCount: 1 },
     }))
     await Promise.resolve()
 
-    expect(context.sessions.prepareTerminalWheel).toHaveBeenCalledExactlyOnceWith('_bitveins_test', 'up')
+    expect(context.sessions.prepareTerminalWheel)
+      .toHaveBeenCalledExactlyOnceWith('_bitveins_test', 'up', 1)
     expect(context.attachmentProcesses.processes[0]?.writes).toEqual([])
     if (!preparation.release) throw new Error('Wheel preparation did not start.')
     preparation.release(false)

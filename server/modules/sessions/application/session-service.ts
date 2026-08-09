@@ -188,8 +188,12 @@ export class SessionService {
     return this.options.tmux.captureWindowSnapshot(normalizeSessionName(name), index, lines)
   }
 
-  async prepareTerminalWheel(name: string, direction: 'down' | 'up'): Promise<boolean> {
-    return this.options.tmux.prepareTerminalWheel(normalizeTerminalTargetName(name), direction)
+  async prepareTerminalWheel(name: string, direction: 'down' | 'up', lineCount?: 1): Promise<boolean> {
+    return this.options.tmux.prepareTerminalWheel(
+      normalizeTerminalTargetName(name),
+      direction,
+      lineCount,
+    )
   }
 
   async resetTerminalScroll(name: string): Promise<void> {
