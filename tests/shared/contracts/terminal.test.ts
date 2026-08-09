@@ -56,6 +56,21 @@ describe('ws protocol', () => {
     })
   })
 
+  it('accepts only a single-line touch wheel override', () => {
+    expect(parseClientMessage(JSON.stringify({
+      action: 'wheelInput',
+      payload: { data: '\u001B[<64;20;8M', lineCount: 1 },
+    }))).toEqual({
+      action: 'wheelInput',
+      payload: { data: '\u001B[<64;20;8M', lineCount: 1 },
+    })
+
+    expect(() => parseClientMessage(JSON.stringify({
+      action: 'wheelInput',
+      payload: { data: '\u001B[<64;20;8M', lineCount: 2 },
+    }))).toThrow()
+  })
+
   it('parses strict binary terminal wheel reports', () => {
     const report = `\u001B[M${String.fromCharCode(96, 52, 40)}`
 

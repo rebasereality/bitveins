@@ -1,17 +1,24 @@
 import type { Ref, ShallowRef } from 'vue'
 import { computed, nextTick, readonly, ref } from 'vue'
+import { createTerminalTouchScrollController } from '~/terminal/terminal-touch-scroll'
 
 interface TerminalSelectionPort {
   readonly buffer: {
     readonly active: {
+      readonly type?: string
       readonly viewportY: number
     }
   }
   readonly cols: number
+  readonly element?: HTMLElement
+  readonly modes?: {
+    readonly mouseTrackingMode?: string
+  }
   readonly rows: number
   clearSelection(): void
   getSelection(): string
   select(column: number, row: number, length: number): void
+  scrollLines?(amount: number): void
 }
 
 type TerminalSelectionOptions<TerminalPort extends TerminalSelectionPort> = {
@@ -83,6 +90,12 @@ export function useTerminalSelection<TerminalPort extends TerminalSelectionPort>
   let mobileSelectionAnchor: TerminalCell | null = null
   let suppressNextClick = false
   let longPressStart: { x: number, y: number } | null = null
+  const touchScroll = createTerminalTouchScrollController({
+    isEnabled: isMobileViewport,
+    isSelecting: () => mobileSelecting,
+    terminal: () => options.terminal.value,
+    terminalHost: () => options.terminalHost.value,
+  })
 
   function clearLongPressTimer(): void {
     if (!longPressTimer) {
@@ -241,6 +254,7 @@ export function useTerminalSelection<TerminalPort extends TerminalSelectionPort>
     }
 
     selectMode.value = true
+    touchScroll.cancel()
     mobileSelecting = true
     activeTouchPointerId = event.pointerId
     mobileSelectionAnchor = terminalCellFromPointer(event)
@@ -279,6 +293,7 @@ export function useTerminalSelection<TerminalPort extends TerminalSelectionPort>
       x: event.clientX,
       y: event.clientY,
     }
+    touchScroll.onPointerDown(event)
 
     longPressTimer = setTimeout(() => {
       longPressTimer = null
@@ -299,6 +314,12 @@ export function useTerminalSelection<TerminalPort extends TerminalSelectionPort>
     if (mobileSelecting) {
       event.preventDefault()
       applyMobileSelection(event)
+      return
+    }
+
+    if (touchScroll.onPointerMove(event)) {
+      clearLongPressTimer()
+      longPressStart = null
       return
     }
 
@@ -339,6 +360,8 @@ export function useTerminalSelection<TerminalPort extends TerminalSelectionPort>
       }, 350)
     }
 
+    touchScroll.onPointerUp(event)
+
     cancelMobileSelectionPointer()
   }
 
@@ -352,10 +375,12 @@ export function useTerminalSelection<TerminalPort extends TerminalSelectionPort>
       updateSelection()
     }
 
+    touchScroll.onPointerCancel(event)
     cancelMobileSelectionPointer()
   }
 
   function onTerminalClick(event: MouseEvent): void {
+    if (touchScroll.onClick(event)) return
     if (!suppressNextClick) {
       return
     }
@@ -394,6 +419,7 @@ export function useTerminalSelection<TerminalPort extends TerminalSelectionPort>
     window.removeEventListener('keydown', onWindowKeydown, { capture: true })
     clearLongPressTimer()
     clearCopyStateTimer()
+    touchScroll.dispose()
   }
 
   return {

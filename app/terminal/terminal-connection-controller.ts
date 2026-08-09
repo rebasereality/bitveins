@@ -103,12 +103,15 @@ export class TerminalConnectionController {
     return this.sendMessage({ action: 'input', payload: { data } })
   }
 
-  sendWheelInput(data: string, encoding: 'binary' | 'utf8' = 'utf8'): boolean {
+  sendWheelInput(data: string, encoding: 'binary' | 'utf8' = 'utf8', lineCount?: 1): boolean {
     if (!this.isAttached || this.watchdog.isStale()) {
       this.probe()
       return false
     }
-    return this.sendMessage({ action: 'wheelInput', payload: { data, encoding } })
+    return this.sendMessage({
+      action: 'wheelInput',
+      payload: lineCount ? { data, encoding, lineCount } : { data, encoding },
+    })
   }
 
   reportConnectionFailure(): void {

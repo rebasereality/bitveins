@@ -463,7 +463,7 @@ onBeforeUnmount(() => {
       ref="terminalHost"
       data-terminal-host
       class="h-full w-full overflow-hidden"
-      :class="[selectMode ? 'touch-none cursor-text' : '', ready ? 'opacity-100' : 'opacity-0']"
+      :class="[selectMode ? 'touch-none cursor-text' : 'max-lg:[touch-action:pan-x_pinch-zoom]', ready ? 'opacity-100' : 'opacity-0']"
       @click.capture="onTerminalClick"
       @contextmenu="onTerminalContextMenu"
       @pointercancel="onTerminalPointerCancel"

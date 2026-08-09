@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createTerminalInputRouter } from '../../../app/terminal/terminal-input-router'
+import { markTerminalTouchWheelEvent } from '../../../app/terminal/terminal-touch-scroll'
 
 function setup(options: {
   active?: boolean
@@ -69,6 +70,17 @@ describe('terminal input router', () => {
 
     expect(context.sendWheelInput).toHaveBeenCalledExactlyOnceWith(report, 'binary')
     expect(context.sendInput).not.toHaveBeenCalled()
+  })
+
+  it('marks touch wheel input for single-line tmux scrolling', () => {
+    const context = setup()
+    const touchWheel = markTerminalTouchWheelEvent({} as WheelEvent)
+
+    expect(context.router.onWheel(touchWheel)).toBe(true)
+    context.router.onData('\u001B[<64;20;8M')
+
+    expect(context.sendWheelInput)
+      .toHaveBeenCalledExactlyOnceWith('\u001B[<64;20;8M', 'utf8', 1)
   })
 
   it('leaves xterm wheel handling enabled without opening async input when forwarding is unavailable', () => {

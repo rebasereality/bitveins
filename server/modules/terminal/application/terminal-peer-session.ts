@@ -22,7 +22,7 @@ interface TerminalSessionOperations {
   }>
   killBitveinsHelperSession(name: string): Promise<void>
   killWindow(name: string, index: unknown): Promise<void>
-  prepareTerminalWheel(sessionName: string, direction: 'down' | 'up'): Promise<boolean>
+  prepareTerminalWheel(sessionName: string, direction: 'down' | 'up', lineCount?: 1): Promise<boolean>
   resetTerminalScroll(sessionName: string): Promise<void>
   selectWindow(name: string, index: unknown): Promise<void>
 }
@@ -111,10 +111,13 @@ export class TerminalPeerSession {
         const direction = binary
           ? (message.payload.data.charCodeAt(3) === 96 ? 'up' : 'down')
           : (message.payload.data.startsWith('\u001B[<64;') ? 'up' : 'down')
-        const handled = await this.options.sessions.prepareTerminalWheel(
-          attachment.tmuxTarget,
-          direction,
-        )
+        const handled = message.payload.lineCount
+          ? await this.options.sessions.prepareTerminalWheel(
+              attachment.tmuxTarget,
+              direction,
+              message.payload.lineCount,
+            )
+          : await this.options.sessions.prepareTerminalWheel(attachment.tmuxTarget, direction)
         this.requireCurrentAttachment(attachment, 'wheel input')
         if (!handled) {
           attachment.pty.write(binary

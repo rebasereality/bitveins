@@ -18,6 +18,49 @@ const sessionName = `mobile_${safeRunId}`
 const selectionSessionName = `selection_${safeRunId}`
 const commandSessionName = `command_${safeRunId}`
 const historySessionName = `history_${safeRunId}`
+const swipeSessionName = `swipe_${safeRunId}`
+
+async function swipeTerminal(
+  page: Page,
+  direction: 'down' | 'up',
+  lineCount?: number,
+): Promise<void> {
+  const host = page.locator('[data-terminal-host]')
+  const box = await page.locator('.xterm-screen').boundingBox()
+  if (!box) throw new Error('The mobile terminal has no bounding box.')
+  const x = box.x + box.width / 2
+  const rows = await page.locator('.xterm-rows > div').count()
+  const distance = lineCount
+    ? box.height / rows * (lineCount + 0.05)
+    : box.height * 0.6
+  const upperY = box.y + (box.height - distance) / 2
+  const lowerY = upperY + distance
+  const startY = direction === 'down' ? upperY : lowerY
+  const endY = direction === 'down' ? lowerY : upperY
+  const pointer = {
+    button: 0,
+    buttons: 1,
+    clientX: x,
+    clientY: startY,
+    isPrimary: true,
+    pointerId: 7,
+    pointerType: 'touch',
+  }
+
+  await host.dispatchEvent('pointerdown', pointer)
+  const steps = lineCount ? 1 : 10
+  for (let step = 1; step <= steps; step += 1) {
+    await host.dispatchEvent('pointermove', {
+      ...pointer,
+      clientY: startY + (endY - startY) * (step / steps),
+    })
+  }
+  await host.dispatchEvent('pointerup', {
+    ...pointer,
+    buttons: 0,
+    clientY: endY,
+  })
+}
 
 async function selectTerminalRange(
   page: Page,
@@ -278,6 +321,84 @@ test('shows the Explorer action after consecutive mobile terminal selections', a
   }
   finally {
     await page.request.delete(`/api/sessions/${selectionSessionName}`).catch(() => undefined)
+  }
+})
+
+test('scrolls terminal history in the natural direction with a one-finger swipe', async ({ page }) => {
+  await mkdir(workspace, { recursive: true })
+  await authenticate(page)
+
+  try {
+    const created = await page.request.post('/api/sessions', {
+      data: {
+        name: swipeSessionName,
+        path: workspace,
+      },
+    })
+    expect(created.ok(), await created.text()).toBe(true)
+    await execFileAsync('tmux', [
+      '-L',
+      socketName,
+      'set-option',
+      '-t',
+      swipeSessionName,
+      'mouse',
+      'off',
+    ])
+
+    await page.reload()
+    await page.getByLabel('Open sessions').click()
+    await page.getByRole('button', { name: swipeSessionName, exact: true }).click()
+    await expect(page.locator('[data-connection-state="attached"]')).toBeVisible()
+    const host = page.locator('[data-terminal-host]')
+    await expect(host).toHaveCSS('touch-action', 'pan-x pinch-zoom')
+
+    await execFileAsync('tmux', [
+      '-L',
+      socketName,
+      'send-keys',
+      '-t',
+      swipeSessionName,
+      `printf '\\033[2J\\033[H'; seq -f 'swipe-line-%03g' 1 120`,
+      'Enter',
+    ])
+    const renderedRows = page.locator('.xterm-rows')
+    await expect(renderedRows).toContainText('swipe-line-120')
+
+    const rows = page.locator('.xterm-rows > div')
+    const anchorLine = 'swipe-line-110'
+    const anchorRow = async () => (await rows.allTextContents()).indexOf(anchorLine)
+    const rowBeforeSingleLineSwipe = await anchorRow()
+    expect(rowBeforeSingleLineSwipe).toBeGreaterThanOrEqual(0)
+    await swipeTerminal(page, 'down', 1)
+    await expect.poll(anchorRow).toBe(rowBeforeSingleLineSwipe + 1)
+    await swipeTerminal(page, 'up', 1)
+    await expect.poll(anchorRow).toBe(rowBeforeSingleLineSwipe)
+
+    await execFileAsync('tmux', [
+      '-L',
+      socketName,
+      'set-option',
+      '-t',
+      swipeSessionName,
+      'mouse',
+      'on',
+    ])
+    await expect(page.locator('.xterm')).toHaveClass(/enable-mouse-events/)
+    await swipeTerminal(page, 'down', 1)
+    await expect.poll(anchorRow).toBe(rowBeforeSingleLineSwipe + 1)
+    await swipeTerminal(page, 'up', 1)
+    await expect.poll(anchorRow).toBe(rowBeforeSingleLineSwipe)
+
+    await swipeTerminal(page, 'down')
+    await expect(renderedRows).not.toContainText('swipe-line-120')
+    await expect(renderedRows).toContainText('swipe-line-0')
+
+    await swipeTerminal(page, 'up')
+    await expect(renderedRows).toContainText('swipe-line-120')
+  }
+  finally {
+    await page.request.delete(`/api/sessions/${swipeSessionName}`).catch(() => undefined)
   }
 })
 

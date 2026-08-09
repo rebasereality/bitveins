@@ -219,7 +219,9 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
     sendInput,
     sendReliableInput,
     sendReliableInputs,
-    sendWheelInput: (data: string, encoding: 'binary' | 'utf8') => controller.sendWheelInput(data, encoding),
+    sendWheelInput: (data: string, encoding: 'binary' | 'utf8', lineCount?: 1) => (
+      controller.sendWheelInput(data, encoding, lineCount)
+    ),
     status,
   }
 }

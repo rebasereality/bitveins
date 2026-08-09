@@ -205,8 +205,9 @@ export class TmuxCliAdapter implements TmuxGateway {
     }
   }
 
-  async prepareTerminalWheel(name: string, direction: 'down' | 'up'): Promise<boolean> {
+  async prepareTerminalWheel(name: string, direction: 'down' | 'up', lineCount?: 1): Promise<boolean> {
     const sessionName = normalizeTerminalTargetName(name)
+    const scrollLineCount = String(lineCount ?? 5)
     const [paneInMode, mouseAnyFlag] = (await this.run([
       'display-message',
       '-p',
@@ -216,7 +217,7 @@ export class TmuxCliAdapter implements TmuxGateway {
     ])).trim().split('|')
 
     if (paneInMode === '1') {
-      await this.run(['send-keys', '-N', '5', '-X', '-t', sessionName, `scroll-${direction}`])
+      await this.run(['send-keys', '-N', scrollLineCount, '-X', '-t', sessionName, `scroll-${direction}`])
       return true
     }
     if (mouseAnyFlag === '1' || direction === 'down') return false
@@ -233,7 +234,7 @@ export class TmuxCliAdapter implements TmuxGateway {
       }
       await this.run(['copy-mode', '-e', '-t', sessionName])
     }
-    await this.run(['send-keys', '-N', '5', '-X', '-t', sessionName, 'scroll-up'])
+    await this.run(['send-keys', '-N', scrollLineCount, '-X', '-t', sessionName, 'scroll-up'])
     return true
   }
 
