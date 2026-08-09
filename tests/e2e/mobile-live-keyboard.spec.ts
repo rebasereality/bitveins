@@ -23,7 +23,7 @@ const swipeSessionName = `swipe_${safeRunId}`
 async function swipeTerminal(
   page: Page,
   direction: 'down' | 'up',
-): Promise<void> {
+): Promise<{ preventedMoves: number, wheelDeltas: number[] }> {
   const host = page.locator('[data-terminal-host]')
   const box = await page.locator('.xterm-screen').boundingBox()
   if (!box) throw new Error('The mobile terminal has no bounding box.')
@@ -33,28 +33,46 @@ async function swipeTerminal(
   const lowerY = upperY + distance
   const startY = direction === 'down' ? upperY : lowerY
   const endY = direction === 'down' ? lowerY : upperY
-  const pointer = {
-    button: 0,
-    buttons: 1,
-    clientX: x,
-    clientY: startY,
-    isPrimary: true,
-    pointerId: 7,
-    pointerType: 'touch',
-  }
-
-  await host.dispatchEvent('pointerdown', pointer)
-  const steps = 10
-  for (let step = 1; step <= steps; step += 1) {
-    await host.dispatchEvent('pointermove', {
+  return await host.evaluate((element, coordinates) => {
+    const wheelDeltas: number[] = []
+    const recordWheel = (rawEvent: Event) => {
+      wheelDeltas.push((rawEvent as WheelEvent).deltaY)
+    }
+    element.addEventListener('wheel', recordWheel, { capture: true })
+    const pointer = {
+      bubbles: true,
+      button: 0,
+      buttons: 1,
+      cancelable: true,
+      clientX: coordinates.x,
+      clientY: coordinates.startY,
+      isPrimary: true,
+      pointerId: 7,
+      pointerType: 'touch',
+    }
+    element.dispatchEvent(new PointerEvent('pointerdown', pointer))
+    let preventedMoves = 0
+    const steps = 10
+    for (let step = 1; step <= steps; step += 1) {
+      const move = new PointerEvent('pointermove', {
+        ...pointer,
+        clientY: coordinates.startY
+          + (coordinates.endY - coordinates.startY) * (step / steps),
+      })
+      element.dispatchEvent(move)
+      if (move.defaultPrevented) preventedMoves += 1
+    }
+    element.dispatchEvent(new PointerEvent('pointerup', {
       ...pointer,
-      clientY: startY + (endY - startY) * (step / steps),
-    })
-  }
-  await host.dispatchEvent('pointerup', {
-    ...pointer,
-    buttons: 0,
-    clientY: endY,
+      buttons: 0,
+      clientY: coordinates.endY,
+    }))
+    element.removeEventListener('wheel', recordWheel, { capture: true })
+    return { preventedMoves, wheelDeltas }
+  }, {
+    endY,
+    startY,
+    x,
   })
 }
 
@@ -320,7 +338,7 @@ test('shows the Explorer action after consecutive mobile terminal selections', a
   }
 })
 
-test('scrolls terminal history naturally with one-finger swipes in both mouse modes', async ({ page }) => {
+test('routes natural one-finger swipes with and without tmux mouse tracking', async ({ page }) => {
   await mkdir(workspace, { recursive: true })
   await authenticate(page)
 
@@ -361,10 +379,14 @@ test('scrolls terminal history naturally with one-finger swipes in both mouse mo
     const renderedRows = page.locator('.xterm-rows')
     await expect(renderedRows).toContainText('swipe-line-120')
 
-    await swipeTerminal(page, 'down')
-    await expect(renderedRows).not.toContainText('swipe-line-120')
-    await swipeTerminal(page, 'up')
-    await expect(renderedRows).toContainText('swipe-line-120')
+    const untrackedDown = await swipeTerminal(page, 'down')
+    const untrackedUp = await swipeTerminal(page, 'up')
+    expect(untrackedDown.preventedMoves).toBeGreaterThan(0)
+    expect(untrackedUp.preventedMoves).toBeGreaterThan(0)
+    expect(untrackedDown.wheelDeltas.length).toBeGreaterThan(0)
+    expect(untrackedDown.wheelDeltas.every(delta => delta === -1)).toBe(true)
+    expect(untrackedUp.wheelDeltas.length).toBeGreaterThan(0)
+    expect(untrackedUp.wheelDeltas.every(delta => delta === 1)).toBe(true)
 
     await execFileAsync('tmux', [
       '-L',
@@ -376,6 +398,14 @@ test('scrolls terminal history naturally with one-finger swipes in both mouse mo
       'on',
     ])
     await expect(page.locator('.xterm')).toHaveClass(/enable-mouse-events/)
+    const tmuxDown = await swipeTerminal(page, 'down')
+    const tmuxUp = await swipeTerminal(page, 'up')
+    expect(tmuxDown.preventedMoves).toBeGreaterThan(0)
+    expect(tmuxUp.preventedMoves).toBeGreaterThan(0)
+    expect(tmuxDown.wheelDeltas.length).toBeGreaterThan(0)
+    expect(tmuxDown.wheelDeltas.every(delta => delta === -1)).toBe(true)
+    expect(tmuxUp.wheelDeltas.length).toBeGreaterThan(0)
+    expect(tmuxUp.wheelDeltas.every(delta => delta === 1)).toBe(true)
     await swipeTerminal(page, 'down')
     await expect(renderedRows).not.toContainText('swipe-line-120')
     await swipeTerminal(page, 'up')
