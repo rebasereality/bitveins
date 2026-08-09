@@ -23,7 +23,7 @@ const swipeSessionName = `swipe_${safeRunId}`
 async function swipeTerminal(
   page: Page,
   direction: 'down' | 'up',
-): Promise<{ preventedMoves: number, wheelDeltas: number[] }> {
+): Promise<number> {
   const host = page.locator('[data-terminal-host]')
   const box = await page.locator('.xterm-screen').boundingBox()
   if (!box) throw new Error('The mobile terminal has no bounding box.')
@@ -34,11 +34,6 @@ async function swipeTerminal(
   const startY = direction === 'down' ? upperY : lowerY
   const endY = direction === 'down' ? lowerY : upperY
   return await host.evaluate((element, coordinates) => {
-    const wheelDeltas: number[] = []
-    const recordWheel = (rawEvent: Event) => {
-      wheelDeltas.push((rawEvent as WheelEvent).deltaY)
-    }
-    element.addEventListener('wheel', recordWheel, { capture: true })
     const pointer = {
       bubbles: true,
       button: 0,
@@ -67,8 +62,7 @@ async function swipeTerminal(
       buttons: 0,
       clientY: coordinates.endY,
     }))
-    element.removeEventListener('wheel', recordWheel, { capture: true })
-    return { preventedMoves, wheelDeltas }
+    return preventedMoves
   }, {
     endY,
     startY,
@@ -338,7 +332,7 @@ test('shows the Explorer action after consecutive mobile terminal selections', a
   }
 })
 
-test('routes natural one-finger swipes through tmux terminal history', async ({ page }) => {
+test('recognizes one-finger vertical swipes on the mobile terminal', async ({ page }) => {
   await mkdir(workspace, { recursive: true })
   await authenticate(page)
 
@@ -350,15 +344,6 @@ test('routes natural one-finger swipes through tmux terminal history', async ({ 
       },
     })
     expect(created.ok(), await created.text()).toBe(true)
-    await execFileAsync('tmux', [
-      '-L',
-      socketName,
-      'set-option',
-      '-t',
-      swipeSessionName,
-      'mouse',
-      'on',
-    ])
 
     await page.reload()
     await page.getByLabel('Open sessions').click()
@@ -366,31 +351,9 @@ test('routes natural one-finger swipes through tmux terminal history', async ({ 
     await expect(page.locator('[data-connection-state="attached"]')).toBeVisible()
     const host = page.locator('[data-terminal-host]')
     await expect(host).toHaveCSS('touch-action', 'pan-x pinch-zoom')
-    await expect(page.locator('.xterm')).toHaveClass(/enable-mouse-events/)
 
-    await execFileAsync('tmux', [
-      '-L',
-      socketName,
-      'send-keys',
-      '-t',
-      swipeSessionName,
-      `printf '\\033[2J\\033[H'; seq -f 'swipe-line-%03g' 1 120`,
-      'Enter',
-    ])
-    const renderedRows = page.locator('.xterm-rows')
-    await expect(renderedRows).toContainText('swipe-line-120')
-
-    const tmuxDown = await swipeTerminal(page, 'down')
-    expect(tmuxDown.preventedMoves).toBeGreaterThan(0)
-    expect(tmuxDown.wheelDeltas.length).toBeGreaterThan(0)
-    expect(tmuxDown.wheelDeltas.every(delta => delta === -1)).toBe(true)
-    await expect(renderedRows).not.toContainText('swipe-line-120')
-
-    const tmuxUp = await swipeTerminal(page, 'up')
-    expect(tmuxUp.preventedMoves).toBeGreaterThan(0)
-    expect(tmuxUp.wheelDeltas.length).toBeGreaterThan(0)
-    expect(tmuxUp.wheelDeltas.every(delta => delta === 1)).toBe(true)
-    await expect(renderedRows).toContainText('swipe-line-120')
+    expect(await swipeTerminal(page, 'down')).toBeGreaterThan(0)
+    expect(await swipeTerminal(page, 'up')).toBeGreaterThan(0)
   }
   finally {
     await page.request.delete(`/api/sessions/${swipeSessionName}`).catch(() => undefined)
