@@ -6,20 +6,29 @@ import {
   isTerminalTouchWheelEvent,
 } from '../../../app/terminal/terminal-touch-scroll'
 
-function pointer(type: string, x: number, y: number): PointerEvent {
+function pointer(
+  type: string,
+  x: number,
+  y: number,
+  options: { pointerId?: number, pointerType?: string } = {},
+): PointerEvent {
   return new PointerEvent(type, {
     bubbles: true,
     cancelable: true,
     clientX: x,
     clientY: y,
-    pointerId: 1,
-    pointerType: 'touch',
+    pointerId: options.pointerId ?? 1,
+    pointerType: options.pointerType ?? 'touch',
   })
 }
 
 function setup(options: {
   bufferType?: string
+  enabled?: boolean
+  includeElement?: boolean
   mouseTrackingMode?: string
+  screenHeight?: number
+  terminalRows?: number
 } = {}) {
   const host = document.createElement('div')
   const terminalElement = document.createElement('div')
@@ -28,8 +37,8 @@ function setup(options: {
   terminalElement.appendChild(screen)
   host.appendChild(terminalElement)
   vi.spyOn(screen, 'getBoundingClientRect').mockReturnValue({
-    bottom: 200,
-    height: 200,
+    bottom: options.screenHeight ?? 200,
+    height: options.screenHeight ?? 200,
     left: 0,
     right: 200,
     top: 0,
@@ -43,13 +52,13 @@ function setup(options: {
   const wheel = vi.fn()
   screen.addEventListener('wheel', wheel)
   const controller = createTerminalTouchScrollController({
-    isEnabled: () => true,
+    isEnabled: () => options.enabled ?? true,
     isSelecting: () => selecting,
     terminal: () => ({
       buffer: { active: { type: options.bufferType ?? 'alternate' } },
-      element: terminalElement,
+      element: options.includeElement === false ? undefined : terminalElement,
       modes: { mouseTrackingMode: options.mouseTrackingMode ?? 'none' },
-      rows: 10,
+      rows: options.terminalRows ?? 10,
       scrollLines,
     }),
     terminalHost: () => host,
@@ -99,6 +108,44 @@ describe('terminal touch scroll', () => {
     expect(context.wheel).not.toHaveBeenCalled()
   })
 
+  it('caps oversized moves while using the fallback line height', () => {
+    const context = setup({ bufferType: 'normal', screenHeight: 0 })
+    context.controller.onPointerDown(pointer('pointerdown', 100, 0))
+    context.controller.onPointerMove(pointer('pointermove', 100, 1000))
+
+    expect(context.scrollLines).toHaveBeenCalledTimes(32)
+    expect(context.scrollLines.mock.calls.every(([amount]) => amount === -1)).toBe(true)
+  })
+
+  it('ignores disabled, non-touch and secondary pointer streams', () => {
+    const disabled = setup({ enabled: false })
+    disabled.controller.onPointerDown(pointer('pointerdown', 20, 20))
+    expect(disabled.controller.onPointerMove(pointer('pointermove', 20, 80))).toBe(false)
+
+    const context = setup()
+    context.controller.onPointerDown(pointer('pointerdown', 20, 20, { pointerType: 'mouse' }))
+    context.controller.onPointerDown(pointer('pointerdown', 20, 20))
+    context.controller.onPointerDown(pointer('pointerdown', 20, 20, { pointerId: 2 }))
+
+    expect(context.controller.onPointerMove(pointer('pointermove', 20, 80, { pointerId: 2 })))
+      .toBe(false)
+    expect(context.controller.onPointerUp(pointer('pointerup', 20, 20, { pointerType: 'mouse' })))
+      .toBe(false)
+    context.controller.onPointerCancel(pointer('pointercancel', 20, 20, { pointerId: 2 }))
+    expect(context.wheel).not.toHaveBeenCalled()
+  })
+
+  it('safely consumes vertical touch movement before xterm is mounted', () => {
+    const context = setup({ includeElement: false })
+    context.controller.onPointerDown(pointer('pointerdown', 100, 80))
+    const move = pointer('pointermove', 100, 120)
+
+    expect(context.controller.onPointerMove(move)).toBe(true)
+    expect(move.defaultPrevented).toBe(true)
+    expect(context.controller.onPointerUp(pointer('pointerup', 100, 120))).toBe(true)
+    expect(context.wheel).not.toHaveBeenCalled()
+  })
+
   it('leaves taps, horizontal gestures and active text selection alone', () => {
     const context = setup()
     context.controller.onPointerDown(pointer('pointerdown', 20, 20))
@@ -121,6 +168,24 @@ describe('terminal touch scroll', () => {
     const firstClick = new MouseEvent('click', { bubbles: true, cancelable: true })
     expect(context.controller.onClick(firstClick)).toBe(true)
     expect(firstClick.defaultPrevented).toBe(true)
+    expect(context.controller.onClick(new MouseEvent('click', { cancelable: true }))).toBe(false)
+  })
+
+  it('expires click suppression and clears pending state on dispose', () => {
+    vi.useFakeTimers()
+    const context = setup()
+    expect(context.controller.onPointerUp(pointer('pointerup', 100, 80))).toBe(false)
+
+    context.controller.onPointerDown(pointer('pointerdown', 100, 80))
+    context.controller.onPointerMove(pointer('pointermove', 100, 120))
+    context.controller.onPointerUp(pointer('pointerup', 100, 120))
+    vi.advanceTimersByTime(350)
+
+    expect(context.controller.onClick(new MouseEvent('click', { cancelable: true }))).toBe(false)
+    context.controller.onPointerDown(pointer('pointerdown', 100, 80))
+    context.controller.onPointerMove(pointer('pointermove', 100, 120))
+    context.controller.onPointerUp(pointer('pointerup', 100, 120))
+    context.controller.dispose()
     expect(context.controller.onClick(new MouseEvent('click', { cancelable: true }))).toBe(false)
   })
 })
