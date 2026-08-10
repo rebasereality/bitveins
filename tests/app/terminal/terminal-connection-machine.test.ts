@@ -147,6 +147,26 @@ describe('TerminalConnectionMachine', () => {
     expect(machine.snapshot.phase).toBe('attaching')
   })
 
+  it('rejects a pane confirmation for a sibling pane', () => {
+    const machine = new TerminalConnectionMachine()
+    const openEffects = machine.dispatch({
+      type: 'attachmentRequested',
+      attachment: { type: 'pane', paneId: '%7', sessionName: 'main', windowIndex: 2 },
+      online: true,
+    })
+    const transportId = effect(openEffects, 'openTransport').transportId
+    machine.dispatch({ type: 'transportOpened', transportId })
+
+    expect(machine.dispatch({
+      type: 'attachmentConfirmed',
+      paneId: '%8',
+      sessionName: 'main',
+      transportId,
+      windowIndex: 2,
+    })).toEqual([])
+    expect(machine.snapshot.phase).toBe('attaching')
+  })
+
   it('closes the active transport on offline and recovers online', () => {
     const machine = new TerminalConnectionMachine()
     const transportId = connect(machine)

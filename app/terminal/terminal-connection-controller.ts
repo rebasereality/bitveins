@@ -79,6 +79,10 @@ export class TerminalConnectionController {
     this.requestAttachment({ type: 'window', sessionName, windowIndex })
   }
 
+  attachPane(sessionName: string, windowIndex: number, paneId: string): void {
+    this.requestAttachment({ type: 'pane', sessionName, windowIndex, paneId })
+  }
+
   detach(): void {
     this.lastResize = null
     this.transition({ type: 'detachRequested' })
@@ -111,6 +115,17 @@ export class TerminalConnectionController {
     return this.sendMessage({
       action: 'wheelInput',
       payload: lineCount ? { data, encoding, lineCount } : { data, encoding },
+    })
+  }
+
+  sendScroll(direction: 'down' | 'up', lineCount?: 1): boolean {
+    if (!this.isAttached || this.watchdog.isStale()) {
+      this.probe()
+      return false
+    }
+    return this.sendMessage({
+      action: 'scrollPane',
+      payload: lineCount ? { direction, lineCount } : { direction },
     })
   }
 
@@ -283,6 +298,7 @@ export class TerminalConnectionController {
       this.transition({
         type: 'attachmentConfirmed',
         sessionName: message.sessionName,
+        paneId: message.paneId,
         transportId,
         windowIndex: message.windowIndex,
       })
@@ -303,22 +319,32 @@ export class TerminalConnectionController {
     const attachment = this.machine.snapshot.attachment
     if (!attachment) return
     const size = this.options.getSize()
-    const message: ClientMessage = attachment.type === 'window'
+    const message: ClientMessage = attachment.type === 'pane'
       ? {
-          action: 'attachWindow',
+          action: 'attachPane',
           payload: {
             sessionName: attachment.sessionName,
             windowIndex: attachment.windowIndex,
+            paneId: attachment.paneId,
             ...size,
           },
         }
-      : {
-          action: 'attach',
-          payload: {
-            sessionName: attachment.sessionName,
-            ...size,
-          },
-        }
+      : attachment.type === 'window'
+        ? {
+            action: 'attachWindow',
+            payload: {
+              sessionName: attachment.sessionName,
+              windowIndex: attachment.windowIndex,
+              ...size,
+            },
+          }
+        : {
+            action: 'attach',
+            payload: {
+              sessionName: attachment.sessionName,
+              ...size,
+            },
+          }
     this.sendToTransport(transportId, message)
   }
 

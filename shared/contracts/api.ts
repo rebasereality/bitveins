@@ -5,6 +5,7 @@ const sessionNameSchema = z.string().min(1, 'Session name is required.').max(80)
 const workspacePathSchema = z.string().min(1, 'Path is required.').max(4096)
 const windowIndexSchema = z.coerce.number().int().min(0).max(999)
 const windowIdSchema = z.string().regex(/^@\d+$/, 'A valid tmux window id is required.')
+export const paneIdSchema = z.string().regex(/^%\d+$/, 'A valid tmux pane id is required.')
 export const MAX_HISTORY_MESSAGE_CHARS = 1024 * 1024
 const windowNameSchema = z
   .string({ error: 'A window name is required.' })
@@ -31,6 +32,30 @@ export const renameSessionBodySchema = z.object({
 
 export const renameWindowBodySchema = z.object({
   name: windowNameSchema,
+})
+
+export const splitPaneBodySchema = z.object({
+  direction: z.enum(['horizontal', 'vertical']),
+  paneId: paneIdSchema,
+})
+
+export const selectPaneBodySchema = z.object({
+  paneId: paneIdSchema,
+})
+
+export const resizePaneBodySchema = z.object({
+  dimension: z.enum(['height', 'width']),
+  paneId: paneIdSchema,
+  size: z.coerce.number().int().min(2).max(1_000),
+})
+
+export const killPaneQuerySchema = z.object({
+  paneId: paneIdSchema,
+})
+
+export const paneSnapshotQuerySchema = z.object({
+  lines: z.coerce.number().int().positive().max(20_000).optional(),
+  paneId: paneIdSchema.optional(),
 })
 
 export const historyScopeSchema = z.object({

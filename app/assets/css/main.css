@@ -152,4 +152,5 @@ body {
 
 .xterm-viewport {
   background-color: transparent !important;
+  overflow-y: hidden !important;
 }

@@ -2,7 +2,6 @@ import { execFile } from 'node:child_process'
 import { mkdir } from 'node:fs/promises'
 import { promisify } from 'node:util'
 import { expect, test, type Page } from '@playwright/test'
-import sharp from 'sharp'
 import { authenticate } from './support/authenticate'
 
 const execFileAsync = promisify(execFile)
@@ -188,25 +187,13 @@ async function verifyCopyModeScrollRendering(page: Page, inputMode: 'Async' | 'L
     }
     await expect(page.locator('.xterm-rows')).toContainText('history-1000')
 
-    const helperSessions = await execFileAsync('tmux', [
-      '-L',
-      configuredSocketName,
-      'list-sessions',
-      '-F',
-      '#{session_name}|#{@bitveins_base}',
-    ])
-    const helperSessionName = helperSessions.stdout
-      .split('\n')
-      .find(line => line.endsWith(`|${testSessionName}`))
-      ?.split('|')[0]
-    expect(helperSessionName).toBeTruthy()
     const wheelState = await execFileAsync('tmux', [
       '-L',
       configuredSocketName,
       'display-message',
       '-p',
       '-t',
-      helperSessionName!,
+      testSessionName,
       '#{pane_in_mode}|#{mouse_any_flag}',
     ])
     expect(wheelState.stdout.trim()).toBe('0|0')
@@ -231,8 +218,7 @@ async function verifyCopyModeScrollRendering(page: Page, inputMode: 'Async' | 'L
 
     const mouseFrames = () => sentFrames.filter(frame => inputPayloads([frame])
       .some(payload => /^\u001B\[<6[45];\d+;\d+M$/.test(payload)))
-    await page.waitForTimeout(500)
-    expect(mouseFrames().length).toBeGreaterThan(1)
+    expect(mouseFrames()).toEqual([])
     const serverErrors = receivedFrames.flatMap((frame) => {
       try {
         const message = JSON.parse(frame) as { type?: string, data?: string }
@@ -247,24 +233,29 @@ async function verifyCopyModeScrollRendering(page: Page, inputMode: 'Async' | 'L
       const historyLines: string[] = (await page.locator('.xterm-rows').innerText()).match(/history-\d{4}/g) ?? []
       return historyLines.length > 5 && !historyLines.includes('history-1000')
     }).toBe(true)
-    const screenshot = await page.screenshot()
-    const pixels = await sharp(screenshot).removeAlpha().raw().toBuffer()
-    let amberPixels = 0
-    for (let index = 0; index < pixels.length; index += 3) {
-      if (pixels[index] === 133 && pixels[index + 1] === 77 && pixels[index + 2] === 14) {
-        amberPixels += 1
+    const nativeScrollDirections = sentFrames.flatMap((frame) => {
+      try {
+        const message = JSON.parse(frame) as { action?: string, payload?: { direction?: string } }
+        return message.action === 'scrollPane' ? [message.payload?.direction] : []
       }
-    }
-    const rendererLayers = await terminal.evaluate(screen => ({
-      canvases: screen.querySelectorAll('canvas').length,
-      rowContainers: screen.querySelectorAll('.xterm-rows').length,
-      rowIndicators: Array.from(screen.querySelectorAll('.xterm-rows'))
-        .map(rows => rows.textContent?.match(/\[\d+\/\d+\]/g)?.length ?? 0),
-    }))
-    expect(amberPixels, JSON.stringify({
-      ...rendererLayers,
-      wheelInputFrameCount: mouseFrames().length,
-    })).toBeLessThan(5000)
+      catch {
+        return []
+      }
+    })
+    expect(nativeScrollDirections.length).toBeGreaterThan(0)
+    expect(nativeScrollDirections.every(direction => direction === 'up')).toBe(true)
+    await expect.poll(async () => {
+      const result = await execFileAsync('tmux', [
+        '-L', configuredSocketName, 'display-message', '-p', '-t', testSessionName,
+        '#{pane_in_mode}|#{scroll_position}',
+      ])
+      return result.stdout.trim()
+    }).toMatch(/^1\|[1-9]\d*$/)
+    await expect(page.locator('.xterm-viewport')).toHaveCSS('overflow-y', 'hidden')
+    const viewportRange = await page.locator('.xterm-viewport').evaluate(viewport => (
+      viewport.scrollHeight - viewport.clientHeight
+    ))
+    expect(viewportRange).toBe(0)
 
     await expect.poll(async () => {
       const text = await page.locator('.xterm-rows').innerText()
@@ -277,7 +268,7 @@ async function verifyCopyModeScrollRendering(page: Page, inputMode: 'Async' | 'L
 }
 
 for (const inputMode of ['Async', 'Live'] as const) {
-  test(`does not leave stale tmux copy-mode indicators while scrolling in ${inputMode} mode`, async ({ page }) => {
+  test(`uses native tmux scrollback without an HTML scrollbar in ${inputMode} mode`, async ({ page }) => {
     await verifyCopyModeScrollRendering(page, inputMode)
   })
 }
@@ -316,19 +307,6 @@ test('returns to terminal input before submitting an Async message from scrollba
     const terminalRows = page.locator('.xterm-rows')
     await expect(terminalRows).toContainText('history-1000')
 
-    const helperSessions = await execFileAsync('tmux', [
-      '-L',
-      configuredSocketName,
-      'list-sessions',
-      '-F',
-      '#{session_name}|#{@bitveins_base}',
-    ])
-    const helperSessionName = helperSessions.stdout
-      .split('\n')
-      .find(line => line.endsWith(`|${asyncResetSessionName}`))
-      ?.split('|')[0]
-    expect(helperSessionName).toBeTruthy()
-
     const terminal = page.locator('.xterm-screen')
     const terminalBox = await terminal.boundingBox()
     if (!terminalBox) throw new Error('The terminal has no bounding box.')
@@ -356,7 +334,7 @@ test('returns to terminal input before submitting an Async message from scrollba
         'display-message',
         '-p',
         '-t',
-        helperSessionName!,
+        asyncResetSessionName,
         '#{pane_in_mode}',
       ])
       return result.stdout.trim()
@@ -374,7 +352,7 @@ test('returns to terminal input before submitting an Async message from scrollba
         'display-message',
         '-p',
         '-t',
-        helperSessionName!,
+        asyncResetSessionName,
         '#{pane_in_mode}',
       ])
       return result.stdout.trim()
@@ -440,7 +418,6 @@ test('preserves the terminal scrollback position after visiting Files', async ({
       x: terminalBox.x + terminalBox.width / 2,
       y: terminalBox.y + terminalBox.height / 2,
     })))
-
     const visibleHistoryLines = async (): Promise<string[]> => (
       (await terminalRows.innerText()).match(/history-\d{4}/g) ?? []
     )

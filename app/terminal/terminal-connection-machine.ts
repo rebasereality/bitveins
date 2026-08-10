@@ -1,6 +1,7 @@
 export type TerminalAttachment
   = | { type: 'session', sessionName: string }
     | { type: 'window', sessionName: string, windowIndex: number }
+    | { type: 'pane', sessionName: string, windowIndex: number, paneId: string }
 
 export type TerminalConnectionPhase
   = | 'attached'
@@ -23,7 +24,7 @@ export interface TerminalConnectionSnapshot {
 }
 
 export type TerminalConnectionEvent
-  = | { type: 'attachmentConfirmed', sessionName: string, transportId: number, windowIndex?: number }
+  = | { type: 'attachmentConfirmed', sessionName: string, transportId: number, windowIndex?: number, paneId?: string }
     | { type: 'attachmentRequested', attachment: TerminalAttachment, online: boolean }
     | { type: 'attachmentTimeout', online: boolean, transportId: number }
     | { type: 'authExpired' }
@@ -159,7 +160,7 @@ export class TerminalConnectionMachine {
     if (
       !this.isCurrentTransport(event.transportId)
       || this.state.transportStatus !== 'open'
-      || !this.matchesAttachment(event.sessionName, event.windowIndex)
+      || !this.matchesAttachment(event.sessionName, event.windowIndex, event.paneId)
     ) {
       return []
     }
@@ -318,9 +319,11 @@ export class TerminalConnectionMachine {
     return this.state.transportId === transportId
   }
 
-  private matchesAttachment(sessionName: string, windowIndex?: number): boolean {
+  private matchesAttachment(sessionName: string, windowIndex?: number, paneId?: string): boolean {
     const attachment = this.state.attachment
     if (!attachment || attachment.sessionName !== sessionName) return false
-    return attachment.type === 'session' || attachment.windowIndex === windowIndex
+    if (attachment.type === 'session') return true
+    if (attachment.windowIndex !== windowIndex) return false
+    return attachment.type === 'window' || attachment.paneId === paneId
   }
 }

@@ -1,18 +1,24 @@
-import { paneSnapshotQuerySchema } from '#shared/contracts/api'
+import { resizePaneBodySchema } from '#shared/contracts/api'
 import { useBitveinsContainer } from '../../../../../composition/bitveins-container'
 import { rethrowSessionError } from '../../../../../utils/http-errors'
-import { readRequestQuery } from '../../../../../utils/request-validation'
+import { readRequestBody } from '../../../../../utils/request-validation'
 
 const sessions = useBitveinsContainer().sessions
 
 export default defineEventHandler(async (event) => {
   const name = getRouterParam(event, 'name')
   const index = getRouterParam(event, 'index')
-  const query = readRequestQuery(event, paneSnapshotQuerySchema)
+  const body = await readRequestBody(event, resizePaneBodySchema)
 
   try {
     return {
-      data: await sessions.captureWindowSnapshot(name ?? '', index, query.lines, query.paneId),
+      panes: await sessions.resizePane(
+        name ?? '',
+        index ?? '',
+        body.paneId,
+        body.dimension,
+        body.size,
+      ),
     }
   }
   catch (error: unknown) {

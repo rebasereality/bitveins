@@ -11,6 +11,10 @@ import type {
   TerminalAttachmentProcessFactory,
   TerminalAttachmentSize,
 } from '../../../../../server/modules/terminal/ports/terminal-attachment-process-factory'
+import type {
+  TerminalPaneControlProcessFactory,
+  TerminalPaneControlTarget,
+} from '../../../../../server/modules/terminal/ports/terminal-pane-control-process-factory'
 import type { ServerMessage } from '../../../../../shared/contracts/terminal'
 
 class FakePty implements PtyProcess {
@@ -21,6 +25,11 @@ class FakePty implements PtyProcess {
   readonly resizes: Array<{ cols: number, rows: number }> = []
   throwOnWrite = false
   readonly writes: Array<string | Buffer> = []
+  activateCount = 0
+
+  activate(): void {
+    this.activateCount += 1
+  }
 
   kill(): void {
     this.killCount += 1
@@ -81,12 +90,34 @@ class FakeAttachmentProcessFactory implements TerminalAttachmentProcessFactory {
   }
 }
 
+class FakePaneControlProcessFactory implements TerminalPaneControlProcessFactory {
+  readonly processes: FakePty[] = []
+  readonly attachments: Array<{ target: TerminalPaneControlTarget, size: TerminalAttachmentSize }> = []
+
+  attach(target: TerminalPaneControlTarget, size: TerminalAttachmentSize): FakePty {
+    const process = new FakePty()
+    this.processes.push(process)
+    this.attachments.push({ target, size })
+    return process
+  }
+}
+
 function setup(reliableInputs = createReliableInputDeduplicator()) {
   const messages: ServerMessage[] = []
   const activatedHelpers: string[] = []
   const releasedHelpers: string[] = []
   const attachmentProcesses = new FakeAttachmentProcessFactory()
+  const paneControlProcesses = new FakePaneControlProcessFactory()
+  const wait = vi.fn(async () => {})
   const sessions = {
+    capturePaneViewport: vi.fn(async () => ({
+      cursorVisible: true,
+      cursorX: 3,
+      cursorY: 2,
+      data: 'pane viewport',
+      inMode: false,
+      scrollPosition: 0,
+    })),
     createWindow: vi.fn(async () => {}),
     createWindowClientSession: vi.fn(async (sessionName: string, windowIndex: number) => ({
       helperSessionName: '_bitveins_test',
@@ -95,29 +126,152 @@ function setup(reliableInputs = createReliableInputDeduplicator()) {
     })),
     killBitveinsHelperSession: vi.fn(async () => {}),
     killWindow: vi.fn(async () => {}),
+    listPanes: vi.fn(async () => [{ id: '%7' }, { id: '%8' }]),
     resetTerminalScroll: vi.fn(async () => {}),
     prepareTerminalWheel: vi.fn(async () => false),
     selectWindow: vi.fn(async () => {}),
+    sendPaneInput: vi.fn(async () => {}),
+    sendPaneInputBinary: vi.fn(async () => {}),
   }
   const peer = new TerminalPeerSession({
     attachmentProcesses,
+    paneControlProcesses,
     onHelperActivated: name => activatedHelpers.push(name),
     onHelperReleased: name => releasedHelpers.push(name),
     reliableInputs,
     send: message => messages.push(message),
     sessions,
+    wait,
   })
   return {
     activatedHelpers,
     messages,
     peer,
     attachmentProcesses,
+    paneControlProcesses,
     releasedHelpers,
     sessions,
+    wait,
   }
 }
 
 describe('TerminalPeerSession', () => {
+  it('streams and controls one pane through a tmux control-mode attachment', async () => {
+    const context = setup()
+    await context.peer.enqueue(JSON.stringify({
+      action: 'attachPane',
+      payload: { cols: 150, rows: 50, paneId: '%7', sessionName: 'main', windowIndex: 2 },
+    }))
+
+    expect(context.paneControlProcesses.attachments).toEqual([{
+      target: { paneId: '%7', sessionName: 'main', windowIndex: 2 },
+      size: { cols: 150, rows: 50 },
+    }])
+    expect(context.messages[0]).toMatchObject({
+      paneId: '%7',
+      sessionName: 'main',
+      type: 'attached',
+      windowIndex: 2,
+    })
+    expect(context.messages[1]).toEqual({
+      type: 'stdout',
+      data: '\x1b[2J\x1b[3J\x1b[Hpane viewport\x1b[3;4H\x1b[?25h',
+    })
+    const process = context.paneControlProcesses.processes[0]!
+    process.emitData('pane output')
+    await context.peer.enqueue(JSON.stringify({ action: 'input', payload: { data: 'echo pane\r' } }))
+    await context.peer.enqueue(JSON.stringify({ action: 'resize', payload: { cols: 160, rows: 60 } }))
+
+    expect(context.messages.at(-1)).toEqual({ type: 'stdout', data: 'pane output' })
+    expect(context.sessions.sendPaneInput).toHaveBeenCalledWith('%7', 'echo pane\r')
+    expect(process.activateCount).toBe(1)
+    expect(process.resizes).toEqual([{ cols: 160, rows: 60 }])
+  })
+
+  it('retries a blank initial pane before rendering its attached viewport', async () => {
+    const context = setup()
+    context.sessions.capturePaneViewport
+      .mockResolvedValueOnce({
+        cursorVisible: true,
+        cursorX: 0,
+        cursorY: 0,
+        data: '',
+        inMode: false,
+        scrollPosition: 0,
+      })
+      .mockResolvedValueOnce({
+        cursorVisible: true,
+        cursorX: 6,
+        cursorY: 0,
+        data: 'shell$ ',
+        inMode: false,
+        scrollPosition: 0,
+      })
+
+    await context.peer.enqueue(JSON.stringify({
+      action: 'attachPane',
+      payload: { paneId: '%7', sessionName: 'main', windowIndex: 2 },
+    }))
+
+    expect(context.wait).toHaveBeenCalledExactlyOnceWith(50)
+    expect(context.messages).toEqual([
+      expect.objectContaining({ paneId: '%7', type: 'attached' }),
+      {
+        type: 'stdout',
+        data: '\x1b[2J\x1b[3J\x1b[Hshell$ \x1b[1;7H\x1b[?25h',
+      },
+    ])
+  })
+
+  it('renders tmux copy-mode viewports and suppresses live output until returning to the bottom', async () => {
+    const context = setup()
+    context.sessions.prepareTerminalWheel.mockResolvedValue(true)
+    await context.peer.enqueue(JSON.stringify({
+      action: 'attachPane',
+      payload: { paneId: '%7', sessionName: 'main', windowIndex: 2 },
+    }))
+    context.sessions.capturePaneViewport.mockResolvedValue({
+      cursorVisible: true,
+      cursorX: 3,
+      cursorY: 2,
+      data: 'pane viewport',
+      inMode: true,
+      scrollPosition: 5,
+    })
+
+    await context.peer.enqueue(JSON.stringify({
+      action: 'scrollPane',
+      payload: { direction: 'up', lineCount: 1 },
+    }))
+
+    expect(context.sessions.prepareTerminalWheel).toHaveBeenCalledExactlyOnceWith('%7', 'up', 1)
+    expect(context.messages.at(-1)).toEqual({
+      type: 'stdout',
+      data: '\x1b[2J\x1b[3J\x1b[Hpane viewport\x1b[?25l',
+    })
+    context.paneControlProcesses.processes[0]!.emitData('hidden live output')
+    expect(context.messages.at(-1)?.data).not.toContain('hidden live output')
+
+    context.sessions.capturePaneViewport.mockResolvedValue({
+      cursorVisible: true,
+      cursorX: 3,
+      cursorY: 2,
+      data: 'live viewport',
+      inMode: false,
+      scrollPosition: 0,
+    })
+    await context.peer.enqueue(JSON.stringify({
+      action: 'scrollPane',
+      payload: { direction: 'down' },
+    }))
+    expect(context.messages.at(-1)).toEqual({
+      type: 'stdout',
+      data: '\x1b[2J\x1b[3J\x1b[Hlive viewport\x1b[3;4H\x1b[?25h',
+    })
+    context.paneControlProcesses.processes[0]!.emitData('visible live output')
+    expect(context.messages.at(-1)).toEqual({ type: 'stdout', data: 'visible live output' })
+  })
+
   it('owns a PTY attachment and forwards only current output', async () => {
     const context = setup()
     await context.peer.enqueue(JSON.stringify({

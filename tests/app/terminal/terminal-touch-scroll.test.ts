@@ -55,11 +55,8 @@ function setup(options: {
     isEnabled: () => options.enabled ?? true,
     isSelecting: () => selecting,
     terminal: () => ({
-      buffer: { active: { type: options.bufferType ?? 'alternate' } },
       element: options.includeElement === false ? undefined : terminalElement,
-      modes: { mouseTrackingMode: options.mouseTrackingMode ?? 'none' },
       rows: options.terminalRows ?? 10,
-      scrollLines,
     }),
     terminalHost: () => host,
   })
@@ -98,14 +95,15 @@ describe('terminal touch scroll', () => {
       .toEqual([-1, -1, 1])
   })
 
-  it('scrolls the normal xterm buffer exactly one line per computed row', () => {
+  it('routes normal-buffer touch movement through tmux instead of local xterm history', () => {
     const context = setup({ bufferType: 'normal' })
     context.controller.onPointerDown(pointer('pointerdown', 100, 80))
     context.controller.onPointerMove(pointer('pointermove', 100, 120))
     context.controller.onPointerMove(pointer('pointermove', 100, 100))
 
-    expect(context.scrollLines.mock.calls.map(([amount]) => amount)).toEqual([-1, -1, 1])
-    expect(context.wheel).not.toHaveBeenCalled()
+    expect(context.scrollLines).not.toHaveBeenCalled()
+    expect(context.wheel.mock.calls.map(([event]) => (event as WheelEvent).deltaY))
+      .toEqual([-1, -1, 1])
   })
 
   it('caps oversized moves while using the fallback line height', () => {
@@ -113,8 +111,7 @@ describe('terminal touch scroll', () => {
     context.controller.onPointerDown(pointer('pointerdown', 100, 0))
     context.controller.onPointerMove(pointer('pointermove', 100, 1000))
 
-    expect(context.scrollLines).toHaveBeenCalledTimes(32)
-    expect(context.scrollLines.mock.calls.every(([amount]) => amount === -1)).toBe(true)
+    expect(context.wheel).toHaveBeenCalledTimes(32)
   })
 
   it('ignores disabled, non-touch and secondary pointer streams', () => {

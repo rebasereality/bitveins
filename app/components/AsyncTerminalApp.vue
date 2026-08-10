@@ -634,6 +634,7 @@ watch(activeSession, () => {
             @forget-all-path-link-roots="forgetAllPathLinkRoots"
             @forget-path-link-root="forgetPathLinkRoot"
             @open-explorer="openExplorerFromUi"
+            @panes-change="void fetchWindows()"
             @ready="onTerminalReady"
             @select-tmux-window="selectTmuxWindowFromUi"
             @start-tmux-window-rename="startTmuxWindowRename"

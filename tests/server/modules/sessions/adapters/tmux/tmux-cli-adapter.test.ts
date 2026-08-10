@@ -233,7 +233,7 @@ describe('TmuxCliAdapter', () => {
         }
       : {
           stderr: '',
-          stdout: '@2|2|logs|0|102|/workspace\n@1|1|editor|1|101|/workspace/src\n',
+          stdout: '@2|2|logs|0|102|1|/workspace\n@1|1|editor|1|101|1|/workspace/src\n',
         }
 
     await expect(adapter.listWindows('main')).resolves.toEqual([
@@ -243,6 +243,7 @@ describe('TmuxCliAdapter', () => {
         id: '@1',
         index: 1,
         name: 'editor',
+        panesCount: 1,
         path: '/workspace/src',
       },
       {
@@ -250,6 +251,7 @@ describe('TmuxCliAdapter', () => {
         id: '@2',
         index: 2,
         name: 'logs',
+        panesCount: 1,
         path: '/workspace',
       },
     ])
@@ -261,7 +263,7 @@ describe('TmuxCliAdapter', () => {
       if (command === 'ps') throw new Error('ps unavailable')
       return {
         stderr: '',
-        stdout: '@1|1|editor|1|101|/workspace/src\n',
+        stdout: '@1|1|editor|1|101|1|/workspace/src\n',
       }
     }
 
@@ -270,8 +272,105 @@ describe('TmuxCliAdapter', () => {
       id: '@1',
       index: 1,
       name: 'editor',
+      panesCount: 1,
       path: '/workspace/src',
     }])
+  })
+
+  it('parses pane geometry and detects the foreground application per pane', async () => {
+    const { adapter, runner } = setup()
+    runner.handler = async ({ command }) => command === 'ps'
+      ? {
+          stderr: '',
+          stdout: '101 201 bash\n201 201 hermes\n102 202 bash\n202 202 node\n',
+        }
+      : {
+          stderr: '',
+          stdout: [
+            '%2|1|0|61|0|59|40|120|40|102|/workspace/right',
+            '%1|0|1|0|0|60|40|120|40|101|/workspace/left',
+          ].join('\n'),
+        }
+
+    await expect(adapter.listPanes('main', 2)).resolves.toEqual([
+      {
+        active: true,
+        application: 'hermes',
+        height: 40,
+        id: '%1',
+        index: 0,
+        left: 0,
+        path: '/workspace/left',
+        top: 0,
+        width: 60,
+        windowHeight: 40,
+        windowWidth: 120,
+      },
+      {
+        active: false,
+        height: 40,
+        id: '%2',
+        index: 1,
+        left: 61,
+        path: '/workspace/right',
+        top: 0,
+        width: 59,
+        windowHeight: 40,
+        windowWidth: 120,
+      },
+    ])
+  })
+
+  it('captures the tmux copy-mode viewport using its native scroll position', async () => {
+    const { adapter, runner } = setup()
+    runner.handler = async ({ args }) => {
+      if (args[0] === 'display-message') {
+        return { stderr: '', stdout: '1|5|10|7|3|1\n' }
+      }
+      return { stderr: '', stdout: 'history viewport\n\n\n' }
+    }
+
+    await expect(adapter.capturePaneViewport('%7')).resolves.toEqual({
+      cursorVisible: true,
+      cursorX: 7,
+      cursorY: 3,
+      data: 'history viewport\n\n',
+      inMode: true,
+      scrollPosition: 5,
+    })
+    expect(runner.calls[1]?.args).toEqual([
+      'capture-pane', '-e', '-p', '-S', '-5', '-E', '4', '-t', '%7',
+    ])
+  })
+
+  it('resizes a stable pane id and returns the resulting tmux geometry', async () => {
+    const { adapter, runner } = setup()
+    runner.handler = async ({ command, args }) => {
+      if (command === 'ps') return { stderr: '', stdout: '' }
+      if (args[0] === 'list-panes') {
+        return { stderr: '', stdout: '%7|0|1|0|0|40|20|80|20|101|/workspace\n' }
+      }
+      return { stderr: '', stdout: '' }
+    }
+
+    await expect(adapter.resizePane('main', 0, '%7', 'width', 45)).resolves.toHaveLength(1)
+    expect(runner.calls.map(call => call.args)).toContainEqual([
+      'resize-pane', '-x', '45', '-t', '%7',
+    ])
+  })
+
+  it('sends text, null bytes, and binary wheel reports to stable pane ids', async () => {
+    const { adapter, runner } = setup()
+
+    await adapter.sendPaneInput('%7', 'left\0right')
+    await adapter.sendPaneInputBinary('%7', '\u001B[M`4(')
+
+    expect(runner.calls.map(call => call.args)).toEqual([
+      ['send-keys', '-t', '%7', '-l', '--', 'left'],
+      ['send-keys', '-t', '%7', '-H', '00'],
+      ['send-keys', '-t', '%7', '-l', '--', 'right'],
+      ['send-keys', '-t', '%7', '-H', '1b', '5b', '4d', '60', '34', '28'],
+    ])
   })
 
   it('compensates a failed helper creation using only its generated name', async () => {

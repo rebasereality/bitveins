@@ -13,6 +13,7 @@ function setup(options: {
   const enableStdin = vi.fn()
   const restoreInputMode = vi.fn()
   const sendInput = vi.fn()
+  const sendScroll = vi.fn()
   const sendWheelInput = vi.fn()
   const router = createTerminalInputRouter({
     enableStdin,
@@ -23,6 +24,7 @@ function setup(options: {
     restoreInputMode,
     scheduleRestore: callback => scheduled.push(callback),
     sendInput,
+    sendScroll,
     sendWheelInput,
   })
 
@@ -33,6 +35,7 @@ function setup(options: {
     runRestore: () => scheduled.shift()?.(),
     scheduled,
     sendInput,
+    sendScroll,
     sendWheelInput,
     setMode: (value: 'async' | 'live') => { mode = value },
   }
@@ -110,17 +113,31 @@ describe('terminal input router', () => {
     expect(context.restoreInputMode).not.toHaveBeenCalled()
   })
 
-  it('does not route tmux wheel input without mouse tracking or while inactive', () => {
+  it('routes untracked wheel events to native tmux scrolling but ignores inactive panes', () => {
     const untracked = setup({ mouseTracking: false })
     const inactive = setup({ active: false })
+    const wheel = { deltaY: -120, preventDefault: vi.fn() } as unknown as WheelEvent
 
-    expect(untracked.router.onWheel()).toBe(true)
-    expect(inactive.router.onWheel()).toBe(true)
+    expect(untracked.router.onWheel(wheel)).toBe(false)
+    expect(inactive.router.onWheel(wheel)).toBe(true)
 
     expect(untracked.sendWheelInput).not.toHaveBeenCalled()
+    expect(untracked.sendScroll).toHaveBeenCalledExactlyOnceWith('up', undefined)
+    expect(wheel.preventDefault).toHaveBeenCalledOnce()
     expect(inactive.sendWheelInput).not.toHaveBeenCalled()
     expect(untracked.scheduled).toHaveLength(0)
     expect(inactive.enableStdin).not.toHaveBeenCalled()
+  })
+
+  it('requests one native tmux row for a touch wheel without mouse tracking', () => {
+    const context = setup({ mouseTracking: false })
+    const touchWheel = markTerminalTouchWheelEvent({
+      deltaY: 1,
+      preventDefault: vi.fn(),
+    } as unknown as WheelEvent)
+
+    expect(context.router.onWheel(touchWheel)).toBe(false)
+    expect(context.sendScroll).toHaveBeenCalledExactlyOnceWith('down', 1)
   })
 
   it('cancels late wheel restoration after disposal', () => {

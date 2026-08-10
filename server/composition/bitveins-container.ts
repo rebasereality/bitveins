@@ -29,6 +29,7 @@ import { TerminalPeerRegistry } from '../modules/terminal/application/terminal-p
 import { TerminalPeerSession } from '../modules/terminal/application/terminal-peer-session'
 import { NodePtyFactory } from '../modules/terminal/adapters/node-pty-factory'
 import { TmuxTerminalAttachmentProcessFactory } from '../modules/terminal/adapters/tmux-terminal-attachment-process-factory'
+import { TmuxPaneControlProcessFactory } from '../modules/terminal/adapters/tmux-pane-control-process-factory'
 import { db, useDrizzle } from '../utils/db'
 import { getValidatedEnv } from '../utils/env'
 
@@ -88,11 +89,17 @@ export function createBitveinsContainer(): BitveinsContainer {
     ptyFactory,
     socketName: environment.BITVEINS_TMUX_SOCKET_NAME,
   })
+  const paneControlProcesses = new TmuxPaneControlProcessFactory({
+    cwd: process.env.HOME || process.cwd(),
+    env: process.env,
+    socketName: environment.BITVEINS_TMUX_SOCKET_NAME,
+  })
   const reliableInputs = createReliableInputDeduplicator()
   const terminalPeers = new TerminalPeerRegistry<TerminalPeer>({
     createSession(peer, helperLifecycle) {
       return new TerminalPeerSession({
         attachmentProcesses,
+        paneControlProcesses,
         onHelperActivated: helperLifecycle.activated,
         onHelperReleased: helperLifecycle.released,
         reliableInputs,

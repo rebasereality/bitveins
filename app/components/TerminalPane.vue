@@ -6,6 +6,7 @@ import type {
   TerminalFileReference,
   TerminalFileResolution,
 } from '#shared/contracts/explorer'
+import type { TmuxPane } from '#shared/contracts/terminal'
 import type { InputMode } from '~/types/session'
 import { TerminalFileLinkProvider } from '~/terminal/file-link-provider'
 import { createTerminalInputRouter } from '~/terminal/terminal-input-router'
@@ -19,8 +20,10 @@ import { buildUploadDestinationPath } from '~/utils/upload-path'
 const props = defineProps<{
   active: boolean
   application?: 'hermes'
+  focused: boolean
   inputMode: InputMode
   paneKey: string
+  pane: TmuxPane
   sessionName: string
   windowIndex: number
   windowId: string
@@ -53,6 +56,7 @@ let disposed = false
 
 const activeSession = computed(() => props.sessionName)
 const active = computed(() => props.active)
+const inputActive = computed(() => props.active && props.focused)
 const inputMode = computed(() => props.inputMode)
 const isLightTheme = computed(() => colorMode.value === 'light')
 const terminalOutputNormalizer = createTerminalOutputNormalizer(
@@ -64,15 +68,24 @@ const terminalTheme = computed<ITheme>(() => terminalThemeForAccent(
   accentColor.value,
 ))
 
+function resolvePaneWindowSize({ cols, rows }: { cols: number, rows: number }) {
+  return {
+    cols: Math.round(cols * props.pane.windowWidth / props.pane.width),
+    rows: Math.round(rows * props.pane.windowHeight / props.pane.height),
+  }
+}
+
 const terminalSocket = useTerminalSocket({
   activeSession,
   active,
-  bufferInitialOutput: true,
+  inputActive,
+  bufferInitialOutput: false,
   emitAuthExpired: () => emit('authExpired'),
   fitAddon,
   inputMode,
   normalizeOutput: terminalOutputNormalizer.normalize,
   promptRecoveryKey: props.paneKey,
+  resolveAttachmentSize: resolvePaneWindowSize,
   resetOutput: terminalOutputNormalizer.reset,
   terminal,
   onStdout: () => {
@@ -85,7 +98,7 @@ const terminalSelection = useTerminalSelection({
 })
 const {
   applyInputMode,
-  attachWindow,
+  attachPane,
   connectionState,
   dispose: disposeSocket,
   fitAndResize,
@@ -93,6 +106,7 @@ const {
   sendInput,
   sendReliableInput,
   sendReliableInputs,
+  sendScroll,
   sendWheelInput,
   status,
 } = terminalSocket
@@ -101,11 +115,12 @@ const terminalInputRouter = createTerminalInputRouter({
     if (terminal.value) terminal.value.options.disableStdin = false
   },
   inputMode: () => props.inputMode,
-  isActive: () => props.active,
+  isActive: () => props.active && props.focused,
   isAsyncWheelEnabled: () => connectionState.value === 'attached',
   isMouseTrackingEnabled: () => terminal.value?.modes.mouseTrackingMode !== 'none',
   restoreInputMode: applyInputMode,
   sendInput,
+  sendScroll,
   sendWheelInput,
 })
 const {
@@ -167,7 +182,7 @@ function openUrlInNewTab(url: string): void {
 }
 
 function focus(): void {
-  if (props.active && isDesktopViewport()) {
+  if (props.active && props.focused && props.inputMode === 'live' && isDesktopViewport()) {
     terminal.value?.focus()
   }
 }
@@ -196,54 +211,9 @@ function applyTerminalTheme(): void {
   term.options.theme = { ...terminalTheme.value }
 }
 
-async function warmPane(): Promise<void> {
-  if (disposed) {
-    return
-  }
-
-  let liveStarted = false
-  const snapshotPromise = writeSnapshot(() => liveStarted)
-
-  await Promise.race([
-    snapshotPromise,
-    new Promise(resolve => window.setTimeout(resolve, 180)),
-  ])
-
-  liveStarted = true
-
-  if (disposed) {
-    return
-  }
-
-  attachWindow(props.sessionName, props.windowIndex)
-}
-
-async function writeSnapshot(isLiveStarted: () => boolean): Promise<void> {
-  const term = terminal.value
-
-  if (!term) {
-    return
-  }
-
-  try {
-    const rows = Math.max(16, term.rows * 2)
-    const data = await $fetch<{ data: string }>(`/api/sessions/${encodeURIComponent(props.sessionName)}/windows/${props.windowIndex}/snapshot`, {
-      query: { lines: rows },
-    })
-
-    if (disposed || isLiveStarted()) {
-      return
-    }
-
-    term.clear()
-    term.write('\x1b[2J\x1b[3J\x1b[H')
-    term.write(terminalOutputNormalizer.normalize(data.data || ''))
-  }
-  catch {
-    if (!disposed && !isLiveStarted()) {
-      term.clear()
-    }
-  }
+function warmPane(): void {
+  if (disposed) return
+  attachPane(props.sessionName, props.windowIndex, props.pane.id, props.focused)
 }
 
 const { uploadFile } = useFileUploadOverlay()
@@ -272,15 +242,7 @@ async function onTerminalPaste(event: ClipboardEvent): Promise<void> {
     }
   }
 
-  if (files.length === 0) {
-    const pastedText = clipboardData.getData('text/plain') || clipboardData.getData('text')
-    if (pastedText) {
-      event.preventDefault()
-      event.stopPropagation()
-      sendInput(pastedText)
-    }
-    return
-  }
+  if (files.length === 0) return
 
   event.preventDefault()
   event.stopPropagation()
@@ -305,7 +267,7 @@ function dispose(): void {
 
   disposed = true
   window.removeEventListener('resize', applyTerminalFontSize)
-  terminalHost.value?.removeEventListener('paste', onTerminalPaste)
+  terminalHost.value?.removeEventListener('paste', onTerminalPaste, true)
   terminalBinaryDisposable?.dispose()
   terminalDataDisposable?.dispose()
   terminalSelectionDisposable?.dispose()
@@ -322,6 +284,7 @@ function dispose(): void {
 
 defineExpose({
   dispose,
+  fitAndResize,
   focus,
   sendInput,
   sendReliableInput,
@@ -337,13 +300,13 @@ onMounted(async () => {
     allowProposedApi: false,
     convertEol: true,
     cursorBlink: false,
-    disableStdin: props.inputMode !== 'live' || !props.active,
+    disableStdin: props.inputMode !== 'live' || !props.active || !props.focused,
     fontFamily: '"JetBrains Mono", "SFMono-Regular", "Cascadia Code", monospace',
     fontSize: resolvedTerminalFontSize(),
     letterSpacing: 0,
     lineHeight: 1.18,
     rightClickSelectsWord: true,
-    scrollback: 8000,
+    scrollback: 0,
     theme: { ...terminalTheme.value },
   })
   const fit = new FitAddon()
@@ -380,8 +343,8 @@ onMounted(async () => {
   terminalResizeObserver.observe(terminalHost.value)
   terminalSelection.mount()
   window.addEventListener('resize', applyTerminalFontSize)
-  terminalHost.value.addEventListener('paste', onTerminalPaste)
-  void warmPane()
+  terminalHost.value.addEventListener('paste', onTerminalPaste, true)
+  warmPane()
 })
 
 watch(terminalTheme, () => {
@@ -393,13 +356,12 @@ watch(terminalFontSize, applyTerminalFontSize)
 watch(connectionState, state => emit('connectionChange', state === 'attached'), { immediate: true })
 
 watch(
-  () => [props.inputMode, props.active] as const,
+  () => [props.inputMode, props.active, props.focused] as const,
   () => {
     applyInputMode()
 
-    if (props.active && isDesktopViewport()) {
+    if (props.active) {
       nextTick(() => {
-        fitAndResize()
         focus()
       })
     }

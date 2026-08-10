@@ -46,6 +46,20 @@ describe('ws protocol', () => {
     })
   })
 
+  it('parses pane attachments and rejects unstable pane indexes', () => {
+    expect(parseClientMessage(JSON.stringify({
+      action: 'attachPane',
+      payload: { paneId: '%12', sessionName: 'main', windowIndex: 1 },
+    }))).toEqual({
+      action: 'attachPane',
+      payload: { paneId: '%12', sessionName: 'main', windowIndex: 1 },
+    })
+    expect(() => parseClientMessage(JSON.stringify({
+      action: 'attachPane',
+      payload: { paneId: '1', sessionName: 'main', windowIndex: 1 },
+    }))).toThrow('Attach pane requires a valid paneId.')
+  })
+
   it('parses terminal wheel input messages without client-controlled targets', () => {
     expect(parseClientMessage(JSON.stringify({
       action: 'wheelInput',
@@ -68,6 +82,20 @@ describe('ws protocol', () => {
     expect(() => parseClientMessage(JSON.stringify({
       action: 'wheelInput',
       payload: { data: '\u001B[<64;20;8M', lineCount: 2 },
+    }))).toThrow()
+  })
+
+  it('parses native tmux pane scroll requests', () => {
+    expect(parseClientMessage(JSON.stringify({
+      action: 'scrollPane',
+      payload: { direction: 'up', lineCount: 1 },
+    }))).toEqual({
+      action: 'scrollPane',
+      payload: { direction: 'up', lineCount: 1 },
+    })
+    expect(() => parseClientMessage(JSON.stringify({
+      action: 'scrollPane',
+      payload: { direction: 'up', lineCount: 2 },
     }))).toThrow()
   })
 

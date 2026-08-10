@@ -47,6 +47,27 @@ export function normalizeTerminalTargetName(name: unknown): string {
   return normalizeInternalSessionName(name)
 }
 
+export function normalizePaneId(id: unknown): string {
+  if (typeof id !== 'string' || !/^%\d+$/.test(id)) {
+    throw new SessionError('A valid tmux pane id is required.')
+  }
+  return id
+}
+
+export function normalizePaneSize(size: unknown): number {
+  const parsed = typeof size === 'number' ? size : Number(size)
+  if (!Number.isSafeInteger(parsed) || parsed < 2 || parsed > 1_000) {
+    throw new SessionError('A valid tmux pane size is required.')
+  }
+  return parsed
+}
+
+export function normalizeTerminalTarget(name: unknown): string {
+  return typeof name === 'string' && name.startsWith('%')
+    ? normalizePaneId(name)
+    : normalizeTerminalTargetName(name)
+}
+
 export function normalizeWindowIndex(index: unknown): number {
   const parsed = typeof index === 'number' ? index : Number(index)
 

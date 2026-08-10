@@ -58,6 +58,21 @@ describe('reliable input outbox', () => {
     expect(reliableInputsForWindow(storage, 'main', 1, 1_000)).toEqual([entry('one')])
   })
 
+  it('scopes pane entries without replaying them to sibling pane sockets', () => {
+    const storage = new MemoryStorage()
+    enqueueReliableInput(storage, entry('left', { paneId: '%1' }), 1_000)
+    enqueueReliableInput(storage, entry('right', { paneId: '%2' }), 1_000)
+    enqueueReliableInput(storage, entry('legacy'), 1_000)
+
+    expect(reliableInputsForWindow(storage, 'main', 1, 1_000, '%1')).toEqual([
+      entry('left', { paneId: '%1' }),
+    ])
+    expect(reliableInputsForWindow(storage, 'main', 1, 1_000, '%2', true)).toEqual([
+      entry('right', { paneId: '%2' }),
+      entry('legacy'),
+    ])
+  })
+
   it('expires old entries and refuses to silently evict a full outbox', () => {
     const storage = new MemoryStorage()
 

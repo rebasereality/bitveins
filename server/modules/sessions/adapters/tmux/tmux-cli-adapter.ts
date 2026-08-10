@@ -1,23 +1,27 @@
-import type { TmuxWindow } from '#shared/contracts/terminal'
+import type { TmuxPane, TmuxWindow } from '#shared/contracts/terminal'
 import { SessionError } from '../../model/session-error'
 import {
   isMissingTmuxServerError,
   parseBitveinsHelperSessions,
   parseTmuxSessions,
+  parseTmuxPanes,
   parseTmuxWindows,
   parseTmuxWindowsWithPanePids,
 } from './tmux-output'
 import {
   BITVEINS_SESSION_PREFIX,
   normalizeHelperSessionName,
+  normalizePaneId,
+  normalizePaneSize,
   normalizeSessionName,
-  normalizeTerminalTargetName,
+  normalizeTerminalTarget,
   normalizeWindowId,
   normalizeWindowIndex,
   normalizeWindowName,
 } from '../../model/session-validation'
 import type { DiscoveredTmuxSession, TmuxGateway, WindowClientSession } from '../../ports/tmux-gateway'
 import type { CommandRunner } from './command-runner'
+import { captureTmuxPaneViewport } from './tmux-pane-viewport'
 
 interface TmuxCliAdapterOptions {
   clock?: () => number
@@ -106,7 +110,7 @@ export class TmuxCliAdapter implements TmuxGateway {
         '-t',
         normalizeSessionName(name),
         '-F',
-        '#{window_id}|#{window_index}|#{window_name}|#{window_active}|#{pane_pid}|#{pane_current_path}',
+        '#{window_id}|#{window_index}|#{window_name}|#{window_active}|#{pane_pid}|#{window_panes}|#{pane_current_path}',
       ]))
       return this.withDetectedApplications(windows)
     }
@@ -114,6 +118,16 @@ export class TmuxCliAdapter implements TmuxGateway {
       if (this.isMissingServer(error)) return []
       throw error
     }
+  }
+
+  async listPanes(name: string, index: unknown): Promise<TmuxPane[]> {
+    const sessionName = normalizeSessionName(name)
+    const windowIndex = normalizeWindowIndex(index)
+    const panes = parseTmuxPanes(await this.run([
+      'list-panes', '-t', `${sessionName}:${windowIndex}`, '-F',
+      '#{pane_id}|#{pane_index}|#{pane_active}|#{pane_left}|#{pane_top}|#{pane_width}|#{pane_height}|#{window_width}|#{window_height}|#{pane_pid}|#{pane_current_path}',
+    ]))
+    return this.withDetectedPaneApplications(panes)
   }
 
   async selectWindow(name: string, index: unknown): Promise<void> {
@@ -125,7 +139,7 @@ export class TmuxCliAdapter implements TmuxGateway {
       'new-window',
       '-P',
       '-F',
-      '#{window_id}|#{window_index}|#{window_name}|#{window_active}|#{pane_current_path}',
+      '#{window_id}|#{window_index}|#{window_name}|#{window_active}|#{window_panes}|#{pane_current_path}',
       '-t',
       `${normalizeSessionName(name)}:`,
       '-c',
@@ -142,6 +156,74 @@ export class TmuxCliAdapter implements TmuxGateway {
 
   async killWindow(name: string, index: unknown): Promise<void> {
     await this.run(['kill-window', '-t', `${normalizeSessionName(name)}:${normalizeWindowIndex(index)}`])
+  }
+
+  async splitWindow(
+    name: string,
+    index: unknown,
+    paneId: unknown,
+    direction: 'horizontal' | 'vertical',
+  ): Promise<TmuxPane[]> {
+    const sessionName = normalizeSessionName(name)
+    const windowIndex = normalizeWindowIndex(index)
+    const target = normalizePaneId(paneId)
+    const panes = await this.listPanes(sessionName, windowIndex)
+    if (!panes.some(pane => pane.id === target)) throw new SessionError('Tmux pane is no longer available.')
+    const flag = direction === 'horizontal' ? '-h' : '-v'
+    await this.run(['split-window', flag, '-c', '#{pane_current_path}', '-t', target])
+    return this.listPanes(sessionName, windowIndex)
+  }
+
+  async killPane(name: string, index: unknown, paneId: unknown): Promise<TmuxPane[]> {
+    const sessionName = normalizeSessionName(name)
+    const windowIndex = normalizeWindowIndex(index)
+    const target = normalizePaneId(paneId)
+    const panes = await this.listPanes(sessionName, windowIndex)
+    if (panes.length <= 1) throw new SessionError('The final pane cannot be closed.')
+    if (!panes.some(pane => pane.id === target)) throw new SessionError('Tmux pane is no longer available.')
+    await this.run(['kill-pane', '-t', target])
+    return this.listPanes(sessionName, windowIndex)
+  }
+
+  async selectPane(name: string, index: unknown, paneId: unknown): Promise<void> {
+    const sessionName = normalizeSessionName(name)
+    const windowIndex = normalizeWindowIndex(index)
+    const target = normalizePaneId(paneId)
+    const panes = await this.listPanes(sessionName, windowIndex)
+    if (!panes.some(pane => pane.id === target)) throw new SessionError('Tmux pane is no longer available.')
+    await this.run(['select-pane', '-t', target])
+  }
+
+  async resizePane(
+    name: string,
+    index: unknown,
+    paneId: unknown,
+    dimension: 'height' | 'width',
+    size: unknown,
+  ): Promise<TmuxPane[]> {
+    const sessionName = normalizeSessionName(name)
+    const windowIndex = normalizeWindowIndex(index)
+    const target = normalizePaneId(paneId)
+    const panes = await this.listPanes(sessionName, windowIndex)
+    if (!panes.some(pane => pane.id === target)) throw new SessionError('Tmux pane is no longer available.')
+    await this.run(['resize-pane', dimension === 'width' ? '-x' : '-y', String(normalizePaneSize(size)), '-t', target])
+    return this.listPanes(sessionName, windowIndex)
+  }
+
+  async sendPaneInput(paneId: unknown, data: string): Promise<void> {
+    const target = normalizePaneId(paneId)
+    const chunks = data.split('\0')
+    for (let index = 0; index < chunks.length; index += 1) {
+      const chunk = chunks[index] ?? ''
+      if (chunk) await this.run(['send-keys', '-t', target, '-l', '--', chunk])
+      if (index < chunks.length - 1) await this.run(['send-keys', '-t', target, '-H', '00'])
+    }
+  }
+
+  async sendPaneInputBinary(paneId: unknown, data: string): Promise<void> {
+    const target = normalizePaneId(paneId)
+    const bytes = Array.from(data, character => character.charCodeAt(0).toString(16).padStart(2, '0'))
+    if (bytes.length > 0) await this.run(['send-keys', '-t', target, '-H', ...bytes])
   }
 
   async renameWindow(name: string, index: unknown, nextName: string): Promise<TmuxWindow | null> {
@@ -174,7 +256,16 @@ export class TmuxCliAdapter implements TmuxGateway {
     return { helperSessionName, sessionName, windowIndex }
   }
 
-  async captureWindowSnapshot(name: string, index: unknown, lines = 2000): Promise<string> {
+  async captureWindowSnapshot(name: string, index: unknown, lines = 2000, paneId?: unknown): Promise<string> {
+    const sessionName = normalizeSessionName(name)
+    const windowIndex = normalizeWindowIndex(index)
+    const target = paneId === undefined
+      ? `${sessionName}:${windowIndex}`
+      : normalizePaneId(paneId)
+    if (paneId !== undefined) {
+      const panes = await this.listPanes(sessionName, windowIndex)
+      if (!panes.some(pane => pane.id === target)) throw new SessionError('Tmux pane is no longer available.')
+    }
     const start = `-${Math.max(1, Math.min(20_000, Math.floor(lines)))}`
     return this.run([
       'capture-pane',
@@ -184,8 +275,12 @@ export class TmuxCliAdapter implements TmuxGateway {
       '-S',
       start,
       '-t',
-      `${normalizeSessionName(name)}:${normalizeWindowIndex(index)}`,
+      target,
     ])
+  }
+
+  async capturePaneViewport(paneId: unknown) {
+    return captureTmuxPaneViewport(args => this.run(args), normalizePaneId(paneId))
   }
 
   async displaySessionPath(name: string): Promise<string | null> {
@@ -206,7 +301,7 @@ export class TmuxCliAdapter implements TmuxGateway {
   }
 
   async prepareTerminalWheel(name: string, direction: 'down' | 'up', lineCount?: 1): Promise<boolean> {
-    const sessionName = normalizeTerminalTargetName(name)
+    const sessionName = normalizeTerminalTarget(name)
     const scrollLineCount = String(lineCount ?? 5)
     const [paneInMode, mouseAnyFlag] = (await this.run([
       'display-message',
@@ -239,7 +334,7 @@ export class TmuxCliAdapter implements TmuxGateway {
   }
 
   async resetTerminalScroll(name: string): Promise<void> {
-    const sessionName = normalizeTerminalTargetName(name)
+    const sessionName = normalizeTerminalTarget(name)
     const paneInMode = (await this.run([
       'display-message',
       '-p',
@@ -337,6 +432,44 @@ export class TmuxCliAdapter implements TmuxGateway {
     catch {
       return windows.map(({ window }) => window)
     }
+  }
+
+  private async withDetectedPaneApplications(
+    panes: ReturnType<typeof parseTmuxPanes>,
+  ): Promise<TmuxPane[]> {
+    const applications = await this.detectApplications(panes.map(({ panePid }) => panePid))
+    return panes.map(({ pane, panePid }) => (
+      panePid !== null && applications.get(panePid) === 'hermes'
+        ? { ...pane, application: 'hermes' as const }
+        : pane
+    ))
+  }
+
+  private async detectApplications(panePids: readonly (number | null)[]): Promise<Map<number, string>> {
+    const result = new Map<number, string>()
+    if (!panePids.some(pid => pid !== null)) return result
+    try {
+      const { stdout } = await this.options.runner.run('ps', ['-eo', 'pid=,tpgid=,comm='], {
+        maxBuffer: TMUX_MAX_BUFFER,
+        timeoutMs: TMUX_TIMEOUT_MS,
+      })
+      const processes = new Map<number, { command: string, foregroundPid: number }>()
+      for (const line of stdout.split('\n')) {
+        const match = line.match(/^\s*(\d+)\s+(-?\d+)\s+(\S+)\s*$/)
+        if (!match) continue
+        processes.set(Number(match[1]), { command: match[3]!, foregroundPid: Number(match[2]) })
+      }
+      for (const panePid of panePids) {
+        if (panePid === null) continue
+        const paneProcess = processes.get(panePid)
+        const command = paneProcess ? processes.get(paneProcess.foregroundPid)?.command : undefined
+        if (command) result.set(panePid, command)
+      }
+    }
+    catch {
+      // Application labels are an optional UI enhancement.
+    }
+    return result
   }
 
   private async run(args: readonly string[]): Promise<string> {

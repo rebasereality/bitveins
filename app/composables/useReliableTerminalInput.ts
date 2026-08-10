@@ -15,6 +15,8 @@ import {
 } from '~/utils/reliable-input-outbox'
 
 interface ReliableInputAttachment {
+  acceptLegacy?: boolean
+  paneId?: string
   sessionName: string
   windowIndex: number
 }
@@ -55,7 +57,14 @@ export function useReliableTerminalInput(options: ReliableTerminalInputOptions) 
     }
 
     try {
-      return reliableInputsForWindow(currentStorage, attachment.sessionName, attachment.windowIndex)
+      return reliableInputsForWindow(
+        currentStorage,
+        attachment.sessionName,
+        attachment.windowIndex,
+        Date.now(),
+        attachment.paneId,
+        attachment.acceptLegacy,
+      )
     }
     catch {
       return []
@@ -148,6 +157,7 @@ export function useReliableTerminalInput(options: ReliableTerminalInputOptions) 
           createdAt,
           data: entryData,
           id: crypto.randomUUID(),
+          ...(attachment.paneId ? { paneId: attachment.paneId } : {}),
           sessionName: attachment.sessionName,
           submissionId,
           windowIndex: attachment.windowIndex,
