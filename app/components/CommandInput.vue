@@ -292,14 +292,21 @@ function isDesktopViewport(): boolean {
   return import.meta.client && window.matchMedia('(min-width: 1024px)').matches
 }
 
-function updateDesktopCommandOffset(): void {
-  if (!footer.value || !isDesktopViewport()) {
+function updateCommandLayout(): void {
+  if (!footer.value) {
     document.documentElement.style.setProperty('--bitveins-command-offset', '0px')
     document.documentElement.style.setProperty('--bitveins-command-baseline', '0px')
     return
   }
 
   const nextHeight = footer.value.getBoundingClientRect().height
+  if (!isDesktopViewport()) {
+    desktopFooterBaseline = 0
+    document.documentElement.style.setProperty('--bitveins-command-baseline', `${Math.round(nextHeight)}px`)
+    document.documentElement.style.setProperty('--bitveins-command-offset', '0px')
+    return
+  }
+
   if (desktopFooterBaseline === 0) {
     desktopFooterBaseline = nextHeight
   }
@@ -329,19 +336,19 @@ defineExpose({
 
 onMounted(() => {
   mountDrawer()
-  footerResizeObserver = new ResizeObserver(updateDesktopCommandOffset)
+  footerResizeObserver = new ResizeObserver(updateCommandLayout)
   if (footer.value) {
     footerResizeObserver.observe(footer.value)
   }
-  window.addEventListener('resize', updateDesktopCommandOffset)
+  window.addEventListener('resize', updateCommandLayout)
   window.addEventListener('keydown', onGlobalKeydown, { capture: true })
-  nextTick(updateDesktopCommandOffset)
+  nextTick(updateCommandLayout)
 })
 
 onBeforeUnmount(() => {
   disposeDrawer()
   footerResizeObserver?.disconnect()
-  window.removeEventListener('resize', updateDesktopCommandOffset)
+  window.removeEventListener('resize', updateCommandLayout)
   window.removeEventListener('keydown', onGlobalKeydown, { capture: true })
   document.documentElement.style.setProperty('--bitveins-command-baseline', '0px')
   document.documentElement.style.setProperty('--bitveins-command-offset', '0px')

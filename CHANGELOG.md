@@ -8,6 +8,9 @@ until a release is tagged.
 
 ### Added
 
+- interactive tmux pane layouts with horizontal and vertical splits, focused
+  pane selection, close controls, drag resizing and an accent-colored active
+  pane border;
 - one-finger line-by-line terminal scrolling on touch devices, with natural
   swipe direction and tmux mouse-mode support;
 - per-device notification mute controls for each session, shared across browser
@@ -17,8 +20,17 @@ until a release is tagged.
 
 ### Changed
 
+- terminal clients now attach to individual tmux panes so desktop and mobile
+  views can mirror the same layout while the active client controls its size;
 - session notification mute controls now appear only when Web Push is enabled
   on the current device.
+
+### Fixed
+
+- newly created panes display their shell prompt immediately and retain stable
+  tmux-native scrolling and exact terminal geometry while layouts are polled;
+- Live image pastes target the focused pane, and the mobile Live controls no
+  longer cover the terminal's bottom rows.
 
 ## 1.3.0 - 2026-08-05
 

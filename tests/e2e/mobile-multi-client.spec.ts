@@ -18,9 +18,11 @@ const sessionName = `mobile_sync_${safeRunId}`
 
 test('lets an active mobile client claim tmux size from an existing desktop client', async ({ browser, page }) => {
   await mkdir(workspace, { recursive: true })
-  const mobileFrames: string[] = []
+  const mobileSocketFrames: string[][] = []
   page.on('websocket', (socket) => {
-    socket.on('framesent', event => mobileFrames.push(String(event.payload)))
+    const frames: string[] = []
+    mobileSocketFrames.push(frames)
+    socket.on('framesent', event => frames.push(String(event.payload)))
   })
   const desktopContext = await browser.newContext({ viewport: { height: 720, width: 1280 } })
   const desktopPage = await desktopContext.newPage()
@@ -60,32 +62,49 @@ test('lets an active mobile client claim tmux size from an existing desktop clie
     await expect(mobileFocusedPane.locator('[data-connection-state="attached"]')).toBeVisible()
     await expect(mobileFocusedPane.locator('.xterm-rows')).toContainText('MULTI_CLIENT_TUI_')
     const requestedMobileWindowSize = () => {
-      for (const rawFrame of mobileFrames) {
-        try {
-          const message = JSON.parse(rawFrame) as {
-            action?: string
-            payload?: { cols?: number, paneId?: string, rows?: number }
+      for (const frames of mobileSocketFrames) {
+        let attachedToFocusedPane = false
+        let requestedSize: string | null = null
+        for (const rawFrame of frames) {
+          try {
+            const message = JSON.parse(rawFrame) as {
+              action?: string
+              payload?: { cols?: number, paneId?: string, rows?: number }
+            }
+            if (message.action === 'attachPane') {
+              attachedToFocusedPane = message.payload?.paneId === focusedPaneId
+            }
+            if (
+              attachedToFocusedPane
+              && (message.action === 'attachPane' || message.action === 'resize')
+              && message.payload?.cols
+              && message.payload.rows
+            ) {
+              requestedSize = `${message.payload.cols}x${message.payload.rows}`
+            }
           }
-          if (
-            message.action === 'attachPane'
-            && message.payload?.paneId === focusedPaneId
-            && message.payload.cols
-            && message.payload.rows
-          ) {
-            return `${message.payload.cols}x${message.payload.rows}`
+          catch {
+            // Ignore non-JSON websocket frames from unrelated connections.
           }
         }
-        catch {
-          // Ignore non-JSON websocket frames from unrelated connections.
-        }
+        if (requestedSize) return requestedSize
       }
       return null
     }
     await expect.poll(requestedMobileWindowSize).not.toBeNull()
-    const mobileWindowSize = requestedMobileWindowSize()
-    if (!mobileWindowSize) throw new Error('The mobile client did not request a tmux size.')
-
     await page.getByRole('button', { name: 'Live', exact: true }).click()
+    const commandFooter = page.locator('footer').filter({
+      has: page.getByRole('button', { name: 'Live', exact: true }),
+    })
+    await expect(commandFooter).toBeVisible()
+    await expect.poll(async () => {
+      const [terminalBox, footerBox] = await Promise.all([
+        mobileFocusedPane.locator('[data-terminal-host]').boundingBox(),
+        commandFooter.boundingBox(),
+      ])
+      if (!terminalBox || !footerBox) return Number.POSITIVE_INFINITY
+      return Math.round(terminalBox.y + terminalBox.height - footerBox.y)
+    }).toBeLessThanOrEqual(0)
     await page.getByRole('button', { name: 'Open keyboard' }).click()
     const marker = '/MOBILE_SYNC_MARKER'
     await page.keyboard.insertText(marker)
@@ -93,10 +112,14 @@ test('lets an active mobile client claim tmux size from an existing desktop clie
     await expect.poll(async () => (await execFileAsync('tmux', [
       '-L', socketName, 'capture-pane', '-p', '-t', focusedPaneId,
     ])).stdout).toContain(marker)
-    await expect.poll(async () => (await execFileAsync('tmux', [
-      '-L', socketName, 'display-message', '-p', '-t', focusedPaneId,
-      '#{window_width}x#{window_height}',
-    ])).stdout.trim()).toBe(mobileWindowSize)
+    await expect.poll(async () => {
+      const requestedSize = requestedMobileWindowSize()
+      const tmuxSize = (await execFileAsync('tmux', [
+        '-L', socketName, 'display-message', '-p', '-t', focusedPaneId,
+        '#{window_width}x#{window_height}',
+      ])).stdout.trim()
+      return requestedSize !== null && tmuxSize === requestedSize
+    }).toBe(true)
     await expect(desktopFocusedPane.locator('.xterm-rows')).toContainText(marker)
     await expect(mobileFocusedPane.locator('.xterm-rows')).toContainText(marker)
   }
