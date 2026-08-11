@@ -2,8 +2,13 @@ import { Buffer } from 'node:buffer'
 import type { ClientMessage, ServerMessage } from '#shared/contracts/terminal'
 import { parseClientMessage, parseTerminalSize } from '#shared/contracts/terminal'
 import { normalizeSessionName } from '../../sessions/model/session-validation'
+import type { TmuxPaneViewport } from '../../sessions/ports/tmux-gateway'
 import type { Disposable, PtyProcess } from '../ports/pty-factory'
 import type { TerminalAttachmentProcessFactory } from '../ports/terminal-attachment-process-factory'
+import type {
+  TerminalPaneControlProcess,
+  TerminalPaneControlProcessFactory,
+} from '../ports/terminal-pane-control-process-factory'
 
 interface ReliableInputDeduplicator {
   deliver(
@@ -14,6 +19,7 @@ interface ReliableInputDeduplicator {
 }
 
 interface TerminalSessionOperations {
+  capturePaneViewport(paneId: unknown): Promise<TmuxPaneViewport>
   createWindow(name: string): Promise<unknown>
   createWindowClientSession(name: string, index: unknown): Promise<{
     helperSessionName: string
@@ -22,18 +28,23 @@ interface TerminalSessionOperations {
   }>
   killBitveinsHelperSession(name: string): Promise<void>
   killWindow(name: string, index: unknown): Promise<void>
+  listPanes(name: string, index: unknown): Promise<Array<{ id: string }>>
   prepareTerminalWheel(sessionName: string, direction: 'down' | 'up', lineCount?: 1): Promise<boolean>
   resetTerminalScroll(sessionName: string): Promise<void>
   selectWindow(name: string, index: unknown): Promise<void>
+  sendPaneInput(paneId: unknown, data: string): Promise<void>
+  sendPaneInputBinary(paneId: unknown, data: string): Promise<void>
 }
 
 interface TerminalPeerSessionOptions {
   attachmentProcesses: TerminalAttachmentProcessFactory
+  paneControlProcesses: TerminalPaneControlProcessFactory
   onHelperActivated: (name: string) => void
   onHelperReleased: (name: string) => void
   reliableInputs: ReliableInputDeduplicator
   send: (message: ServerMessage) => void
   sessions: TerminalSessionOperations
+  wait?: (delay: number) => Promise<void>
 }
 
 interface Attachment {
@@ -42,9 +53,17 @@ interface Attachment {
   helperReleased: boolean
   helperSessionName?: string
   label: string
-  pty: PtyProcess
+  paneId?: string
+  process: PtyProcess | TerminalPaneControlProcess
   reliableInputTarget: string
+  scrollActive?: boolean
   tmuxTarget: string
+}
+
+const initialPaneCaptureDelays = [0, 50, 100, 200, 400] as const
+
+function wait(delay: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, delay))
 }
 
 export class TerminalPeerSession {
@@ -102,11 +121,24 @@ export class TerminalPeerSession {
           message.payload.rows,
         )
         return
+      case 'attachPane':
+        await this.attachPane(
+          message.payload.sessionName,
+          message.payload.windowIndex,
+          message.payload.paneId,
+          message.payload.cols,
+          message.payload.rows,
+        )
+        return
       case 'input':
-        this.requireAttachment().pty.write(message.payload.data)
+        await this.writeInput(this.requireAttachment(), message.payload.data)
+        return
+      case 'scrollPane':
+        await this.scrollPane(message.payload.direction, message.payload.lineCount)
         return
       case 'wheelInput': {
         const attachment = this.requireAttachment()
+        this.activatePaneAttachment(attachment)
         const binary = message.payload.encoding === 'binary'
         const direction = binary
           ? (message.payload.data.charCodeAt(3) === 96 ? 'up' : 'down')
@@ -120,9 +152,18 @@ export class TerminalPeerSession {
           : await this.options.sessions.prepareTerminalWheel(attachment.tmuxTarget, direction)
         this.requireCurrentAttachment(attachment, 'wheel input')
         if (!handled) {
-          attachment.pty.write(binary
-            ? Buffer.from(message.payload.data, 'binary')
-            : message.payload.data)
+          if (attachment.paneId) {
+            if (binary) await this.options.sessions.sendPaneInputBinary(attachment.paneId, message.payload.data)
+            else await this.options.sessions.sendPaneInput(attachment.paneId, message.payload.data)
+          }
+          else {
+            ;(attachment.process as PtyProcess).write(binary
+              ? Buffer.from(message.payload.data, 'binary')
+              : message.payload.data)
+          }
+        }
+        else if (attachment.paneId) {
+          await this.renderPaneViewport(attachment)
         }
         return
       }
@@ -133,7 +174,7 @@ export class TerminalPeerSession {
         const attachment = this.attachment
         if (attachment) {
           const size = parseTerminalSize(message.payload.cols, message.payload.rows)
-          attachment.pty.resize(size.cols, size.rows)
+          attachment.process.resize(size.cols, size.rows)
         }
         return
       }
@@ -210,6 +251,45 @@ export class TerminalPeerSession {
     })
   }
 
+  private async attachPane(
+    sessionName: string,
+    windowIndex: number,
+    paneId: string,
+    cols?: number,
+    rows?: number,
+  ): Promise<void> {
+    await this.detach()
+    const normalizedSessionName = normalizeSessionName(sessionName)
+    const panes = await this.options.sessions.listPanes(normalizedSessionName, windowIndex)
+    if (!panes.some(pane => pane.id === paneId)) {
+      throw new Error('Tmux pane is no longer available.')
+    }
+    const size = parseTerminalSize(cols, rows)
+    const process = this.options.paneControlProcesses.attach({
+      paneId,
+      sessionName: normalizedSessionName,
+      windowIndex,
+    }, size)
+    const attachment = this.subscribe({
+      helperReleased: false,
+      label: `tmux pane ${paneId}`,
+      paneId,
+      process,
+      reliableInputTarget: `pane:${paneId}`,
+      tmuxTarget: paneId,
+    })
+    this.attachment = attachment
+    const viewport = await this.captureInitialPaneViewport(attachment)
+    this.options.send({
+      type: 'attached',
+      data: `Attached to ${normalizedSessionName}:${windowIndex}.${paneId}.`,
+      sessionName: normalizedSessionName,
+      windowIndex,
+      paneId,
+    })
+    if (viewport) this.sendPaneViewport(attachment, viewport)
+  }
+
   private spawnAttachment(
     sessionName: string,
     label: string,
@@ -219,21 +299,24 @@ export class TerminalPeerSession {
     helperSessionName?: string,
   ): Attachment {
     const size = parseTerminalSize(cols, rows)
-    const pty = this.options.attachmentProcesses.attach(sessionName, size)
-    const attachment: Attachment = {
+    const process = this.options.attachmentProcesses.attach(sessionName, size)
+    return this.subscribe({
       helperReleased: false,
       helperSessionName,
       label,
-      pty,
+      process,
       reliableInputTarget,
       tmuxTarget: sessionName,
-    }
-    attachment.dataSubscription = pty.onData((data) => {
-      if (this.attachment === attachment) {
+    })
+  }
+
+  private subscribe(attachment: Attachment): Attachment {
+    attachment.dataSubscription = attachment.process.onData((data) => {
+      if (this.attachment === attachment && !attachment.scrollActive) {
         this.options.send({ type: 'stdout', data })
       }
     })
-    attachment.exitSubscription = pty.onExit(({ exitCode, signal }) => {
+    attachment.exitSubscription = attachment.process.onExit(({ exitCode, signal }) => {
       void this.handleExit(attachment, signal ?? exitCode)
     })
     return attachment
@@ -257,12 +340,77 @@ export class TerminalPeerSession {
   private async writeReliableInput(id: string, data: string): Promise<void> {
     const attachment = this.requireAttachment()
     await this.options.reliableInputs.deliver(id, attachment.reliableInputTarget, async () => {
-      await this.options.sessions.resetTerminalScroll(attachment.tmuxTarget)
-      this.requireCurrentAttachment(attachment, 'reliable input')
-      attachment.pty.write(data)
+      if (!attachment.paneId) {
+        await this.options.sessions.resetTerminalScroll(attachment.tmuxTarget)
+        this.requireCurrentAttachment(attachment, 'reliable input')
+      }
+      await this.writeInput(attachment, data)
     })
 
     this.options.send({ type: 'inputAck', data: '', inputId: id })
+  }
+
+  private async writeInput(attachment: Attachment, data: string): Promise<void> {
+    this.activatePaneAttachment(attachment)
+    if (attachment.scrollActive) {
+      await this.options.sessions.resetTerminalScroll(attachment.tmuxTarget)
+      this.requireCurrentAttachment(attachment, 'terminal scroll reset')
+      await this.renderPaneViewport(attachment)
+    }
+    if (attachment.paneId) {
+      await this.options.sessions.sendPaneInput(attachment.paneId, data)
+      return
+    }
+    ;(attachment.process as PtyProcess).write(data)
+  }
+
+  private async scrollPane(direction: 'down' | 'up', lineCount?: 1): Promise<void> {
+    const attachment = this.requireAttachment()
+    if (!attachment.paneId) return
+    this.activatePaneAttachment(attachment)
+    const handled = await this.options.sessions.prepareTerminalWheel(
+      attachment.paneId,
+      direction,
+      lineCount,
+    )
+    this.requireCurrentAttachment(attachment, 'pane scroll')
+    if (handled) await this.renderPaneViewport(attachment)
+  }
+
+  private async renderPaneViewport(attachment: Attachment): Promise<void> {
+    if (!attachment.paneId) return
+    const viewport = await this.options.sessions.capturePaneViewport(attachment.paneId)
+    this.requireCurrentAttachment(attachment, 'pane viewport capture')
+    this.sendPaneViewport(attachment, viewport)
+  }
+
+  private async captureInitialPaneViewport(attachment: Attachment): Promise<TmuxPaneViewport | null> {
+    let viewport: TmuxPaneViewport | null = null
+    for (const delay of initialPaneCaptureDelays) {
+      if (delay > 0) await (this.options.wait ?? wait)(delay)
+      this.requireCurrentAttachment(attachment, 'initial pane viewport capture')
+      viewport = await this.options.sessions.capturePaneViewport(attachment.paneId)
+      this.requireCurrentAttachment(attachment, 'initial pane viewport capture')
+      if (viewport.data.trim()) break
+    }
+    return viewport
+  }
+
+  private activatePaneAttachment(attachment: Attachment): void {
+    if (attachment.paneId) {
+      ;(attachment.process as TerminalPaneControlProcess).activate()
+    }
+  }
+
+  private sendPaneViewport(attachment: Attachment, viewport: TmuxPaneViewport): void {
+    attachment.scrollActive = viewport.inMode
+    const cursor = viewport.inMode || !viewport.cursorVisible
+      ? '\x1b[?25l'
+      : `\x1b[${viewport.cursorY + 1};${viewport.cursorX + 1}H\x1b[?25h`
+    this.options.send({
+      type: 'stdout',
+      data: `\x1b[2J\x1b[3J\x1b[H${viewport.data}${cursor}`,
+    })
   }
 
   private requireCurrentAttachment(attachment: Attachment, operation: string): void {
@@ -284,7 +432,7 @@ export class TerminalPeerSession {
 
     this.attachment = null
     this.disposeSubscriptions(attachment)
-    attachment.pty.kill()
+    attachment.process.kill()
     await this.releaseAttachmentHelper(attachment)
   }
 

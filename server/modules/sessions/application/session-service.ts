@@ -1,7 +1,7 @@
-import type { TmuxSession, TmuxWindow } from '#shared/contracts/terminal'
+import type { TmuxPane, TmuxSession, TmuxWindow } from '#shared/contracts/terminal'
 import { SessionError } from '../model/session-error'
 import { createSessionId, normalizeSessionId } from '../model/session-identity'
-import { normalizeSessionName, normalizeTerminalTargetName } from '../model/session-validation'
+import { normalizeSessionName, normalizeTerminalTarget } from '../model/session-validation'
 import { transferSessionBaseName, transferSessionCandidate } from '../model/transfer-session-name'
 import type { PathInspector } from '../ports/path-inspector'
 import type { PersistedSession, SessionRepository } from '../ports/session-repository'
@@ -184,20 +184,56 @@ export class SessionService {
     return this.options.tmux.createWindowClientSession(normalizeSessionName(name), index)
   }
 
-  captureWindowSnapshot(name: string, index: unknown, lines?: number): Promise<string> {
-    return this.options.tmux.captureWindowSnapshot(normalizeSessionName(name), index, lines)
+  listPanes(name: string, index: unknown): Promise<TmuxPane[]> {
+    return this.options.tmux.listPanes(normalizeSessionName(name), index)
   }
+
+  splitWindow(name: string, index: unknown, paneId: unknown, direction: 'horizontal' | 'vertical'): Promise<TmuxPane[]> {
+    return this.options.tmux.splitWindow(normalizeSessionName(name), index, paneId, direction)
+  }
+
+  killPane(name: string, index: unknown, paneId: unknown): Promise<TmuxPane[]> {
+    return this.options.tmux.killPane(normalizeSessionName(name), index, paneId)
+  }
+
+  selectPane(name: string, index: unknown, paneId: unknown): Promise<void> {
+    return this.options.tmux.selectPane(normalizeSessionName(name), index, paneId)
+  }
+
+  resizePane(
+    name: string,
+    index: unknown,
+    paneId: unknown,
+    dimension: 'height' | 'width',
+    size: unknown,
+  ): Promise<TmuxPane[]> {
+    return this.options.tmux.resizePane(normalizeSessionName(name), index, paneId, dimension, size)
+  }
+
+  sendPaneInput(paneId: unknown, data: string): Promise<void> { return this.options.tmux.sendPaneInput(paneId, data) }
+  sendPaneInputBinary(paneId: unknown, data: string): Promise<void> {
+    return this.options.tmux.sendPaneInputBinary(paneId, data)
+  }
+
+  captureWindowSnapshot(name: string, index: unknown, lines?: number, paneId?: unknown): Promise<string> {
+    const sessionName = normalizeSessionName(name)
+    return paneId === undefined
+      ? this.options.tmux.captureWindowSnapshot(sessionName, index, lines)
+      : this.options.tmux.captureWindowSnapshot(sessionName, index, lines, paneId)
+  }
+
+  capturePaneViewport(paneId: unknown) { return this.options.tmux.capturePaneViewport(paneId) }
 
   async prepareTerminalWheel(name: string, direction: 'down' | 'up', lineCount?: 1): Promise<boolean> {
     return this.options.tmux.prepareTerminalWheel(
-      normalizeTerminalTargetName(name),
+      normalizeTerminalTarget(name),
       direction,
       lineCount,
     )
   }
 
   async resetTerminalScroll(name: string): Promise<void> {
-    await this.options.tmux.resetTerminalScroll(normalizeTerminalTargetName(name))
+    await this.options.tmux.resetTerminalScroll(normalizeTerminalTarget(name))
   }
 
   killBitveinsHelperSession(name: string): Promise<void> { return this.options.tmux.killBitveinsHelperSession(name) }

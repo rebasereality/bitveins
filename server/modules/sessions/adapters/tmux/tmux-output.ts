@@ -1,4 +1,4 @@
-import type { TmuxWindow } from '#shared/contracts/terminal'
+import type { TmuxPane, TmuxWindow } from '#shared/contracts/terminal'
 import type { DiscoveredTmuxSession } from '../../ports/tmux-gateway'
 import { BITVEINS_SESSION_PREFIX, normalizeWindowIndex } from '../../model/session-validation'
 
@@ -11,6 +11,51 @@ export interface BitveinsHelperSession {
 export interface TmuxWindowWithPanePid {
   panePid: number | null
   window: TmuxWindow
+}
+
+export interface TmuxPaneWithPid {
+  pane: TmuxPane
+  panePid: number | null
+}
+
+function positiveInteger(value: string, fallback = 1): number {
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback
+}
+
+function nonnegativeInteger(value: string): number {
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0
+}
+
+export function parseTmuxPanes(stdout: string): TmuxPaneWithPid[] {
+  return stdout
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [
+        id = '', index = '', active = '0', left = '', top = '', width = '', height = '',
+        windowWidth = '', windowHeight = '', panePid = '', ...pathParts
+      ] = line.split('|')
+      const parsedPanePid = Number(panePid)
+      return {
+        panePid: Number.isSafeInteger(parsedPanePid) && parsedPanePid > 0 ? parsedPanePid : null,
+        pane: {
+          id,
+          index: nonnegativeInteger(index),
+          active: active === '1',
+          left: nonnegativeInteger(left),
+          top: nonnegativeInteger(top),
+          width: positiveInteger(width),
+          height: positiveInteger(height),
+          windowWidth: positiveInteger(windowWidth),
+          windowHeight: positiveInteger(windowHeight),
+          path: pathParts.join('|') || '~',
+        },
+      }
+    })
+    .sort((left, right) => left.pane.index - right.pane.index)
 }
 
 export function parseTmuxSessions(stdout: string): DiscoveredTmuxSession[] {
@@ -39,7 +84,8 @@ export function parseTmuxWindows(stdout: string): TmuxWindow[] {
     .map(line => line.trim())
     .filter(Boolean)
     .map((line) => {
-      const [id = '', index = '', name = '', active = '0', ...pathParts] = line.split('|')
+      const [id = '', index = '', name = '', active = '0', panesCount = '1', ...pathParts] = line.split('|')
+      const parsedPanes = Number(panesCount)
 
       return {
         id,
@@ -47,6 +93,7 @@ export function parseTmuxWindows(stdout: string): TmuxWindow[] {
         name: name || `window-${index}`,
         active: active === '1',
         path: pathParts.join('|') || '~',
+        panesCount: Number.isSafeInteger(parsedPanes) && parsedPanes > 0 ? parsedPanes : 1,
       }
     })
     .sort((a, b) => a.index - b.index)
@@ -58,8 +105,9 @@ export function parseTmuxWindowsWithPanePids(stdout: string): TmuxWindowWithPane
     .map(line => line.trim())
     .filter(Boolean)
     .map((line) => {
-      const [id = '', index = '', name = '', active = '0', panePid = '', ...pathParts] = line.split('|')
+      const [id = '', index = '', name = '', active = '0', panePid = '', panesCount = '1', ...pathParts] = line.split('|')
       const parsedPanePid = Number(panePid)
+      const parsedPanes = Number(panesCount)
 
       return {
         panePid: Number.isSafeInteger(parsedPanePid) && parsedPanePid > 0 ? parsedPanePid : null,
@@ -69,6 +117,7 @@ export function parseTmuxWindowsWithPanePids(stdout: string): TmuxWindowWithPane
           name: name || `window-${index}`,
           active: active === '1',
           path: pathParts.join('|') || '~',
+          panesCount: Number.isSafeInteger(parsedPanes) && parsedPanes > 0 ? parsedPanes : 1,
         },
       }
     })

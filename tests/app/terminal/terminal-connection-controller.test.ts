@@ -165,6 +165,32 @@ function setup() {
 }
 
 describe('TerminalConnectionController', () => {
+  it('attaches and confirms a pane by its stable tmux id', () => {
+    const context = setup()
+    context.controller.attachPane('main', 2, '%7')
+    const transport = context.transportFactory.transports[0]!
+    transport.open()
+
+    expect(transport.messages).toContainEqual({
+      action: 'attachPane',
+      payload: {
+        cols: 120,
+        paneId: '%7',
+        rows: 40,
+        sessionName: 'main',
+        windowIndex: 2,
+      },
+    })
+    transport.message({
+      type: 'attached',
+      data: 'attached',
+      paneId: '%7',
+      sessionName: 'main',
+      windowIndex: 2,
+    })
+    expect(context.controller.isAttached).toBe(true)
+  })
+
   it('attaches a window with typed messages and publishes output', () => {
     const context = setup()
     context.controller.attachWindow('main', 2)
@@ -320,19 +346,21 @@ describe('TerminalConnectionController', () => {
     expect(context.controller.sendInput('after')).toBe(true)
     expect(context.controller.sendWheelInput('\u001B[<64;20;8M')).toBe(true)
     expect(context.controller.sendWheelInput('\u001B[<64;20;8M', 'utf8', 1)).toBe(true)
+    expect(context.controller.sendScroll('up', 1)).toBe(true)
     context.controller.resize(100, 30)
     context.controller.resize(100, 30)
     context.controller.selectWindow('main', 2)
     context.controller.newWindow('main')
     context.controller.killWindow('main', 2)
 
-    expect(transport.messages.slice(-7)).toEqual([
+    expect(transport.messages.slice(-8)).toEqual([
       { action: 'input', payload: { data: 'after' } },
       { action: 'wheelInput', payload: { data: '\u001B[<64;20;8M', encoding: 'utf8' } },
       {
         action: 'wheelInput',
         payload: { data: '\u001B[<64;20;8M', encoding: 'utf8', lineCount: 1 },
       },
+      { action: 'scrollPane', payload: { direction: 'up', lineCount: 1 } },
       { action: 'resize', payload: { cols: 100, rows: 30 } },
       { action: 'selectWindow', payload: { index: 2, sessionName: 'main' } },
       { action: 'newWindow', payload: { sessionName: 'main' } },

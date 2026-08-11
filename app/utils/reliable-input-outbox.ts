@@ -7,6 +7,7 @@ export interface ReliableInputEntry {
   createdAt: number
   data: string
   id: string
+  paneId?: string
   sessionName: string
   submissionId: string
   windowIndex: number
@@ -28,6 +29,7 @@ function isStoredReliableInputEntry(value: unknown): value is StoredReliableInpu
     && Number.isFinite(entry.createdAt)
     && typeof entry.data === 'string'
     && typeof entry.id === 'string'
+    && (entry.paneId === undefined || (typeof entry.paneId === 'string' && /^%\d+$/.test(entry.paneId)))
     && typeof entry.sessionName === 'string'
     && typeof entry.windowIndex === 'number'
     && Number.isInteger(entry.windowIndex)
@@ -178,8 +180,12 @@ export function reliableInputsForWindow(
   sessionName: string,
   windowIndex: number,
   now = Date.now(),
+  paneId?: string,
+  includeLegacy = false,
 ): ReliableInputEntry[] {
   return readReliableInputOutbox(storage, now).filter(entry => (
-    entry.sessionName === sessionName && entry.windowIndex === windowIndex
+    entry.sessionName === sessionName
+    && entry.windowIndex === windowIndex
+    && (paneId === undefined || entry.paneId === paneId || (includeLegacy && entry.paneId === undefined))
   ))
 }

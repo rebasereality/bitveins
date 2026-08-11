@@ -12,6 +12,7 @@ import { recoverAsyncTerminalPrompt } from '~/utils/async-terminal-submission'
 type TerminalSocketOptions = {
   activeSession: Readonly<Ref<string | null>>
   active?: Readonly<Ref<boolean>>
+  inputActive?: Readonly<Ref<boolean>>
   bufferInitialOutput?: boolean
   emitAuthExpired: () => void
   fitAddon: ShallowRef<FitAddon | null>
@@ -20,6 +21,7 @@ type TerminalSocketOptions = {
   onStdout?: () => void
   promptRecoveryKey: string
   resetOutput?: () => void
+  resolveAttachmentSize?: (size: { cols: number, rows: number }) => { cols: number, rows: number }
   terminal: ShallowRef<Terminal | null>
 }
 
@@ -36,7 +38,12 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
   const status = ref('Detached')
   const connectionState = ref<TerminalConnectionState>('detached')
   let attached = false
-  let currentWindowAttachment: { sessionName: string, windowIndex: number } | null = null
+  let currentWindowAttachment: {
+    acceptLegacy?: boolean
+    paneId?: string
+    sessionName: string
+    windowIndex: number
+  } | null = null
   let reliableInput: ReturnType<typeof useReliableTerminalInput> | null = null
   const outputBuffer = useTerminalOutputBuffer({
     enabled: options.bufferInitialOutput,
@@ -48,7 +55,7 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
     const terminal = options.terminal.value
     if (!terminal) return
 
-    const liveEnabled = (options.active?.value ?? true)
+    const liveEnabled = (options.inputActive?.value ?? options.active?.value ?? true)
       && attached
       && options.inputMode.value === 'live'
       && Boolean(options.activeSession.value)
@@ -64,12 +71,17 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
 
   function terminalSize(): { cols?: number, rows?: number } {
     if (options.active?.value ?? true) {
-      options.fitAddon.value?.fit()
+      fitTerminal()
     }
-    return {
-      cols: options.terminal.value?.cols,
-      rows: options.terminal.value?.rows,
-    }
+    const cols = options.terminal.value?.cols
+    const rows = options.terminal.value?.rows
+    return cols && rows && options.resolveAttachmentSize
+      ? options.resolveAttachmentSize({ cols, rows })
+      : { cols, rows }
+  }
+
+  function fitTerminal(): void {
+    options.fitAddon.value?.fit()
   }
 
   const controller = new TerminalConnectionController({
@@ -161,13 +173,36 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
     controller.attachWindow(sessionName, windowIndex)
   }
 
+  function attachPane(
+    sessionName: string,
+    windowIndex: number,
+    paneId: string,
+    acceptLegacy = false,
+  ): void {
+    preparePaneAttachment(sessionName, windowIndex, paneId, acceptLegacy)
+    controller.attachPane(sessionName, windowIndex, paneId)
+  }
+
+  function preparePaneAttachment(
+    sessionName: string,
+    windowIndex: number,
+    paneId: string,
+    acceptLegacy = false,
+  ): void {
+    currentWindowAttachment = { acceptLegacy, paneId, sessionName, windowIndex }
+    reliableInput?.refresh()
+  }
+
   function fitAndResize(): void {
     if (!(options.active?.value ?? true)) return
     const terminal = options.terminal.value
     const fitAddon = options.fitAddon.value
     if (!terminal || !fitAddon) return
-    fitAddon.fit()
-    controller.resize(terminal.cols, terminal.rows)
+    fitTerminal()
+    const size = options.resolveAttachmentSize
+      ? options.resolveAttachmentSize({ cols: terminal.cols, rows: terminal.rows })
+      : { cols: terminal.cols, rows: terminal.rows }
+    controller.resize(size.cols, size.rows)
   }
 
   function detach(): void {
@@ -207,6 +242,7 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
   return {
     applyInputMode,
     attach,
+    attachPane,
     attachWindow,
     connectionState,
     detach,
@@ -215,10 +251,14 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
     killWindow: (sessionName: string, index: number) => controller.killWindow(sessionName, index),
     newWindow: (sessionName: string) => controller.newWindow(sessionName),
     pendingReliableCount,
+    preparePaneAttachment,
     selectWindow: (sessionName: string, index: number) => controller.selectWindow(sessionName, index),
     sendInput,
     sendReliableInput,
     sendReliableInputs,
+    sendScroll: (direction: 'down' | 'up', lineCount?: 1) => (
+      controller.sendScroll(direction, lineCount)
+    ),
     sendWheelInput: (data: string, encoding: 'binary' | 'utf8', lineCount?: 1) => (
       controller.sendWheelInput(data, encoding, lineCount)
     ),

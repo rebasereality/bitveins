@@ -27,6 +27,7 @@ const emit = defineEmits<{
   toggleNotificationMute: []
   selectTmuxWindow: [value: string]
   startTmuxWindowRename: [index: number]
+  splitTmuxWindow: [direction: 'horizontal' | 'vertical']
 }>()
 
 const editingWindowName = defineModel<string>('editingWindowName', { default: '' })
@@ -74,6 +75,28 @@ const editingWindowName = defineModel<string>('editingWindowName', { default: ''
           : 'Mute notifications for this session on this device'"
       variant="ghost"
       @click="emit('toggleNotificationMute')"
+    />
+
+    <UButton
+      aria-label="Split Horizontal"
+      class="mb-1 h-6 shrink-0 px-1.5 text-[length:var(--bitveins-ui-caption-size)]"
+      color="neutral"
+      icon="i-lucide-columns-2"
+      size="xs"
+      title="Split Pane Horizontally (Side-by-Side)"
+      variant="ghost"
+      @click="emit('splitTmuxWindow', 'horizontal')"
+    />
+
+    <UButton
+      aria-label="Split Vertical"
+      class="mb-1 h-6 shrink-0 px-1.5 text-[length:var(--bitveins-ui-caption-size)]"
+      color="neutral"
+      icon="i-lucide-rows-2"
+      size="xs"
+      title="Split Pane Vertically (Top / Bottom)"
+      variant="ghost"
+      @click="emit('splitTmuxWindow', 'vertical')"
     />
 
     <UButton

@@ -596,7 +596,7 @@ watch(activeSession, () => {
 
       <section
         class="flex min-h-0 flex-col overflow-hidden bg-[var(--bitveins-terminal-bg)]"
-        :class="{ 'pb-[var(--bitveins-command-baseline,96px)] max-lg:pb-[calc(72px+env(safe-area-inset-bottom))]': activeSession && viewMode === 'terminal' && !settingsOpen }"
+        :class="{ 'pb-[var(--bitveins-command-baseline,96px)]': activeSession && viewMode === 'terminal' && !settingsOpen }"
       >
         <div
           v-show="!settingsOpen"
@@ -634,6 +634,7 @@ watch(activeSession, () => {
             @forget-all-path-link-roots="forgetAllPathLinkRoots"
             @forget-path-link-root="forgetPathLinkRoot"
             @open-explorer="openExplorerFromUi"
+            @panes-change="void fetchWindows()"
             @ready="onTerminalReady"
             @select-tmux-window="selectTmuxWindowFromUi"
             @start-tmux-window-rename="startTmuxWindowRename"

@@ -1,15 +1,6 @@
 interface TouchScrollTerminal {
-  readonly buffer?: {
-    readonly active: {
-      readonly type?: string
-    }
-  }
   readonly element?: HTMLElement
-  readonly modes?: {
-    readonly mouseTrackingMode?: string
-  }
   readonly rows: number
-  scrollLines?(amount: number): void
 }
 
 interface TerminalTouchScrollOptions {
@@ -75,16 +66,6 @@ export function createTerminalTouchScrollController(options: TerminalTouchScroll
   }
 
   function dispatchWheel(direction: 'down' | 'up', source: PointerEvent): void {
-    const terminal = options.terminal()
-    if (
-      terminal?.buffer?.active.type === 'normal'
-      && terminal.modes?.mouseTrackingMode === 'none'
-      && terminal.scrollLines
-    ) {
-      terminal.scrollLines(direction === 'up' ? -1 : 1)
-      return
-    }
-
     const target = wheelTarget ?? resolveWheelTarget(source.target)
     if (!target) return
     const wheelEvent = markTerminalTouchWheelEvent(new WheelEvent('wheel', {

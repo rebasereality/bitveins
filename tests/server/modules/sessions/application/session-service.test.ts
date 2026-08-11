@@ -70,6 +70,14 @@ class MemorySessionRepository implements SessionRepository {
 
 function createTmux(overrides: Partial<TmuxGateway> = {}): TmuxGateway {
   return {
+    capturePaneViewport: vi.fn(async () => ({
+      cursorVisible: true,
+      cursorX: 0,
+      cursorY: 0,
+      data: '',
+      inMode: false,
+      scrollPosition: 0,
+    })),
     captureWindowSnapshot: vi.fn(async () => ''),
     clearSessionId: vi.fn(async () => {}),
     createSession: vi.fn(async () => {}),
@@ -86,18 +94,28 @@ function createTmux(overrides: Partial<TmuxGateway> = {}): TmuxGateway {
       windowIndex: 1,
     })),
     displaySessionPath: vi.fn(async () => null),
+    findSessionNameByWindowId: vi.fn(async () => null),
     killAllBitveinsHelpers: vi.fn(async () => {}),
     killSession: vi.fn(async () => {}),
     killBitveinsHelperSession: vi.fn(async () => {}),
     killBitveinsHelpersForBase: vi.fn(async () => {}),
+    killPane: vi.fn(async () => []),
     killStaleBitveinsHelpers: vi.fn(async () => {}),
     killWindow: vi.fn(async () => {}),
     listSessions: vi.fn(async () => []),
+    listPanes: vi.fn(async () => []),
     listWindows: vi.fn(async () => []),
+    prepareTerminalWheel: vi.fn(async () => false),
     renameSession: vi.fn(async () => {}),
     renameWindow: vi.fn(async () => null),
+    resetTerminalScroll: vi.fn(async () => {}),
+    resizePane: vi.fn(async () => []),
+    selectPane: vi.fn(async () => {}),
     selectWindow: vi.fn(async () => {}),
+    sendPaneInput: vi.fn(async () => {}),
+    sendPaneInputBinary: vi.fn(async () => {}),
     setSessionId: vi.fn(async () => {}),
+    splitWindow: vi.fn(async () => []),
     ...overrides,
   }
 }
@@ -433,24 +451,46 @@ describe('SessionService', () => {
     ])
   })
 
-  it('delegates window, snapshot, and helper operations through its gateway', async () => {
+  it('delegates window, pane, snapshot, input, and helper operations through its gateway', async () => {
     const context = setup()
     const activeHelpers = new Set(['_bitveins_active'])
 
     await context.service.listSessions()
+    await context.service.findSessionNameByWindowId('@1')
     await context.service.listWindows('main')
     await context.service.selectWindow('main', 2)
     await context.service.killWindow('main', 2)
     await context.service.renameWindow('main', 2, 'logs')
     await context.service.createWindowClientSession('main', 2)
     await context.service.captureWindowSnapshot('main', 2, 50)
+    await context.service.captureWindowSnapshot('main', 2, 50, '%7')
+    await context.service.listPanes('main', 2)
+    await context.service.splitWindow('main', 2, '%7', 'horizontal')
+    await context.service.killPane('main', 2, '%8')
+    await context.service.selectPane('main', 2, '%7')
+    await context.service.resizePane('main', 2, '%7', 'height', 20)
+    await context.service.sendPaneInput('%7', 'text')
+    await context.service.sendPaneInputBinary('%7', 'binary')
+    await context.service.capturePaneViewport('%7')
+    await context.service.prepareTerminalWheel('%7', 'up', 1)
+    await context.service.prepareTerminalWheel('main', 'down')
+    await context.service.resetTerminalScroll('%7')
+    await context.service.resetTerminalScroll('main')
     await context.service.killBitveinsHelperSession('_bitveins_helper')
     await context.service.killStaleBitveinsHelpers(activeHelpers, 'owner')
     await context.service.killAllBitveinsHelpers()
 
     expect(context.tmux.listWindows).toHaveBeenCalledWith('main')
+    expect(context.tmux.listPanes).toHaveBeenCalledWith('main', 2)
+    expect(context.tmux.splitWindow).toHaveBeenCalledWith('main', 2, '%7', 'horizontal')
+    expect(context.tmux.killPane).toHaveBeenCalledWith('main', 2, '%8')
+    expect(context.tmux.selectPane).toHaveBeenCalledWith('main', 2, '%7')
+    expect(context.tmux.resizePane).toHaveBeenCalledWith('main', 2, '%7', 'height', 20)
     expect(context.tmux.renameWindow).toHaveBeenCalledWith('main', 2, 'logs')
     expect(context.tmux.captureWindowSnapshot).toHaveBeenCalledWith('main', 2, 50)
+    expect(context.tmux.captureWindowSnapshot).toHaveBeenCalledWith('main', 2, 50, '%7')
+    expect(context.tmux.prepareTerminalWheel).toHaveBeenCalledWith('%7', 'up', 1)
+    expect(context.tmux.prepareTerminalWheel).toHaveBeenCalledWith('main', 'down', undefined)
     expect(context.tmux.killStaleBitveinsHelpers).toHaveBeenCalledWith(activeHelpers, 'owner')
   })
 

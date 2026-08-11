@@ -14,6 +14,21 @@ export const tmuxWindowSchema = z.object({
   name: z.string(),
   active: z.boolean(),
   path: z.string(),
+  panesCount: z.number().int().optional(),
+})
+
+export const tmuxPaneSchema = z.object({
+  application: z.enum(['hermes']).optional(),
+  id: z.string().regex(/^%\d+$/),
+  index: z.number().int().nonnegative(),
+  active: z.boolean(),
+  left: z.number().int().nonnegative(),
+  top: z.number().int().nonnegative(),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  windowWidth: z.number().int().positive(),
+  windowHeight: z.number().int().positive(),
+  path: z.string(),
 })
 
 export const historyMessageSchema = z.object({
@@ -24,6 +39,7 @@ export const historyMessageSchema = z.object({
 
 export type TmuxSession = z.infer<typeof tmuxSessionSchema>
 export type TmuxWindow = z.infer<typeof tmuxWindowSchema>
+export type TmuxPane = z.infer<typeof tmuxPaneSchema>
 export type HistoryMessage = z.infer<typeof historyMessageSchema>
 
 export interface TerminalSize {
@@ -62,6 +78,16 @@ const attachWindowSchema = z.object({
   payload: z.object({
     sessionName: z.string().min(1, 'Attach window requires a sessionName string.'),
     windowIndex: z.number().int('Attach window requires an integer windowIndex.'),
+    ...terminalDimensionsSchema,
+  }, { error: 'A payload object is required.' }),
+})
+
+const attachPaneSchema = z.object({
+  action: z.literal('attachPane'),
+  payload: z.object({
+    sessionName: z.string().min(1, 'Attach pane requires a sessionName string.'),
+    windowIndex: z.number().int('Attach pane requires an integer windowIndex.'),
+    paneId: z.string().regex(/^%\d+$/, 'Attach pane requires a valid paneId.'),
     ...terminalDimensionsSchema,
   }, { error: 'A payload object is required.' }),
 })
@@ -113,6 +139,14 @@ const wheelInputSchema = z.object({
   }),
 })
 
+const scrollPaneSchema = z.object({
+  action: z.literal('scrollPane'),
+  payload: z.object({
+    direction: z.enum(['down', 'up']),
+    lineCount: z.literal(1).optional(),
+  }, { error: 'A payload object is required.' }),
+})
+
 const reliableInputSchema = z.object({
   action: z.literal('reliableInput'),
   payload: z.object({
@@ -147,8 +181,10 @@ const indexedWindowActionSchema = (action: 'selectWindow' | 'killWindow') => z.o
 export const clientMessageSchema = z.discriminatedUnion('action', [
   attachSchema,
   attachWindowSchema,
+  attachPaneSchema,
   inputSchema,
   reliableInputSchema,
+  scrollPaneSchema,
   resizeSchema,
   sessionActionSchema('newWindow'),
   indexedWindowActionSchema('selectWindow'),
@@ -168,6 +204,7 @@ export const serverMessageSchema = z.union([
     data: z.string(),
     sessionName: z.string(),
     windowIndex: z.number().int().optional(),
+    paneId: z.string().regex(/^%\d+$/).optional(),
   }),
   z.object({
     type: z.literal('inputAck'),

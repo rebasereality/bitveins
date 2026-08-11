@@ -15,6 +15,53 @@ import { withOperationLock } from '../../../cli/platform/operation-lock'
 
 const temporaryDirectories: string[] = []
 
+async function runConcurrentAcquisitionBurst(lock: string): Promise<{
+  attempts: PromiseSettledResult<void>[]
+  maximum: number
+}> {
+  let active = 0
+  let maximum = 0
+  let rejected = 0
+  let releaseWinner: (() => void) | undefined
+  let markWinnerEntered: (() => void) | undefined
+  let markContendersSettled: (() => void) | undefined
+  const winnerRelease = new Promise<void>((resolve) => {
+    releaseWinner = resolve
+  })
+  const winnerEntered = new Promise<void>((resolve) => {
+    markWinnerEntered = resolve
+  })
+  const contendersSettled = new Promise<void>((resolve) => {
+    markContendersSettled = resolve
+  })
+
+  const pendingAttempts = Array.from({ length: 20 }, () => (
+    withOperationLock(lock, async () => {
+      active += 1
+      maximum = Math.max(maximum, active)
+      markWinnerEntered?.()
+      await winnerRelease
+      active -= 1
+    }).then<PromiseSettledResult<void>>(
+      value => ({ status: 'fulfilled', value }),
+      (error: unknown) => {
+        rejected += 1
+        if (rejected === 19) markContendersSettled?.()
+        return { status: 'rejected', reason: error }
+      },
+    )
+  ))
+
+  await winnerEntered
+  await contendersSettled
+  releaseWinner?.()
+
+  return {
+    attempts: await Promise.all(pendingAttempts),
+    maximum,
+  }
+}
+
 afterEach(async () => {
   vi.restoreAllMocks()
   await Promise.all(temporaryDirectories.splice(0).map(
@@ -76,17 +123,7 @@ describe('operation lock', () => {
     const directory = await mkdtemp(join(tmpdir(), 'bitveins-burst-lock-'))
     temporaryDirectories.push(directory)
     const lock = join(directory, 'state', 'operation.lock')
-    let active = 0
-    let maximum = 0
-
-    const attempts = await Promise.allSettled(Array.from({ length: 20 }, async () => (
-      await withOperationLock(lock, async () => {
-        active += 1
-        maximum = Math.max(maximum, active)
-        await new Promise(resolve => setTimeout(resolve, 10))
-        active -= 1
-      })
-    )))
+    const { attempts, maximum } = await runConcurrentAcquisitionBurst(lock)
 
     expect(maximum).toBe(1)
     expect(attempts.filter(result => result.status === 'fulfilled')).toHaveLength(1)
@@ -99,17 +136,7 @@ describe('operation lock', () => {
     const lock = join(state, 'operation.lock')
     await mkdir(state)
     await writeFile(lock, '2147483647\n', { mode: 0o600 })
-    let active = 0
-    let maximum = 0
-
-    const attempts = await Promise.allSettled(Array.from({ length: 20 }, async () => (
-      await withOperationLock(lock, async () => {
-        active += 1
-        maximum = Math.max(maximum, active)
-        await new Promise(resolve => setTimeout(resolve, 10))
-        active -= 1
-      })
-    )))
+    const { attempts, maximum } = await runConcurrentAcquisitionBurst(lock)
 
     expect(maximum).toBe(1)
     expect(attempts.filter(result => result.status === 'fulfilled')).toHaveLength(1)

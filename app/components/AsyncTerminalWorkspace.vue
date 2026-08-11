@@ -38,6 +38,7 @@ const emit = defineEmits<{
   ready: []
   selectTmuxWindow: [value: string]
   startTmuxWindowRename: [index: number]
+  panesChange: []
 }>()
 
 const editingWindowName = defineModel<string>('editingWindowName', { default: '' })
@@ -49,6 +50,10 @@ async function attach(): Promise<void> {
 
 async function attachWindow(sessionName: string, windowIndex: number): Promise<void> {
   await terminal.value?.attachWindow(sessionName, windowIndex)
+}
+
+async function splitTmuxWindow(direction: 'horizontal' | 'vertical'): Promise<void> {
+  await terminal.value?.splitWindow(direction)
 }
 
 defineExpose({
@@ -89,6 +94,7 @@ defineExpose({
       @toggle-notification-mute="emit('toggleNotificationMute')"
       @select-tmux-window="emit('selectTmuxWindow', $event)"
       @start-tmux-window-rename="emit('startTmuxWindowRename', $event)"
+      @split-tmux-window="void splitTmuxWindow($event)"
     />
 
     <TerminalView
@@ -98,12 +104,12 @@ defineExpose({
       :active-window="activeWindow"
       :input-mode="inputMode"
       :remembered-root="pathLinkRoot || undefined"
-      :windows="windows"
       class="min-h-0 flex-1"
       :style="{ transform: 'translateY(calc(-1 * var(--bitveins-command-offset, 0px)))' }"
       @auth-expired="emit('authExpired')"
       @connection-change="emit('connectionChange', $event)"
       @file-link-activate="emit('fileLinkActivate', $event)"
+      @panes-change="emit('panesChange')"
       @ready="emit('ready')"
     />
   </div>

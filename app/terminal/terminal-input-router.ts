@@ -10,6 +10,7 @@ interface TerminalInputRouterOptions {
   restoreInputMode: () => void
   scheduleRestore?: (callback: () => void) => void
   sendInput: (data: string) => void
+  sendScroll: (direction: 'down' | 'up', lineCount?: 1) => void
   sendWheelInput: (data: string, encoding: 'binary' | 'utf8', lineCount?: 1) => void
 }
 
@@ -50,10 +51,19 @@ export function createTerminalInputRouter(options: TerminalInputRouterOptions): 
     onWheel(event?: WheelEvent): boolean {
       if (disposed || !options.isActive()) return true
 
-      if (!options.isMouseTrackingEnabled()) return true
-
       const asyncWheel = options.inputMode() === 'async' && options.isAsyncWheelEnabled()
-      if (options.inputMode() !== 'live' && !asyncWheel) return true
+      const wheelEnabled = options.inputMode() === 'live' || asyncWheel
+      if (!wheelEnabled) return true
+
+      if (!options.isMouseTrackingEnabled()) {
+        if (!event || event.deltaY === 0) return false
+        event.preventDefault()
+        options.sendScroll(
+          event.deltaY < 0 ? 'up' : 'down',
+          isTerminalTouchWheelEvent(event) ? 1 : undefined,
+        )
+        return false
+      }
 
       routingWheel = true
       wheelLineCount = isTerminalTouchWheelEvent(event) ? 1 : undefined
