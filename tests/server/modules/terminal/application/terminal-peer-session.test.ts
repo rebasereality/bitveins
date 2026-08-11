@@ -175,7 +175,7 @@ describe('TerminalPeerSession', () => {
     })
     expect(context.messages[1]).toEqual({
       type: 'stdout',
-      data: '\x1b[2J\x1b[3J\x1b[Hpane viewport\x1b[3;4H\x1b[?25h',
+      data: '\x1b[0m\x1b[2J\x1b[3J\x1b[Hpane viewport\x1b[0m\x1b[3;4H\x1b[?25h',
     })
     const process = context.paneControlProcesses.processes[0]!
     process.emitData('pane output')
@@ -218,7 +218,7 @@ describe('TerminalPeerSession', () => {
       expect.objectContaining({ paneId: '%7', type: 'attached' }),
       {
         type: 'stdout',
-        data: '\x1b[2J\x1b[3J\x1b[Hshell$ \x1b[1;7H\x1b[?25h',
+        data: '\x1b[0m\x1b[2J\x1b[3J\x1b[Hshell$ \x1b[0m\x1b[1;7H\x1b[?25h',
       },
     ])
   })
@@ -247,7 +247,7 @@ describe('TerminalPeerSession', () => {
     expect(context.sessions.prepareTerminalWheel).toHaveBeenCalledExactlyOnceWith('%7', 'up', 1)
     expect(context.messages.at(-1)).toEqual({
       type: 'stdout',
-      data: '\x1b[2J\x1b[3J\x1b[Hpane viewport\x1b[?25l',
+      data: '\x1b[0m\x1b[2J\x1b[3J\x1b[Hpane viewport\x1b[0m\x1b[?25l',
     })
     context.paneControlProcesses.processes[0]!.emitData('hidden live output')
     expect(context.messages.at(-1)?.data).not.toContain('hidden live output')
@@ -266,7 +266,7 @@ describe('TerminalPeerSession', () => {
     }))
     expect(context.messages.at(-1)).toEqual({
       type: 'stdout',
-      data: '\x1b[2J\x1b[3J\x1b[Hlive viewport\x1b[3;4H\x1b[?25h',
+      data: '\x1b[0m\x1b[2J\x1b[3J\x1b[Hlive viewport\x1b[0m\x1b[3;4H\x1b[?25h',
     })
     context.paneControlProcesses.processes[0]!.emitData('visible live output')
     expect(context.messages.at(-1)).toEqual({ type: 'stdout', data: 'visible live output' })

@@ -430,7 +430,7 @@ test('preserves the terminal scrollback position after visiting Files', async ({
     const receivedPaneViewports = (): string[] => receivedFrames.flatMap((raw) => {
       try {
         const message = JSON.parse(raw) as { data?: string, type?: string }
-        return message.type === 'stdout' && message.data?.startsWith('\u001B[2J\u001B[3J')
+        return message.type === 'stdout' && message.data?.includes('\u001B[2J\u001B[3J\u001B[H')
           ? [message.data]
           : []
       }

@@ -409,7 +409,9 @@ export class TerminalPeerSession {
       : `\x1b[${viewport.cursorY + 1};${viewport.cursorX + 1}H\x1b[?25h`
     this.options.send({
       type: 'stdout',
-      data: `\x1b[2J\x1b[3J\x1b[H${viewport.data}${cursor}`,
+      // ED does not reset SGR attributes, while tmux snapshots assume default attributes.
+      // Bound the snapshot with resets so dim text and colored backgrounds cannot leak across paints.
+      data: `\x1b[0m\x1b[2J\x1b[3J\x1b[H${viewport.data}\x1b[0m${cursor}`,
     })
   }
 
