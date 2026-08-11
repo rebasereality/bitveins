@@ -12,8 +12,9 @@ function lightExtendedAnsi(): string[] {
   // Their default yellows are too pale against the light terminal canvas.
   colors[220 - 16] = '#a16207'
   colors[230 - 16] = '#713f12'
-  // Codex uses ANSI 235 (`48;5;235`) for its input surface. Keep that
-  // extended surface readable without changing the regular ANSI palette.
+  // Codex uses ANSI 234 and 235 for input surfaces across CLI versions. Keep
+  // those extended surfaces readable without changing the regular ANSI palette.
+  colors[234 - 16] = '#e2e8f0'
   colors[235 - 16] = '#e2e8f0'
   return colors
 }

@@ -21,9 +21,10 @@ describe('terminal themes', () => {
     expect(darkTerminalTheme.selectionBackground).toBe('#455684')
   })
 
-  it('keeps semantic ANSI green and the Codex ANSI 235 light surface intact', () => {
+  it('keeps semantic ANSI green and Codex light input surfaces intact', () => {
     expect(darkTerminalTheme.green).toBe('#34d399')
     expect(lightTerminalTheme.green).toBe('#047857')
+    expect(lightTerminalTheme.extendedAnsi?.[234 - 16]).toBe('#e2e8f0')
     expect(lightTerminalTheme.extendedAnsi?.[235 - 16]).toBe('#e2e8f0')
   })
 

@@ -56,7 +56,7 @@ describe('TerminalPeerSession tmux control-mode integration', () => {
       payload: { paneId, sessionName, windowIndex: 0 },
     }))
     const viewportIndex = messages.findIndex(message => (
-      message.type === 'stdout' && message.data.startsWith('\x1b[2J\x1b[3J\x1b[H')
+      message.type === 'stdout' && message.data.startsWith('\x1b[0m\x1b[2J\x1b[3J\x1b[H')
     ))
     const attachedIndex = messages.findIndex(message => message.type === 'attached')
     expect(viewportIndex).toBeGreaterThanOrEqual(0)
