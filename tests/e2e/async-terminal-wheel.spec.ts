@@ -374,6 +374,10 @@ test('returns to terminal input before submitting an Async message from scrollba
 })
 
 test('preserves the terminal scrollback position after visiting Files', async ({ page }) => {
+  const receivedFrames: string[] = []
+  page.on('websocket', (socket) => {
+    socket.on('framereceived', event => receivedFrames.push(String(event.payload)))
+  })
   await authenticate(page)
 
   try {
@@ -402,6 +406,7 @@ test('preserves the terminal scrollback position after visiting Files', async ({
     await expect(page.locator('[data-connection-state="attached"]')).toBeVisible()
     const terminalRows = page.locator('.xterm-rows')
     await expect(terminalRows).toContainText('history-1000')
+    receivedFrames.length = 0
 
     const terminal = page.locator('.xterm-screen')
     const terminalBox = await terminal.boundingBox()
@@ -411,7 +416,8 @@ test('preserves the terminal scrollback position after visiting Files', async ({
       terminalBox.y + terminalBox.height / 2,
     )
     const cdp = await page.context().newCDPSession(page)
-    await Promise.all(Array.from({ length: 8 }, () => cdp.send('Input.dispatchMouseEvent', {
+    const wheelEventCount = 8
+    await Promise.all(Array.from({ length: wheelEventCount }, () => cdp.send('Input.dispatchMouseEvent', {
       deltaX: 0,
       deltaY: -120,
       type: 'mouseWheel',
@@ -421,14 +427,33 @@ test('preserves the terminal scrollback position after visiting Files', async ({
     const visibleHistoryLines = async (): Promise<string[]> => (
       (await terminalRows.innerText()).match(/history-\d{4}/g) ?? []
     )
-    let linesBeforeFiles: string[] = []
-    await expect.poll(async () => {
-      const lines = await visibleHistoryLines()
-      if (lines.length > 5 && !lines.includes('history-1000')) {
-        linesBeforeFiles = lines
+    const receivedPaneViewports = (): string[] => receivedFrames.flatMap((raw) => {
+      try {
+        const message = JSON.parse(raw) as { data?: string, type?: string }
+        return message.type === 'stdout' && message.data?.startsWith('\u001B[2J\u001B[3J')
+          ? [message.data]
+          : []
       }
-      return linesBeforeFiles.length
-    }).toBeGreaterThan(5)
+      catch {
+        return []
+      }
+    })
+    let previousViewportCount = -1
+    let stableViewportSamples = 0
+    await expect.poll(() => {
+      const viewportCount = receivedPaneViewports().length
+      stableViewportSamples = viewportCount > 0 && viewportCount === previousViewportCount
+        ? stableViewportSamples + 1
+        : 0
+      previousViewportCount = viewportCount
+      return stableViewportSamples
+    }, { intervals: [250, 250, 250, 250], timeout: 5_000 }).toBeGreaterThanOrEqual(3)
+    const linesBeforeFiles = receivedPaneViewports().at(-1)?.match(/history-\d{4}/g)
+    if (!linesBeforeFiles || linesBeforeFiles.length <= 5) {
+      throw new Error('The final tmux scrollback viewport was not received.')
+    }
+    expect(linesBeforeFiles).not.toContain('history-1000')
+    await expect.poll(visibleHistoryLines).toEqual(linesBeforeFiles)
 
     await page.getByRole('button', { name: 'Files', exact: true }).click()
     await page.getByTitle('Return to Terminal').click()
