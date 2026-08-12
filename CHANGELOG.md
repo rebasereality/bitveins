@@ -4,6 +4,21 @@ All notable changes to Bitveins are documented here. The project follows
 [Semantic Versioning](https://semver.org/) and keeps an `Unreleased` section
 until a release is tagged.
 
+## Unreleased
+
+### Added
+
+- automatic discovery of Codex, Hermes, Claude, OpenCode, Gemini, Cursor,
+  Copilot, Aider and Pi agents across every tmux session, window and pane;
+- agent rows nested below their owning session, with theme-aware working,
+  waiting, failed and idle indicators, persistent custom names and direct
+  navigation to the exact tmux pane;
+- subtle sidebar highlighting for the active session tree and the agent in the
+  current tmux window, with instance-name truncation and the agent type kept
+  visible at the right edge;
+- a documented long-term path toward lifecycle-backed agent state and an
+  optional provider-neutral Herdr integration.
+
 ## 1.4.0 - 2026-08-11
 
 ### Added

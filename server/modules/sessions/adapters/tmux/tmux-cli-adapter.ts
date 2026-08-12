@@ -1,4 +1,9 @@
 import type { TmuxPane, TmuxWindow } from '#shared/contracts/terminal'
+import type { TmuxAgent } from '#shared/contracts/agents'
+import { tmuxAgentLabelSchema } from '#shared/contracts/agents'
+import { classifyAgentScreenStatus, stripAgentActivityGlyph } from '../../../agents/model/agent-screen-status'
+import { detectAgentProcess, tmuxAgentDisplayName } from '../../../agents/model/agent-process-detection'
+import { normalizeTmuxAgentTitle, parseTmuxAgentPaneCandidates } from '../../../agents/adapters/tmux-agent-output'
 import { SessionError } from '../../model/session-error'
 import {
   isMissingTmuxServerError,
@@ -130,6 +135,69 @@ export class TmuxCliAdapter implements TmuxGateway {
     return this.withDetectedPaneApplications(panes)
   }
 
+  async listAgents(): Promise<TmuxAgent[]> {
+    let candidates
+    try {
+      candidates = parseTmuxAgentPaneCandidates(await this.run([
+        'list-panes', '-a', '-F',
+        '#{session_name}\t#{window_id}\t#{window_index}\t#{window_name}\t#{pane_id}\t#{pane_index}\t#{pane_pid}\t#{pane_dead}\t#{@bitveins_agent_label}\t#{pane_current_path}',
+      ]))
+    }
+    catch (error) {
+      if (this.isMissingServer(error)) return []
+      throw error
+    }
+    if (candidates.length === 0) return []
+
+    let processSnapshot = ''
+    try {
+      processSnapshot = (await this.options.runner.run(
+        'ps',
+        ['-eo', 'pid=,ppid=,pgid=,tpgid=,args='],
+        { maxBuffer: TMUX_MAX_BUFFER, timeoutMs: TMUX_TIMEOUT_MS },
+      )).stdout
+    }
+    catch {
+      return []
+    }
+
+    const detected = candidates.flatMap((candidate) => {
+      const process = detectAgentProcess(candidate.panePid, processSnapshot)
+      return process ? [{ candidate, process }] : []
+    })
+
+    const agents = await Promise.all(detected.map(async ({ candidate, process }) => {
+      const [rawTitle, screen] = await Promise.all([
+        this.run(['display-message', '-p', '-t', candidate.paneId, '#{pane_title}']).catch(() => ''),
+        this.run(['capture-pane', '-e', '-p', '-J', '-t', candidate.paneId]).catch(() => null),
+      ])
+      const title = stripAgentActivityGlyph(normalizeTmuxAgentTitle(rawTitle) ?? '')
+      const defaultLabel = title || candidate.windowName || tmuxAgentDisplayName(process.kind)
+      const label = candidate.customLabel ?? defaultLabel
+      return {
+        ...(candidate.customLabel ? { customLabel: candidate.customLabel } : {}),
+        defaultLabel,
+        id: candidate.paneId,
+        kind: process.kind,
+        label,
+        paneId: candidate.paneId,
+        paneIndex: candidate.paneIndex,
+        path: candidate.path,
+        sessionName: candidate.sessionName,
+        status: classifyAgentScreenStatus(process.kind, rawTitle, screen),
+        windowId: candidate.windowId,
+        windowIndex: candidate.windowIndex,
+        windowName: candidate.windowName,
+      } satisfies TmuxAgent
+    }))
+
+    return agents.sort((left, right) => (
+      left.sessionName.localeCompare(right.sessionName)
+      || left.windowIndex - right.windowIndex
+      || left.paneIndex - right.paneIndex
+    ))
+  }
+
   async selectWindow(name: string, index: unknown): Promise<void> {
     await this.run(['select-window', '-t', `${normalizeSessionName(name)}:${normalizeWindowIndex(index)}`])
   }
@@ -231,6 +299,16 @@ export class TmuxCliAdapter implements TmuxGateway {
     const windowIndex = normalizeWindowIndex(index)
     await this.run(['rename-window', '-t', `${sessionName}:${windowIndex}`, normalizeWindowName(nextName)])
     return (await this.listWindows(sessionName)).find(window => window.index === windowIndex) ?? null
+  }
+
+  async renameAgent(paneId: unknown, label: string | null): Promise<void> {
+    const target = normalizePaneId(paneId)
+    if (label === null) {
+      await this.run(['set-option', '-pu', '-t', target, '@bitveins_agent_label'])
+      return
+    }
+    const normalized = tmuxAgentLabelSchema.parse(label)
+    await this.run(['set-option', '-p', '-t', target, '@bitveins_agent_label', normalized])
   }
 
   async createWindowClientSession(name: string, index: unknown): Promise<WindowClientSession> {

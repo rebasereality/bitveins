@@ -35,6 +35,7 @@ const viewMode = ref<ExplorerViewMode>('terminal')
 const terminal = ref<InstanceType<typeof AsyncTerminalWorkspace> | null>(null)
 const sessionSidebar = ref<{ openCreateSession: () => void } | null>(null)
 const terminalConnected = ref(false)
+const activePaneId = ref<string | null>(null)
 const input = ref<InstanceType<typeof CommandInput> | null>(null)
 const historyMessages = ref<HistoryMessage[]>([])
 const expandedPathsBySession = ref<Record<string, string[]>>({})
@@ -229,6 +230,13 @@ const {
   terminal,
 })
 
+const {
+  agents,
+  error: agentsError,
+  refresh: refreshAgents,
+  rename: renameAgent,
+} = useTmuxAgents(handleAuthError)
+
 const activeSessionId = computed(() => (
   sessions.value.find(session => session.name === activeSession.value)?.id ?? null
 ))
@@ -280,6 +288,23 @@ const permalinks = useSessionPermalinkNavigation({
 function attachSessionFromUi(name: string): void {
   permalinks.clearEventMetadata()
   void attachSession(name)
+}
+
+const openAgentFromUi = useTmuxAgentNavigation({
+  attachSession,
+  clearNavigationMetadata: () => permalinks.clearEventMetadata(),
+  error: attentionNavigationError,
+  fetchWindows,
+  refreshAgents,
+  refreshSessions,
+  selectWindow: index => selectTmuxWindow(index),
+  sessions,
+  terminal,
+  windows,
+})
+
+function renameAgentFromUi(payload: { label: string | null, paneId: string }): void {
+  void renameAgent(payload.paneId, payload.label)
 }
 
 function createSessionFromUi(payload: { name: string, path: string }): void {
@@ -575,7 +600,11 @@ watch(activeSession, () => {
     <div class="grid h-full w-full grid-cols-[var(--bitveins-sidebar-width)_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] max-lg:grid-cols-1 max-lg:grid-rows-[calc(40px+env(safe-area-inset-top))_minmax(0,1fr)]">
       <SessionSidebar
         ref="sessionSidebar"
+        :active-agent-pane-id="activePaneId"
         :active-session="activeSession"
+        :active-window-id="activeWindow?.id ?? null"
+        :agents="agents"
+        :agents-error="agentsError"
         :error="appError"
         :linux-username="linuxUsername"
         :loading="loading"
@@ -588,9 +617,11 @@ watch(activeSession, () => {
         @detach="detachSessionFromUi"
         @inbox="inboxOpen = true"
         @logout="emit('logout')"
+        @open-agent="void openAgentFromUi($event)"
         @open-dropzone="openDropzone"
         @refresh="refreshSessions"
         @rename="renameSessionFromUi"
+        @rename-agent="renameAgentFromUi"
         @settings="settingsOpen = true"
       />
 
@@ -631,6 +662,7 @@ watch(activeSession, () => {
             @connection-change="terminalConnected = $event"
             @create-tmux-window="createTmuxWindowFromUi"
             @file-link-activate="handleFileLinkActivate"
+            @focused-pane-change="activePaneId = $event"
             @forget-all-path-link-roots="forgetAllPathLinkRoots"
             @forget-path-link-root="forgetPathLinkRoot"
             @open-explorer="openExplorerFromUi"

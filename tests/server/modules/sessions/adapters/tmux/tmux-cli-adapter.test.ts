@@ -107,6 +107,54 @@ describe('TmuxCliAdapter', () => {
     expect(runner.calls).toHaveLength(1)
   })
 
+  it('discovers agent processes across tmux panes and derives their visible state', async () => {
+    const { adapter, runner } = setup()
+    runner.handler = async ({ args, command }) => {
+      if (command === 'ps') {
+        return {
+          stderr: '',
+          stdout: '100 1 100 200 bash\n200 100 200 200 node /opt/tools/codex --profile lead\n',
+        }
+      }
+      if (args[0] === 'list-panes') {
+        return {
+          stderr: '',
+          stdout: 'main\t@7\t2\twork\t%9\t1\t100\t0\t\t/workspace\n',
+        }
+      }
+      if (args[0] === 'display-message') return { stderr: '', stdout: '⠦ Bitveins\n' }
+      if (args[0] === 'capture-pane') return { stderr: '', stdout: 'Thinking...\nEsc to interrupt\n' }
+      return { stderr: '', stdout: '' }
+    }
+
+    await expect(adapter.listAgents()).resolves.toEqual([{
+      defaultLabel: 'Bitveins',
+      id: '%9',
+      kind: 'codex',
+      label: 'Bitveins',
+      paneId: '%9',
+      paneIndex: 1,
+      path: '/workspace',
+      sessionName: 'main',
+      status: 'working',
+      windowId: '@7',
+      windowIndex: 2,
+      windowName: 'work',
+    }])
+  })
+
+  it('stores and clears pane-scoped agent labels', async () => {
+    const { adapter, runner } = setup()
+
+    await adapter.renameAgent('%9', ' Review agent ')
+    await adapter.renameAgent('%9', null)
+
+    expect(runner.calls.map(call => call.args)).toEqual([
+      ['set-option', '-p', '-t', '%9', '@bitveins_agent_label', 'Review agent'],
+      ['set-option', '-pu', '-t', '%9', '@bitveins_agent_label'],
+    ])
+  })
+
   it('prefixes every invocation with an isolated tmux socket', async () => {
     const { adapter, runner } = setup({ socketName: 'bitveins-tests' })
 

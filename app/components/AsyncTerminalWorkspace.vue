@@ -39,6 +39,7 @@ const emit = defineEmits<{
   selectTmuxWindow: [value: string]
   startTmuxWindowRename: [index: number]
   panesChange: []
+  focusedPaneChange: [paneId: string | null]
 }>()
 
 const editingWindowName = defineModel<string>('editingWindowName', { default: '' })
@@ -61,6 +62,7 @@ defineExpose({
   attachWindow,
   detach: (sessionName?: string) => terminal.value?.detach(sessionName),
   focus: () => terminal.value?.focus(),
+  focusPane: (paneId: string) => terminal.value?.focusPane(paneId) ?? Promise.resolve(false),
   sendInput: (data: string) => terminal.value?.sendInput(data),
   sendReliableInput: (data: string) => terminal.value?.sendReliableInput(data) ?? false,
   sendReliableInputs: (data: readonly string[]) =>
@@ -109,6 +111,7 @@ defineExpose({
       @auth-expired="emit('authExpired')"
       @connection-change="emit('connectionChange', $event)"
       @file-link-activate="emit('fileLinkActivate', $event)"
+      @focused-pane-change="emit('focusedPaneChange', $event)"
       @panes-change="emit('panesChange')"
       @ready="emit('ready')"
     />

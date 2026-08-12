@@ -89,6 +89,7 @@ describe('appearance settings', () => {
     })).toMatchObject({
       '--bitveins-ui-font-size': '13px',
       '--bitveins-ui-label-size': '12px',
+      '--bitveins-agent-indicator-size': '11px',
       '--bitveins-input-font-size': '22px',
       '--bitveins-input-line-height': '33px',
       '--bitveins-input-min-height': '80px',

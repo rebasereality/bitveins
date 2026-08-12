@@ -112,6 +112,7 @@ export function appearanceSettingsCssVariables(settings: AppearanceSettings): Re
     '--bitveins-ui-caption-size': `${Math.max(10, interfaceSize - 2)}px`,
     '--bitveins-ui-micro-size': `${Math.max(9, interfaceSize - 3)}px`,
     '--bitveins-ui-heading-size': `${interfaceSize + 2}px`,
+    '--bitveins-agent-indicator-size': `${Math.max(10, interfaceSize - 2)}px`,
     '--bitveins-input-font-size': `${inputSize}px`,
     '--bitveins-input-line-height': `${INPUT_LINE_HEIGHTS[settings.inputScale]}px`,
     '--bitveins-input-min-height': `${INPUT_MIN_HEIGHTS[settings.inputScale]}px`,

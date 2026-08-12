@@ -49,6 +49,7 @@ const emit = defineEmits<{
   connectionChange: [connected: boolean]
   fileLinkActivate: [resolution: Exclude<TerminalFileResolution, { status: 'missing' }>]
   panesChange: []
+  focusedPaneChange: [paneId: string | null]
   ready: []
 }>()
 
@@ -203,6 +204,14 @@ function focusPane(paneId: string): void {
   nextTick(focus)
 }
 
+async function focusPaneById(paneId: string): Promise<boolean> {
+  await refresh()
+  if (!panes.value.some(pane => pane.id === paneId)) return false
+  focusPane(paneId)
+  await nextTick()
+  return true
+}
+
 async function splitWindow(direction: 'horizontal' | 'vertical'): Promise<void> {
   const paneId = focusedPaneId.value
   if (!paneId) return
@@ -251,6 +260,7 @@ defineExpose({
   attachWindow,
   detach,
   focus,
+  focusPane: focusPaneById,
   sendInput: (data: string) => targetPane()?.sendInput(data),
   sendReliableInput: (data: string) => targetPane()?.sendReliableInput(data) ?? false,
   sendReliableInputs: (data: readonly string[]) => targetPane()?.sendReliableInputs(data) ?? false,
@@ -268,6 +278,7 @@ watch(panes, (nextPanes) => {
 
 watch(focusedPaneId, (paneId) => {
   emit('connectionChange', paneId ? paneConnections.get(paneId) ?? false : false)
+  emit('focusedPaneChange', paneId)
 })
 </script>
 

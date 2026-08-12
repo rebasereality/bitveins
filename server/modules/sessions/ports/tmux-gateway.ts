@@ -1,4 +1,5 @@
 import type { TmuxPane, TmuxWindow } from '#shared/contracts/terminal'
+import type { TmuxAgent } from '#shared/contracts/agents'
 
 export interface DiscoveredTmuxSession {
   name: string
@@ -36,6 +37,7 @@ export interface TmuxGateway {
   killBitveinsHelpersForBase(name: string): Promise<void>
   killStaleBitveinsHelpers(activeHelpers?: ReadonlySet<string>, owner?: string): Promise<void>
   killWindow(name: string, index: unknown): Promise<void>
+  listAgents(): Promise<TmuxAgent[]>
   listSessions(): Promise<DiscoveredTmuxSession[]>
   listPanes(name: string, index: unknown): Promise<TmuxPane[]>
   listWindows(name: string): Promise<TmuxWindow[]>
@@ -43,6 +45,7 @@ export interface TmuxGateway {
   resetTerminalScroll(name: string): Promise<void>
   renameSession(name: string, nextName: string): Promise<void>
   renameWindow(name: string, index: unknown, nextName: string): Promise<TmuxWindow | null>
+  renameAgent(paneId: unknown, label: string | null): Promise<void>
   resizePane(name: string, index: unknown, paneId: unknown, dimension: 'height' | 'width', size: unknown): Promise<TmuxPane[]>
   selectWindow(name: string, index: unknown): Promise<void>
   setSessionId(name: string, id: string): Promise<void>
