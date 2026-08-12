@@ -472,6 +472,66 @@ describe('SessionService', () => {
     expect(tmux.renameAgent).toHaveBeenCalledWith('%9', 'Reviewer')
   })
 
+  it('filters agents from unknown sessions and rejects stale rename targets', async () => {
+    const agent = {
+      defaultLabel: 'Codex',
+      id: '%9',
+      kind: 'codex' as const,
+      label: 'Codex',
+      paneId: '%9',
+      paneIndex: 0,
+      path: '/workspace',
+      sessionName: 'unknown',
+      status: 'idle' as const,
+      windowId: '@7',
+      windowIndex: 1,
+      windowName: 'work',
+    }
+    const context = setup(createTmux({
+      listAgents: vi.fn(async () => [agent]),
+      listSessions: vi.fn(async () => [{
+        name: 'main',
+        path: '/workspace',
+        sessionId: 'abcdefghijklmnop',
+      }]),
+    }))
+
+    await expect(context.service.listAgents()).resolves.toEqual([])
+    await expect(context.service.renameAgent('%9', 'Reviewer'))
+      .rejects.toThrow('Tmux agent is no longer available.')
+    expect(context.tmux.renameAgent).not.toHaveBeenCalled()
+  })
+
+  it('rejects an agent that disappears while its label is being changed', async () => {
+    const agent = {
+      defaultLabel: 'Codex',
+      id: '%9',
+      kind: 'codex' as const,
+      label: 'Codex',
+      paneId: '%9',
+      paneIndex: 0,
+      path: '/workspace',
+      sessionName: 'main',
+      status: 'idle' as const,
+      windowId: '@7',
+      windowIndex: 1,
+      windowName: 'work',
+    }
+    let calls = 0
+    const context = setup(createTmux({
+      listAgents: vi.fn(async () => calls++ === 0 ? [agent] : []),
+      listSessions: vi.fn(async () => [{
+        name: 'main',
+        path: '/workspace',
+        sessionId: 'abcdefghijklmnop',
+      }]),
+    }))
+
+    await expect(context.service.renameAgent('%9', 'Reviewer'))
+      .rejects.toThrow('Tmux agent is no longer available.')
+    expect(context.tmux.renameAgent).toHaveBeenCalledWith('%9', 'Reviewer')
+  })
+
   it('falls back to HOME and reports both lookup failures', async () => {
     const tmux = createTmux({
       displaySessionPath: vi.fn(async () => {
