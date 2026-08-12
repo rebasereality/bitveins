@@ -20,6 +20,7 @@
   --bitveins-ui-caption-size: 10px;
   --bitveins-ui-micro-size: 9px;
   --bitveins-ui-heading-size: 14px;
+  --bitveins-agent-indicator-size: 10px;
   --bitveins-input-font-size: 16px;
   --bitveins-input-line-height: 24px;
   --bitveins-input-min-height: 56px;
@@ -38,6 +39,12 @@
   --bitveins-shell-accent: #4f46e5;
   --bitveins-shell-accent-strong: #4338ca;
   --bitveins-shell-accent-soft: rgb(79 70 229 / 12%);
+  --bitveins-agent-working: #16a34a;
+  --bitveins-agent-blocked: #ca8a04;
+  --bitveins-agent-failed: #dc2626;
+  --bitveins-agent-idle: #9ca3af;
+  --bitveins-sidebar-session-active: rgb(36 38 43 / 3.5%);
+  --bitveins-sidebar-agent-active: rgb(36 38 43 / 7%);
   --bitveins-terminal-bg: #fafafb;
   --bitveins-terminal-chrome: #f1f2f4;
 
@@ -77,6 +84,12 @@
   --bitveins-shell-accent: #818cf8;
   --bitveins-shell-accent-strong: #a5b4fc;
   --bitveins-shell-accent-soft: rgb(129 140 248 / 14%);
+  --bitveins-agent-working: #4ade80;
+  --bitveins-agent-blocked: #facc15;
+  --bitveins-agent-failed: #f87171;
+  --bitveins-agent-idle: #71717a;
+  --bitveins-sidebar-session-active: rgb(255 255 255 / 3%);
+  --bitveins-sidebar-agent-active: rgb(255 255 255 / 6%);
   --bitveins-terminal-bg: #1c1f24;
   --bitveins-terminal-chrome: #181b20;
 

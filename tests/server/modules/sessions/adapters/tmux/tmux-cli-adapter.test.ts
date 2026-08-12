@@ -107,6 +107,119 @@ describe('TmuxCliAdapter', () => {
     expect(runner.calls).toHaveLength(1)
   })
 
+  it('discovers agent processes across tmux panes and derives their visible state', async () => {
+    const { adapter, runner } = setup()
+    runner.handler = async ({ args, command }) => {
+      if (command === 'ps') {
+        return {
+          stderr: '',
+          stdout: '100 1 100 200 bash\n200 100 200 200 node /opt/tools/codex --profile lead\n',
+        }
+      }
+      if (args[0] === 'list-panes') {
+        return {
+          stderr: '',
+          stdout: 'main\t@7\t2\twork\t%9\t1\t100\t0\t\t/workspace\n',
+        }
+      }
+      if (args[0] === 'display-message') return { stderr: '', stdout: '⠦ Bitveins\n' }
+      if (args[0] === 'capture-pane') return { stderr: '', stdout: 'Thinking...\nEsc to interrupt\n' }
+      return { stderr: '', stdout: '' }
+    }
+
+    await expect(adapter.listAgents()).resolves.toEqual([{
+      defaultLabel: 'Bitveins',
+      id: '%9',
+      kind: 'codex',
+      label: 'Bitveins',
+      paneId: '%9',
+      paneIndex: 1,
+      path: '/workspace',
+      sessionName: 'main',
+      status: 'working',
+      windowId: '@7',
+      windowIndex: 2,
+      windowName: 'work',
+    }])
+  })
+
+  it('sorts discovered agents and falls back to tmux metadata when titles are unavailable', async () => {
+    const { adapter, runner } = setup()
+    runner.handler = async ({ args, command }) => {
+      if (command === 'ps') {
+        return {
+          stderr: '',
+          stdout: [
+            '100 1 100 200 bash',
+            '200 100 200 200 node /opt/tools/codex',
+            '300 1 300 350 bash',
+            '350 300 350 350 opencode',
+            '400 1 400 450 bash',
+            '450 400 450 450 aider',
+            '500 1 500 550 bash',
+            '550 500 550 550 claude',
+            '999 1 999 999 bash',
+          ].join('\n'),
+        }
+      }
+      if (args[0] === 'list-panes') {
+        return {
+          stderr: '',
+          stdout: [
+            'main\t@7\t2\twork\t%9\t1\t100\t0\tReview agent\t/workspace',
+            'alpha\t@5\t1\tshell\t%5\t2\t300\t0\t\t/workspace/alpha',
+            'alpha\t@5\t1\tshell\t%4\t0\t400\t0\t\t/workspace/alpha',
+            'alpha\t@6\t2\ttests\t%6\t0\t500\t0\t\t/workspace/alpha',
+            'ignored\t@8\t0\tshell\t%8\t0\t999\t0\t\t/workspace/ignored',
+          ].join('\n'),
+        }
+      }
+      if (args[0] === 'display-message') {
+        if (args.includes('%5')) throw new Error('pane disappeared')
+        if (args.includes('%4')) return { stderr: '', stdout: 'Aider task\n' }
+        return { stderr: '', stdout: '' }
+      }
+      if (args[0] === 'capture-pane') {
+        if (args.includes('%9')) throw new Error('capture unavailable')
+        return { stderr: '', stdout: 'Ready\n' }
+      }
+      return { stderr: '', stdout: '' }
+    }
+
+    const agents = await adapter.listAgents()
+
+    expect(agents.map(agent => agent.paneId)).toEqual(['%4', '%5', '%6', '%9'])
+    expect(agents.find(agent => agent.paneId === '%5')).toMatchObject({
+      defaultLabel: 'shell',
+      label: 'shell',
+    })
+    expect(agents.find(agent => agent.paneId === '%9')).toMatchObject({
+      customLabel: 'Review agent',
+      defaultLabel: 'work',
+      label: 'Review agent',
+    })
+  })
+
+  it('skips process inspection when tmux has no candidate agent panes', async () => {
+    const { adapter, runner } = setup()
+
+    await expect(adapter.listAgents()).resolves.toEqual([])
+    expect(runner.calls).toHaveLength(1)
+    expect(runner.calls[0]?.args[0]).toBe('list-panes')
+  })
+
+  it('stores and clears pane-scoped agent labels', async () => {
+    const { adapter, runner } = setup()
+
+    await adapter.renameAgent('%9', ' Review agent ')
+    await adapter.renameAgent('%9', null)
+
+    expect(runner.calls.map(call => call.args)).toEqual([
+      ['set-option', '-p', '-t', '%9', '@bitveins_agent_label', 'Review agent'],
+      ['set-option', '-pu', '-t', '%9', '@bitveins_agent_label'],
+    ])
+  })
+
   it('prefixes every invocation with an isolated tmux socket', async () => {
     const { adapter, runner } = setup({ socketName: 'bitveins-tests' })
 
@@ -221,6 +334,7 @@ describe('TmuxCliAdapter', () => {
 
     await expect(adapter.listSessions()).resolves.toEqual([])
     await expect(adapter.listWindows('main')).resolves.toEqual([])
+    await expect(adapter.listAgents()).resolves.toEqual([])
     await expect(adapter.displaySessionPath('main')).resolves.toBeNull()
   })
 

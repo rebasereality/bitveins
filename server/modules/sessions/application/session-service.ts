@@ -1,7 +1,8 @@
 import type { TmuxPane, TmuxSession, TmuxWindow } from '#shared/contracts/terminal'
+import type { TmuxAgent } from '#shared/contracts/agents'
 import { SessionError } from '../model/session-error'
 import { createSessionId, normalizeSessionId } from '../model/session-identity'
-import { normalizeSessionName, normalizeTerminalTarget } from '../model/session-validation'
+import { normalizePaneId, normalizeSessionName, normalizeTerminalTarget } from '../model/session-validation'
 import { transferSessionBaseName, transferSessionCandidate } from '../model/transfer-session-name'
 import type { PathInspector } from '../ports/path-inspector'
 import type { PersistedSession, SessionRepository } from '../ports/session-repository'
@@ -169,6 +170,26 @@ export class SessionService {
   }
 
   listWindows(name: string): Promise<TmuxWindow[]> { return this.options.tmux.listWindows(normalizeSessionName(name)) }
+  async listAgents(): Promise<TmuxAgent[]> {
+    const sessions = await this.listSessions()
+    const sessionIds = new Map(sessions.map(session => [session.name, session.id]))
+    return (await this.options.tmux.listAgents()).flatMap((agent) => {
+      const sessionId = sessionIds.get(agent.sessionName)
+      return sessionId ? [{ ...agent, sessionId }] : []
+    })
+  }
+
+  async renameAgent(paneId: unknown, label: string | null): Promise<TmuxAgent> {
+    const target = normalizePaneId(paneId)
+    if (!(await this.listAgents()).some(agent => agent.paneId === target)) {
+      throw new SessionError('Tmux agent is no longer available.')
+    }
+    await this.options.tmux.renameAgent(target, label)
+    const renamed = (await this.listAgents()).find(agent => agent.paneId === target)
+    if (!renamed) throw new SessionError('Tmux agent is no longer available.')
+    return renamed
+  }
+
   selectWindow(name: string, index: unknown): Promise<void> { return this.options.tmux.selectWindow(normalizeSessionName(name), index) }
   async createWindow(name: string): Promise<TmuxWindow> {
     const sessionName = normalizeSessionName(name)

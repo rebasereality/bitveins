@@ -3,9 +3,14 @@ import type { TmuxSession } from '~/types/session'
 import { useFileDownloadModal } from '~/composables/useFileDownloadModal'
 import { useSessionDropzones } from '~/composables/useSessionDropzones'
 import SessionSidebarModals from '~/components/SessionSidebarModals.vue'
+import type { TmuxAgent } from '#shared/contracts/agents'
 
 defineProps<{
   activeSession: string | null
+  activeAgentPaneId: string | null
+  activeWindowId: string | null
+  agents: TmuxAgent[]
+  agentsError: string | null
   error: string | null
   linuxUsername: string | null
   loading: boolean
@@ -20,8 +25,10 @@ const emit = defineEmits<{
   detach: [sessionName: string]
   logout: []
   inbox: []
+  openAgent: [agent: TmuxAgent]
   refresh: []
   rename: [payload: { currentName: string, nextName: string }]
+  renameAgent: [payload: { label: string | null, paneId: string }]
   openDropzone: [payload: { name: string, path: string }]
   settings: []
 }>()
@@ -90,6 +97,11 @@ const moreMenuOptions = [
 
 function attachSession(sessionName: string): void {
   emit('attach', sessionName)
+  drawerOpen.value = false
+}
+
+function attachAgent(agent: TmuxAgent): void {
+  emit('openAgent', agent)
   drawerOpen.value = false
 }
 
@@ -220,13 +232,25 @@ function openSettings(): void {
         Sessions
       </p>
       <SessionSidebarSessionList
+        :active-agent-pane-id="activeAgentPaneId"
         :active-session="activeSession"
+        :active-window-id="activeWindowId"
+        :agents="agents"
         :sessions="sessions"
         @attach="attachSession"
         @destroy="emit('destroy', $event)"
         @detach="emit('detach', $event)"
         @rename="openRenameModal"
+        @open-agent="attachAgent"
+        @rename-agent="emit('renameAgent', $event)"
       />
+      <p
+        v-if="agentsError"
+        class="px-1.5 pt-1 text-[length:var(--bitveins-ui-micro-size)] text-[var(--bitveins-agent-failed)]"
+        role="status"
+      >
+        {{ agentsError }}
+      </p>
     </div>
 
     <div
@@ -298,14 +322,26 @@ function openSettings(): void {
             :loading="loading"
           />
           <SessionSidebarSessionList
+            :active-agent-pane-id="activeAgentPaneId"
             :active-session="activeSession"
+            :active-window-id="activeWindowId"
+            :agents="agents"
             :sessions="sessions"
             is-mobile
             @attach="attachSession"
             @destroy="emit('destroy', $event)"
             @detach="emit('detach', $event)"
             @rename="openRenameModal"
+            @open-agent="attachAgent"
+            @rename-agent="emit('renameAgent', $event)"
           />
+          <p
+            v-if="agentsError"
+            class="px-1.5 pt-1 text-[length:var(--bitveins-ui-micro-size)] text-[var(--bitveins-agent-failed)]"
+            role="status"
+          >
+            {{ agentsError }}
+          </p>
         </div>
 
         <div class="mt-auto shrink-0 border-t border-[var(--bitveins-shell-border)] pt-1">
