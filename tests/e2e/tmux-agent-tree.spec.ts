@@ -18,6 +18,10 @@ const sessionName = `agents_${suffix}`
 
 test('discovers, navigates, renames, and tracks a tmux agent pane', async ({ page }) => {
   await mkdir(workspace, { recursive: true })
+  await execFileAsync('git', ['-C', workspace, 'init'])
+  await execFileAsync('git', [
+    '-C', workspace, 'symbolic-ref', 'HEAD', 'refs/heads/feature/e2e-agent-context',
+  ])
   await authenticate(page)
 
   try {
@@ -52,9 +56,24 @@ test('discovers, navigates, renames, and tracks a tmux agent pane', async ({ pag
 
     await expect.poll(async () => {
       const response = await page.request.get('/api/agents')
-      const body = await response.json() as { agents: Array<{ paneId: string, status: string }> }
-      return body.agents.find(agent => agent.paneId === agentPaneId)?.status
-    }).toBe('working')
+      const body = await response.json() as {
+        agents: Array<{
+          git?: { linkedWorktree: boolean, reference: string, repository: string }
+          paneId: string
+          status: string
+        }>
+      }
+      const agent = body.agents.find(candidate => candidate.paneId === agentPaneId)
+      return agent ? { git: agent.git, status: agent.status } : null
+    }).toEqual({
+      git: {
+        detached: false,
+        linkedWorktree: false,
+        reference: 'feature/e2e-agent-context',
+        repository: workspace.split('/').at(-1),
+      },
+      status: 'working',
+    })
 
     await page.reload()
     await page.getByRole('button', { exact: true, name: sessionName }).click()
@@ -63,6 +82,26 @@ test('discovers, navigates, renames, and tracks a tmux agent pane', async ({ pag
     await expect(agentRow).toBeVisible()
     await expect(agentRow.locator('[data-agent-status]')).toHaveAttribute('data-status', 'working')
     await expect(agentRow.locator('[data-agent-kind-name]')).toHaveText('Codex')
+    const gitLine = agentRow.locator('[data-agent-git]')
+    await expect(gitLine.locator('[data-agent-git-reference]')).toHaveText('feature/e2e-agent-context')
+    await expect(gitLine.locator('[data-agent-git-repository]')).toHaveText(workspace.split('/').at(-1)!)
+    const gitGeometry = await agentRow.evaluate((element) => {
+      const git = element.querySelector<HTMLElement>('[data-agent-git]')!
+      const name = element.querySelector<HTMLElement>('[data-agent-instance-name]')!
+      return {
+        gitFontSize: Number.parseFloat(getComputedStyle(git).fontSize),
+        gitOpacity: getComputedStyle(git).opacity,
+        nameFontSize: Number.parseFloat(getComputedStyle(name).fontSize),
+        rowHeight: element.getBoundingClientRect().height,
+      }
+    })
+    expect(gitGeometry).toEqual({
+      gitFontSize: expect.any(Number),
+      gitOpacity: '0.6',
+      nameFontSize: expect.any(Number),
+      rowHeight: 36,
+    })
+    expect(gitGeometry.gitFontSize).toBeLessThan(gitGeometry.nameFontSize)
     await expect(agentRow).toHaveAttribute('data-agent-window-active', 'false')
     const activeSessionGroup = page.locator('[data-session-group-active="true"]')
     await expect(activeSessionGroup.locator('[data-session-active-rail]')).toBeVisible()

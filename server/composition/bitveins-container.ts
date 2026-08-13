@@ -2,6 +2,10 @@ import type { TerminalPeer } from '../modules/terminal/application/terminal-peer
 import { AttentionService } from '../modules/attention/application/attention-service'
 import { CodexNotificationService } from '../modules/attention/application/codex-notification-service'
 import { HermesNotificationService } from '../modules/attention/application/hermes-notification-service'
+import { CodexAgentMetadataService } from '../modules/agents/application/codex-agent-metadata-service'
+import { CodexAppServerThreadMetadataReader } from '../modules/agents/adapters/codex-app-server-thread-metadata-reader'
+import { GitCliAgentMetadataResolver } from '../modules/agents/adapters/git-cli-agent-metadata-resolver'
+import { LinuxCodexProcessInspector } from '../modules/agents/adapters/linux-codex-process-inspector'
 import { WebPushNotificationService } from '../modules/attention/application/web-push-notification-service'
 import { DrizzleAttentionRepository } from '../modules/attention/adapters/drizzle-attention-repository'
 import { DrizzleCodexNotificationPreferenceRepository } from '../modules/attention/adapters/drizzle-codex-notification-preference-repository'
@@ -36,6 +40,7 @@ import { getValidatedEnv } from '../utils/env'
 export interface BitveinsContainer {
   attention: AttentionService
   codexNotifications: CodexNotificationService
+  codexThreadMetadata: CodexAppServerThreadMetadataReader
   dropzones: DropzoneService
   explorerDocuments: WorkspaceDocumentService
   explorerFileReferences: FileReferenceResolver
@@ -51,9 +56,17 @@ export interface BitveinsContainer {
 export function createBitveinsContainer(): BitveinsContainer {
   ensureAttentionEnvironment()
   const environment = getValidatedEnv()
+  const codexThreadMetadata = new CodexAppServerThreadMetadataReader()
+  const codexAgentMetadata = new CodexAgentMetadataService({
+    processes: new LinuxCodexProcessInspector(),
+    threads: codexThreadMetadata,
+  })
+  const commandRunner = new NodeCommandRunner()
   const tmux = new TmuxCliAdapter({
+    agentGitMetadata: new GitCliAgentMetadataResolver({ runner: commandRunner }),
+    codexAgentMetadata,
     helperOwner: String(process.pid),
-    runner: new NodeCommandRunner(),
+    runner: commandRunner,
     socketName: environment.BITVEINS_TMUX_SOCKET_NAME,
   })
   const sessions = new SessionService({
@@ -167,6 +180,7 @@ export function createBitveinsContainer(): BitveinsContainer {
   return {
     attention,
     codexNotifications,
+    codexThreadMetadata,
     dropzones,
     explorerDocuments,
     explorerFileReferences,

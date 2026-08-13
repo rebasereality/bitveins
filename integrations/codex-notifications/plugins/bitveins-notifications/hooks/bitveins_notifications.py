@@ -17,7 +17,9 @@ from typing import Any, Callable, NamedTuple
 _SOURCE = "codex"
 _WINDOW_PATTERN = re.compile(r"^@\d+$")
 _PANE_PATTERN = re.compile(r"^%\d+$")
+_SESSION_PATTERN = re.compile(r"^[A-Za-z0-9_-]{8,128}$")
 _SOCKET_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]{1,80}$")
+_TMUX_THREAD_OPTION = "@bitveins_codex_thread_id"
 _HTTP_TIMEOUT_SECONDS = 0.75
 _MAX_INPUT_BYTES = 65_536
 _MAX_STATE_FILES = 1_024
@@ -156,6 +158,32 @@ def _post_event(event_type: str, lifecycle: str) -> bool:
         return False
 
 
+def _sync_tmux_thread_id(event: dict[str, Any]) -> bool:
+    session_id = event.get("session_id")
+    if not isinstance(session_id, str) or not _SESSION_PATTERN.fullmatch(session_id):
+        return False
+    try:
+        config = _load_client_config()
+        context = _detect_tmux_context(socket_name=config.tmux_socket_name)
+        pane_id = context.get("paneId", "")
+        if not _PANE_PATTERN.fullmatch(pane_id):
+            return False
+        socket_name = config.tmux_socket_name or "default"
+        result = subprocess.run(
+            [
+                "tmux", "-L", socket_name, "set-option", "-p", "-t", pane_id,
+                _TMUX_THREAD_OPTION, session_id,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=0.5,
+            check=False,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
 def _state_root(environ: dict[str, str] | os._Environ[str] | None = None) -> Path:
     environment = environ if environ is not None else os.environ
     root_text = environment.get("PLUGIN_DATA", "").strip()
@@ -238,6 +266,8 @@ def _read_event(stream: Any = sys.stdin.buffer) -> dict[str, Any]:
 
 def handle(event: dict[str, Any]) -> None:
     event_name = event.get("hook_event_name")
+    if event_name in {"SessionStart", "UserPromptSubmit"}:
+        _sync_tmux_thread_id(event)
     key_parts = _opaque_key(event)
     if event_name == "SessionEnd":
         session_id = event.get("session_id")

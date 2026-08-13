@@ -54,6 +54,12 @@ describe('SessionSidebarSessionList', () => {
     const agent = {
       customLabel: 'Reviewer',
       defaultLabel: 'Bitveins',
+      git: {
+        detached: false,
+        linkedWorktree: true,
+        reference: 'feature/sidebar',
+        repository: 'bitveins',
+      },
       id: '%9',
       kind: 'codex' as const,
       label: 'Reviewer',
@@ -98,6 +104,11 @@ describe('SessionSidebarSessionList', () => {
     expect(row.get('[data-agent-instance-name]').classes()).toContain('truncate')
     expect(row.get('[data-agent-kind-name]').classes()).toContain('shrink-0')
     expect(row.get('[data-agent-kind-name]').text()).toBe('Codex')
+    expect(row.classes()).toContain('h-9')
+    expect(row.get('[data-agent-git]').text()).toContain('bitveins')
+    expect(row.get('[data-agent-git-reference]').text()).toBe('feature/sidebar')
+    expect(row.get('[data-agent-git-worktree]').text()).toBe('wt')
+    expect(row.get('[data-agent-git]').classes()).toContain('opacity-60')
 
     const openButton = row.get('button[aria-current="true"]')
     await openButton.trigger('click')

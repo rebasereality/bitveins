@@ -37,6 +37,10 @@ sent. Prompts, responses, session names, working directories, tool arguments,
 commands, model names, transcript paths, endpoints, and tokens are never sent.
 Bitveins resolves the linked session locally from the tmux window ID and
 suppresses signals that do not resolve to exactly one non-helper session.
+The Codex session id is stored only as a pane-scoped tmux option so Bitveins
+can resolve the user-facing thread name locally. It is never included in the
+HTTP notification payload, and no prompt or transcript content is copied into
+tmux.
 
 The endpoint is fixed to `127.0.0.1`. Redirects and environment proxies are
 disabled. The token, port, and optional `BITVEINS_TMUX_SOCKET_NAME` are read

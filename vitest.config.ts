@@ -21,6 +21,7 @@ export default defineConfig({
         'app/utils/**/*.ts',
         'shared/contracts/**/*.ts',
         'shared/security/**/*.ts',
+        'server/modules/agents/**/*.ts',
         'server/modules/dropzones/application/**/*.ts',
         'server/modules/dropzones/model/**/*.ts',
         'server/modules/dropzones/adapters/**/*.ts',

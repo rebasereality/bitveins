@@ -1,7 +1,9 @@
 import { tmuxAgentLabelSchema } from '#shared/contracts/agents'
 import { BITVEINS_SESSION_PREFIX } from '../../sessions/model/session-validation'
+import { normalizeCodexThreadId } from '../model/codex-thread-id'
 
 export interface TmuxAgentPaneCandidate {
+  codexThreadId?: string
   customLabel?: string
   paneId: string
   paneIndex: number
@@ -37,6 +39,7 @@ export function parseTmuxAgentPaneCandidates(stdout: string): TmuxAgentPaneCandi
       panePidText = '',
       paneDead = '1',
       customLabelText = '',
+      codexThreadIdText = '',
       ...pathParts
     ] = line.split('\t')
     const windowIndex = nonnegativeInteger(windowIndexText)
@@ -53,7 +56,9 @@ export function parseTmuxAgentPaneCandidates(stdout: string): TmuxAgentPaneCandi
     ) continue
 
     const customLabel = tmuxAgentLabelSchema.safeParse(customLabelText)
+    const codexThreadId = normalizeCodexThreadId(codexThreadIdText)
     candidates.push({
+      ...(codexThreadId ? { codexThreadId } : {}),
       ...(customLabel.success ? { customLabel: customLabel.data } : {}),
       paneId,
       paneIndex,

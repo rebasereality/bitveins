@@ -159,6 +159,37 @@ class CodexNotificationTests(unittest.TestCase):
         for forbidden in ["private-model", "private/workspace", "transcript", "secret-token"]:
             self.assertNotIn(forbidden, serialized)
 
+    def test_syncs_the_codex_session_id_to_its_tmux_pane(self) -> None:
+        run = Mock(return_value=SimpleNamespace(returncode=0, stdout=""))
+        config = plugin.ClientConfig(3210, "secret-token", "bitveins")
+        with patch.object(plugin, "_load_client_config", return_value=config), patch.object(
+            plugin,
+            "_detect_tmux_context",
+            return_value={"windowId": "@12", "paneId": "%13"},
+        ), patch.object(plugin.subprocess, "run", run):
+            self.assertTrue(plugin._sync_tmux_thread_id(self.event("SessionStart")))
+
+        self.assertEqual(
+            run.call_args.args[0],
+            [
+                "tmux", "-L", "bitveins", "set-option", "-p", "-t", "%13",
+                "@bitveins_codex_thread_id", "session-1",
+            ],
+        )
+        serialized = " ".join(run.call_args.args[0])
+        for forbidden in ["private-model", "private/workspace", "transcript", "secret-token"]:
+            self.assertNotIn(forbidden, serialized)
+
+    def test_session_start_refreshes_tmux_metadata_without_turn_state(self) -> None:
+        sync = Mock(return_value=True)
+        with patch.object(plugin, "_sync_tmux_thread_id", sync):
+            plugin.handle({
+                "hook_event_name": "SessionStart",
+                "session_id": "session-1",
+            })
+
+        sync.assert_called_once()
+
     def test_loads_only_the_private_canonical_environment_file(self) -> None:
         config_directory = self.root / ".config" / "bitveins"
         config_directory.mkdir(parents=True, mode=0o700)

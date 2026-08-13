@@ -16,6 +16,10 @@ until a release is tagged.
 - subtle sidebar highlighting for the active session tree and the agent in the
   current tmux window, with instance-name truncation and the agent type kept
   visible at the right edge;
+- Codex agent labels resolved locally from the thread name or first-message
+  preview shown by Codex `/resume`, with tmux titles retained as a fallback;
+- repository and branch context grouped beneath each agent name, including
+  linked-worktree and detached-HEAD detection;
 - a documented long-term path toward lifecycle-backed agent state and an
   optional provider-neutral Herdr integration.
 
