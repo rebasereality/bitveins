@@ -4,7 +4,7 @@ All notable changes to Bitveins are documented here. The project follows
 [Semantic Versioning](https://semver.org/) and keeps an `Unreleased` section
 until a release is tagged.
 
-## Unreleased
+## 1.5.0 - 2026-08-13
 
 ### Added
 
