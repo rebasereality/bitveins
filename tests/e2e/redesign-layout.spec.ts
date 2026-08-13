@@ -129,7 +129,7 @@ test('renders the compact desktop shell, authenticated Linux account and logout 
         }
       })
 
-      expect(geometry.sidebar.width).toBeCloseTo(192, 0)
+      expect(geometry.sidebar.width).toBeCloseTo(240, 0)
       expect(geometry.sidebarHeader.height).toBeCloseTo(36, 0)
       expect(geometry.terminalHeader.height).toBeCloseTo(36, 0)
       expect(geometry.dock.bottom).toBeCloseTo(geometry.sidebar.bottom, 0)
@@ -195,24 +195,16 @@ test('renders the compact desktop shell, authenticated Linux account and logout 
       }
 
       const menuRect = menu.getBoundingClientRect()
-      const promptRect = prompt.getBoundingClientRect()
-      const overlap = {
-        bottom: Math.min(menuRect.bottom, promptRect.bottom),
-        left: Math.max(menuRect.left, promptRect.left),
-        right: Math.min(menuRect.right, promptRect.right),
-        top: Math.max(menuRect.top, promptRect.top),
-      }
-      if (overlap.right <= overlap.left || overlap.bottom <= overlap.top) {
-        throw new Error('The account menu does not overlap the prompt fixture.')
-      }
+      const sidebarRect = sidebar.getBoundingClientRect()
 
       const topmost = document.elementFromPoint(
-        (overlap.left + overlap.right) / 2,
-        (overlap.top + overlap.bottom) / 2,
+        menuRect.left + menuRect.width / 2,
+        menuRect.top + menuRect.height / 2,
       )
 
       return {
         footerZIndex: getComputedStyle(prompt).zIndex,
+        menuInsideSidebar: menuRect.left >= sidebarRect.left && menuRect.right <= sidebarRect.right,
         menuZIndex: getComputedStyle(menu).zIndex,
         sidebarZIndex: getComputedStyle(sidebar).zIndex,
         topmostIsAccountMenu: Boolean(topmost?.closest('[data-sidebar-account]')),
@@ -220,6 +212,7 @@ test('renders the compact desktop shell, authenticated Linux account and logout 
     })
     expect(accountMenuStacking).toEqual({
       footerZIndex: '30',
+      menuInsideSidebar: true,
       menuZIndex: '60',
       sidebarZIndex: '40',
       topmostIsAccountMenu: true,

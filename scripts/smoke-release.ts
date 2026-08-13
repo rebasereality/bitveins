@@ -70,6 +70,12 @@ function run(
   })
 }
 
+function includesWorkerEventListener(source: string, event: string): boolean {
+  return ['"', '\'', '`'].some(quote =>
+    source.includes(`addEventListener(${quote}${event}${quote}`),
+  )
+}
+
 const port = await availablePort()
 let server: ChildProcess | undefined
 
@@ -84,8 +90,8 @@ try {
   const serverEntry = join(releaseRoot, 'app', '.output', 'server', 'index.mjs')
   const serviceWorker = await readFile(join(releaseRoot, 'app', '.output', 'public', 'sw.js'), 'utf8')
   if (
-    !serviceWorker.includes('"push"')
-    || !serviceWorker.includes('"notificationclick"')
+    !includesWorkerEventListener(serviceWorker, 'push')
+    || !includesWorkerEventListener(serviceWorker, 'notificationclick')
     || !serviceWorker.includes('showNotification')
   ) {
     throw new Error('Packaged Service Worker is missing Web Push handlers.')

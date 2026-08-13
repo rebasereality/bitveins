@@ -14,7 +14,11 @@ defineProps<{
   error: string | null
   linuxUsername: string | null
   loading: boolean
+  notificationMuteAvailable: boolean
   sessions: TmuxSession[]
+  hasNotificationMuteError: (sessionId: string) => boolean
+  isNotificationMuteBusy: (sessionId: string) => boolean
+  isNotificationMuted: (sessionId: string) => boolean
   unreadAttentionCount: number
 }>()
 
@@ -25,12 +29,14 @@ const emit = defineEmits<{
   detach: [sessionName: string]
   logout: []
   inbox: []
+  interactionOverlayChange: [open: boolean]
   openAgent: [agent: TmuxAgent]
   refresh: []
   rename: [payload: { currentName: string, nextName: string }]
   renameAgent: [payload: { label: string | null, paneId: string }]
   openDropzone: [payload: { name: string, path: string }]
   settings: []
+  toggleNotificationMute: [sessionId: string]
 }>()
 
 const drawerOpen = ref(false)
@@ -58,6 +64,16 @@ const {
   openDownloadModal,
   handleDownloadFile,
 } = useFileDownloadModal()
+
+const interactionOverlayOpen = computed(() => (
+  drawerOpen.value
+  || modalOpen.value
+  || renameModalOpen.value
+  || dropzoneModalOpen.value
+  || downloadModalOpen.value
+))
+
+watch(interactionOverlayOpen, open => emit('interactionOverlayChange', open), { immediate: true })
 
 function openModal(): void {
   modalOpen.value = true
@@ -95,24 +111,30 @@ const moreMenuOptions = [
   ],
 ]
 
-function attachSession(sessionName: string): void {
-  emit('attach', sessionName)
+function afterDrawerClose(action: () => void): void {
+  if (!drawerOpen.value) {
+    action()
+    return
+  }
+
   drawerOpen.value = false
+  void nextTick(action)
+}
+
+function attachSession(sessionName: string): void {
+  afterDrawerClose(() => emit('attach', sessionName))
 }
 
 function attachAgent(agent: TmuxAgent): void {
-  emit('openAgent', agent)
-  drawerOpen.value = false
+  afterDrawerClose(() => emit('openAgent', agent))
 }
 
 function openDropzone(dropzone: { name: string, path: string }): void {
-  emit('openDropzone', dropzone)
-  drawerOpen.value = false
+  afterDrawerClose(() => emit('openDropzone', dropzone))
 }
 
 function openSettings(): void {
-  drawerOpen.value = false
-  emit('settings')
+  afterDrawerClose(() => emit('settings'))
 }
 </script>
 
@@ -236,6 +258,10 @@ function openSettings(): void {
         :active-session="activeSession"
         :active-window-id="activeWindowId"
         :agents="agents"
+        :has-notification-mute-error="hasNotificationMuteError"
+        :is-notification-mute-busy="isNotificationMuteBusy"
+        :is-notification-muted="isNotificationMuted"
+        :notification-mute-available="notificationMuteAvailable"
         :sessions="sessions"
         @attach="attachSession"
         @destroy="emit('destroy', $event)"
@@ -243,6 +269,7 @@ function openSettings(): void {
         @rename="openRenameModal"
         @open-agent="attachAgent"
         @rename-agent="emit('renameAgent', $event)"
+        @toggle-notification-mute="emit('toggleNotificationMute', $event)"
       />
       <p
         v-if="agentsError"
@@ -275,9 +302,19 @@ function openSettings(): void {
 
     <UDrawer
       v-model:open="drawerOpen"
+      :close="{
+        class: 'size-8 justify-center',
+        color: 'neutral',
+        icon: 'i-lucide-x',
+        size: 'xs',
+        square: true,
+        variant: 'ghost',
+      }"
+      description="Browse and manage tmux sessions"
       direction="left"
+      :handle="false"
       title="Sessions"
-      :ui="{ content: 'bitveins-mobile-sessions-drawer h-dvh w-[min(88vw,22rem)] max-w-none bg-[var(--bitveins-shell-panel-solid)] text-[var(--bitveins-shell-text)]', header: 'border-b border-[var(--bitveins-shell-border)] p-2', title: 'text-xs font-semibold text-[var(--bitveins-shell-text)]', body: 'flex min-h-0 flex-1 flex-col p-1.5' }"
+      :ui="{ content: 'bitveins-mobile-sessions-drawer h-dvh w-screen max-w-none bg-[var(--bitveins-shell-panel-solid)] text-[var(--bitveins-shell-text)]', header: 'min-h-12 border-b border-[var(--bitveins-shell-border)] p-2 pl-3', title: 'text-sm font-semibold text-[var(--bitveins-shell-text)]', body: 'flex min-h-0 flex-1 flex-col p-1.5' }"
     >
       <template #body>
         <div class="flex items-center gap-1 pb-1.5">
@@ -326,14 +363,19 @@ function openSettings(): void {
             :active-session="activeSession"
             :active-window-id="activeWindowId"
             :agents="agents"
+            :has-notification-mute-error="hasNotificationMuteError"
+            :is-notification-mute-busy="isNotificationMuteBusy"
+            :is-notification-muted="isNotificationMuted"
             :sessions="sessions"
             is-mobile
+            :notification-mute-available="notificationMuteAvailable"
             @attach="attachSession"
             @destroy="emit('destroy', $event)"
             @detach="emit('detach', $event)"
             @rename="openRenameModal"
             @open-agent="attachAgent"
             @rename-agent="emit('renameAgent', $event)"
+            @toggle-notification-mute="emit('toggleNotificationMute', $event)"
           />
           <p
             v-if="agentsError"

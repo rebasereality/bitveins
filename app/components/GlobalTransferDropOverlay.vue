@@ -181,8 +181,8 @@ function dropOnCurrentPrompt(event: DragEvent): void {
       transparent 42%
     ),
     color-mix(in srgb, var(--bitveins-terminal-bg) 74%, transparent);
-  backdrop-filter: blur(14px) saturate(108%);
   -webkit-backdrop-filter: blur(14px) saturate(108%);
+  backdrop-filter: blur(14px) saturate(108%);
 }
 
 .dropzone-scroll-area {
@@ -206,8 +206,8 @@ function dropOnCurrentPrompt(event: DragEvent): void {
     inset 0 1px 0 color-mix(in srgb, var(--bitveins-shell-text) 9%, transparent),
     inset 0 0 0 1px color-mix(in srgb, var(--bitveins-shell-text) 3%, transparent),
     0 16px 42px rgb(0 0 0 / 28%);
-  backdrop-filter: blur(20px) saturate(115%);
   -webkit-backdrop-filter: blur(20px) saturate(115%);
+  backdrop-filter: blur(20px) saturate(115%);
   transition:
     border-color 140ms ease,
     background-color 140ms ease,

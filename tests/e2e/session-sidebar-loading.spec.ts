@@ -33,7 +33,7 @@ test('shows compact loading rows instead of a false empty-session state', async 
   })
   expect(geometry.rowCount).toBe(3)
   expect(geometry.rowHeights).toEqual([24, 24, 24])
-  expect(geometry.width).toBeLessThanOrEqual(192)
+  expect(geometry.width).toBeLessThanOrEqual(240)
 
   releaseSessionsRequest()
 

@@ -47,6 +47,7 @@ const pendingFileResolution = ref<AmbiguousResolution | null>(null)
 const settingsOpen = ref(false)
 const inboxOpen = ref(false)
 const attentionNavigationError = ref<string | null>(null)
+const sessionSidebarOverlayOpen = ref(false)
 const gitGraphOpen = ref(false)
 let shouldSuppressAttentionEvent = (_event: AttentionEvent): boolean => false
 
@@ -144,6 +145,7 @@ const {
 const terminalInteractionEnabled = computed(() => (
   viewMode.value === 'terminal'
   && !settingsOpen.value
+  && !sessionSidebarOverlayOpen.value
   && !gitGraphOpen.value
   && !pendingFileResolution.value
   && !rootChoices.value
@@ -249,9 +251,14 @@ const {
   available: notificationMuteAvailable,
   busy: notificationMuteBusy,
   error: notificationMuteError,
+  hasError: hasSessionNotificationMuteError,
+  isBusy: isSessionNotificationMuteBusy,
+  isMuted: isSessionNotificationMuted,
   muted: notificationMuted,
+  sessionAvailable: sessionNotificationMuteAvailable,
   suppresses: suppressesAttentionEvent,
   toggle: toggleNotificationMute,
+  toggleSession: toggleSessionNotificationMute,
 } = useSessionNotificationMute({
   sessionId: activeSessionId,
 })
@@ -625,7 +632,11 @@ watch(activeSession, () => {
         :error="appError"
         :linux-username="linuxUsername"
         :loading="loading"
+        :notification-mute-available="sessionNotificationMuteAvailable"
         :sessions="sessions"
+        :has-notification-mute-error="hasSessionNotificationMuteError"
+        :is-notification-mute-busy="isSessionNotificationMuteBusy"
+        :is-notification-muted="isSessionNotificationMuted"
         :unread-attention-count="unreadAttentionCount"
         class="row-span-2 max-lg:row-span-1"
         @attach="attachSessionFromUi"
@@ -633,6 +644,7 @@ watch(activeSession, () => {
         @destroy="destroySessionFromUi"
         @detach="detachSessionFromUi"
         @inbox="inboxOpen = true"
+        @interaction-overlay-change="sessionSidebarOverlayOpen = $event"
         @logout="emit('logout')"
         @open-agent="void openAgentFromUi($event)"
         @open-dropzone="openDropzone"
@@ -640,6 +652,7 @@ watch(activeSession, () => {
         @rename="renameSessionFromUi"
         @rename-agent="renameAgentFromUi"
         @settings="settingsOpen = true"
+        @toggle-notification-mute="void toggleSessionNotificationMute($event)"
       />
 
       <section
@@ -736,7 +749,7 @@ watch(activeSession, () => {
       <CommandInput
         v-show="viewMode === 'terminal' && !settingsOpen && Boolean(activeSession)"
         ref="input"
-        :disabled="!activeSession || settingsOpen || gitGraphOpen || viewMode !== 'terminal'"
+        :disabled="!activeSession || settingsOpen || sessionSidebarOverlayOpen || gitGraphOpen || viewMode !== 'terminal'"
         :history-messages="historyMessageTexts"
         :input-mode="inputMode"
         :live-available="terminalConnected"

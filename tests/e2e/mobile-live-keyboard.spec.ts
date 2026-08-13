@@ -152,8 +152,11 @@ test('opens the mobile Live keyboard only from its explicit toggle', async ({ pa
     const drawerWidth = await sessionsDrawer.evaluate(
       element => element.getBoundingClientRect().width,
     )
-    expect(drawerWidth).toBeGreaterThan(300)
-    expect(drawerWidth).toBeCloseTo(Math.min((page.viewportSize()?.width || 0) * 0.88, 352), 0)
+    expect(drawerWidth).toBeCloseTo(page.viewportSize()?.width || 0, 0)
+    await expect(sessionsDrawer.locator('[data-slot="handle"]')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Close' }).click()
+    await expect(sessionsDrawer).toBeHidden()
+    await page.getByLabel('Open sessions').click()
     await page.getByRole('button', { name: sessionName, exact: true }).click()
     await expect(page.locator('.xterm-screen')).toBeVisible()
 

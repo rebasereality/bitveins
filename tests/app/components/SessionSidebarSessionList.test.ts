@@ -20,14 +20,20 @@ const DropdownStub = defineComponent({
 describe('SessionSidebarSessionList', () => {
   it('marks the active session without changing the row geometry and attaches sessions', async () => {
     const attach = vi.fn()
+    const toggleNotificationMute = vi.fn()
     const wrapper = mount(SessionSidebarSessionList, {
       props: {
         activeSession: 'Kouizine',
+        hasNotificationMuteError: () => false,
+        isNotificationMuteBusy: () => false,
+        isNotificationMuted: sessionId => sessionId === 'qrstuvwxyzABCDEF',
+        notificationMuteAvailable: true,
         sessions: [
           { id: 'abcdefghijklmnop', name: 'Dropentory', path: '/dropentory' },
           { id: 'qrstuvwxyzABCDEF', name: 'Kouizine', path: '/kouizine' },
         ],
         onAttach: attach,
+        onToggleNotificationMute: toggleNotificationMute,
       },
       global: {
         components: {
@@ -43,6 +49,19 @@ describe('SessionSidebarSessionList', () => {
     expect(rows[1]!.attributes('data-session-active')).toBe('true')
     expect(rows[1]!.find('button[aria-current="true"]').exists()).toBe(true)
     expect(wrapper.get('[data-session-group-active="true"] [data-session-active-rail]').exists()).toBe(true)
+
+    const notificationButtons = wrapper.findAll('[data-session-notification-mute]')
+    expect(notificationButtons).toHaveLength(2)
+    expect(notificationButtons[0]!.attributes('aria-label')).toBe('Mute notifications for Dropentory')
+    expect(notificationButtons[0]!.classes()).toContain('opacity-60')
+    expect(notificationButtons[0]!.classes()).toContain('text-[var(--bitveins-shell-text-subtle)]')
+    expect(notificationButtons[1]!.attributes('aria-label')).toBe('Unmute notifications for Kouizine')
+    expect(notificationButtons[1]!.attributes('aria-pressed')).toBe('true')
+    const sessionButtons = rows[0]!.findAll('button')
+    expect(sessionButtons[1]!.attributes('data-session-notification-mute')).toBe('abcdefghijklmnop')
+    expect(sessionButtons[2]!.attributes('aria-label')).toBe('Actions for Dropentory')
+    await notificationButtons[0]!.trigger('click')
+    expect(toggleNotificationMute).toHaveBeenCalledWith('abcdefghijklmnop')
 
     await rows[0]!.find('button').trigger('click')
     expect(attach).toHaveBeenCalledWith('Dropentory')

@@ -22,11 +22,16 @@ const renameModalOpen = defineModel<boolean>('renameModalOpen', { default: false
 const downloadModalOpen = defineModel<boolean>('downloadModalOpen', { default: false })
 const downloadPath = defineModel<string>('downloadPath', { default: '' })
 
+const createSessionForm = ref<HTMLFormElement | null>(null)
 const name = ref('')
 const path = ref('')
 const dropzoneName = ref('')
 const dropzonePath = ref('')
 const renameNextName = ref('')
+
+function focusSessionName(): void {
+  createSessionForm.value?.querySelector<HTMLInputElement>('input')?.focus()
+}
 
 function handleCreateSession(): void {
   emit('createSession', {
@@ -67,9 +72,11 @@ function handleDownload(): void {
       v-model:open="modalOpen"
       title="New tmux session"
       :ui="{ content: 'bg-[var(--bitveins-shell-panel-solid)] text-[var(--bitveins-shell-text)]' }"
+      @after:enter="focusSessionName"
     >
       <template #body>
         <form
+          ref="createSessionForm"
           class="space-y-4"
           @submit.prevent="handleCreateSession"
         >
@@ -77,6 +84,7 @@ function handleDownload(): void {
             <UInput
               v-model="name"
               autocomplete="off"
+              autofocus
               class="w-full"
               pattern="[A-Za-z0-9_.:-]{1,80}"
               required
