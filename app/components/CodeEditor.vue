@@ -6,6 +6,7 @@ import { EditorView, keymap, lineNumbers, highlightActiveLineGutter } from '@cod
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { syntaxHighlighting, defaultHighlightStyle, indentOnInput } from '@codemirror/language'
 import { oneDark } from '@codemirror/theme-one-dark'
+import { loadCodeLanguageExtension } from '~/editor/code-language'
 
 const props = defineProps<{
   modelValue: string
@@ -13,6 +14,7 @@ const props = defineProps<{
   line?: number
   column?: number
   navigationToken?: number
+  readOnly?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -26,34 +28,6 @@ let initGeneration = 0
 
 const colorMode = useColorMode()
 const isDark = computed(() => colorMode.value === 'dark')
-
-async function loadLanguageExtension(filename: string): Promise<Extension> {
-  const ext = filename.split('.').pop()?.toLowerCase()
-  switch (ext) {
-    case 'vue':
-      return (await import('@codemirror/lang-vue')).vue()
-    case 'js':
-    case 'jsx':
-    case 'ts':
-    case 'tsx':
-      return (await import('@codemirror/lang-javascript')).javascript({
-        jsx: true,
-        typescript: true,
-      })
-    case 'html':
-      return (await import('@codemirror/lang-html')).html()
-    case 'css':
-    case 'scss':
-      return (await import('@codemirror/lang-css')).css()
-    case 'json':
-      return (await import('@codemirror/lang-json')).json()
-    case 'md':
-    case 'markdown':
-      return (await import('@codemirror/lang-markdown')).markdown()
-    default:
-      return []
-  }
-}
 
 const customStyles = EditorView.theme({
   '&': {
@@ -112,34 +86,42 @@ async function initEditor(): Promise<void> {
   if (!container) return
 
   const generation = ++initGeneration
-  const languageExtension = await loadLanguageExtension(props.filePath)
+  const languageExtension = await loadCodeLanguageExtension(props.filePath)
   if (generation !== initGeneration || !editorContainer.value) return
 
-  const extensions = [
+  const extensions: Extension[] = [
     lineNumbers(),
-    highlightActiveLineGutter(),
-    history(),
-    indentOnInput(),
     syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
     languageExtension,
     EditorView.lineWrapping,
     EditorView.updateListener.of((update) => {
-      if (update.docChanged) {
+      if (!props.readOnly && update.docChanged) {
         emit('update:modelValue', update.state.doc.toString())
       }
     }),
-    keymap.of([
-      ...defaultKeymap,
-      ...historyKeymap,
-      {
-        key: 'Mod-s',
-        run: () => {
-          emit('save')
-          return true
-        },
-      },
-    ]),
   ]
+
+  if (props.readOnly) {
+    extensions.push(EditorState.readOnly.of(true), EditorView.editable.of(false))
+  }
+  else {
+    extensions.push(
+      highlightActiveLineGutter(),
+      history(),
+      indentOnInput(),
+      keymap.of([
+        ...defaultKeymap,
+        ...historyKeymap,
+        {
+          key: 'Mod-s',
+          run: () => {
+            emit('save')
+            return true
+          },
+        },
+      ]),
+    )
+  }
 
   if (isDark.value) {
     extensions.push(oneDark, customStyles)
@@ -190,6 +172,10 @@ onBeforeUnmount(() => {
 })
 
 watch(() => props.filePath, () => {
+  recreateEditor()
+})
+
+watch(() => props.readOnly, () => {
   recreateEditor()
 })
 

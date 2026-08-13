@@ -12,6 +12,7 @@ import ExplorerMarkdownViewer from '~/components/ExplorerMarkdownViewer.vue'
 import ExplorerSvgViewer from '~/components/ExplorerSvgViewer.vue'
 import ExplorerUnsupportedViewer from '~/components/ExplorerUnsupportedViewer.vue'
 import ExplorerVideoViewer from '~/components/ExplorerVideoViewer.vue'
+import ExplorerGitDiffViewer from '~/components/ExplorerGitDiffViewer.vue'
 
 const CodeEditor = defineAsyncComponent(() => import('~/components/CodeEditor.vue'))
 
@@ -98,6 +99,10 @@ defineExpose({
         :navigation-token="activeOpenFile.navigationToken"
         @update:model-value="emit('fileContentChange', { file: activeOpenFile, content: $event })"
         @save="emit('saveActiveFile')"
+      />
+      <ExplorerGitDiffViewer
+        v-else-if="activeOpenFile?.kind === 'git-diff'"
+        :document="activeOpenFile"
       />
       <ExplorerMarkdownViewer
         v-else-if="activeOpenFile?.kind === 'text' && activeOpenFile.previewKind === 'markdown'"

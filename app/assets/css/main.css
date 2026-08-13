@@ -45,6 +45,14 @@
   --bitveins-agent-idle: #9ca3af;
   --bitveins-sidebar-session-active: rgb(36 38 43 / 3.5%);
   --bitveins-sidebar-agent-active: rgb(36 38 43 / 7%);
+  --bitveins-git-0: #db2777;
+  --bitveins-git-1: #2563eb;
+  --bitveins-git-2: #16a34a;
+  --bitveins-git-3: #ca8a04;
+  --bitveins-git-4: #9333ea;
+  --bitveins-git-5: #0891b2;
+  --bitveins-git-6: #ea580c;
+  --bitveins-git-7: #64748b;
   --bitveins-terminal-bg: #fafafb;
   --bitveins-terminal-chrome: #f1f2f4;
 
@@ -90,6 +98,14 @@
   --bitveins-agent-idle: #71717a;
   --bitveins-sidebar-session-active: rgb(255 255 255 / 3%);
   --bitveins-sidebar-agent-active: rgb(255 255 255 / 6%);
+  --bitveins-git-0: #f472b6;
+  --bitveins-git-1: #60a5fa;
+  --bitveins-git-2: #4ade80;
+  --bitveins-git-3: #facc15;
+  --bitveins-git-4: #c084fc;
+  --bitveins-git-5: #22d3ee;
+  --bitveins-git-6: #fb923c;
+  --bitveins-git-7: #94a3b8;
   --bitveins-terminal-bg: #1c1f24;
   --bitveins-terminal-chrome: #181b20;
 
@@ -122,6 +138,11 @@ body,
 
 body {
   font-size: var(--bitveins-ui-font-size);
+}
+
+.bitveins-git-drawer {
+  width: var(--bitveins-git-drawer-width, 860px) !important;
+  max-width: calc(100vw - 8px) !important;
 }
 
 .bg-primary.text-inverted {

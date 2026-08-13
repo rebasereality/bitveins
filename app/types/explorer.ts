@@ -4,6 +4,7 @@ import type {
   SourcePreviewKind,
   VideoMediaType,
 } from '#shared/contracts/explorer'
+import type { GitFileChange } from '#shared/contracts/git'
 
 export interface ExplorerDocumentBase {
   path: string
@@ -46,9 +47,22 @@ export interface ExplorerBinaryDocument extends ExplorerDocumentBase {
   isDirty: false
 }
 
+export interface ExplorerGitDiffDocument extends ExplorerDocumentBase {
+  kind: 'git-diff'
+  commit: string
+  filePath: string
+  previousPath?: string
+  status: GitFileChange['status']
+  binary: boolean
+  before: string | null
+  after: string | null
+  isDirty: false
+}
+
 export type ExplorerDocument
   = | ExplorerBinaryDocument
     | ExplorerImageDocument
+    | ExplorerGitDiffDocument
     | ExplorerTextDocument
     | ExplorerVideoDocument
 
@@ -60,6 +74,10 @@ export interface ExplorerFileNode {
 
 export function isTextDocument(document: ExplorerDocument): document is ExplorerTextDocument {
   return document.kind === 'text'
+}
+
+export function isGitDiffDocument(document: ExplorerDocument | null): document is ExplorerGitDiffDocument {
+  return document?.kind === 'git-diff'
 }
 
 export function isPreviewableTextDocument(

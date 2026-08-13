@@ -38,6 +38,7 @@ const TerminalPane = defineAsyncComponent(() => import('~/components/TerminalPan
 
 const props = defineProps<{
   active: boolean
+  visible: boolean
   activeSession: string | null
   activeWindow: TmuxWindow | null
   inputMode: InputMode
@@ -303,6 +304,7 @@ watch(focusedPaneId, (paneId) => {
       <TerminalPane
         :ref="value => setPaneRef(pane.id, value)"
         :active="active"
+        :visible="visible"
         :application="pane.application"
         :focused="focusedPaneId === pane.id"
         :input-mode="inputMode"

@@ -7,6 +7,7 @@ import TerminalView from '~/components/TerminalView.vue'
 
 defineProps<{
   active: boolean
+  visible: boolean
   activeSession: string | null
   activeWindow: TmuxWindow | null
   activeWindowValue?: string
@@ -34,6 +35,7 @@ const emit = defineEmits<{
   forgetAllPathLinkRoots: []
   forgetPathLinkRoot: []
   openExplorer: []
+  openGitGraph: []
   toggleNotificationMute: []
   ready: []
   selectTmuxWindow: [value: string]
@@ -93,6 +95,7 @@ defineExpose({
       @forget-all-path-link-roots="emit('forgetAllPathLinkRoots')"
       @forget-path-link-root="emit('forgetPathLinkRoot')"
       @open-explorer="emit('openExplorer')"
+      @open-git-graph="emit('openGitGraph')"
       @toggle-notification-mute="emit('toggleNotificationMute')"
       @select-tmux-window="emit('selectTmuxWindow', $event)"
       @start-tmux-window-rename="emit('startTmuxWindowRename', $event)"
@@ -102,6 +105,7 @@ defineExpose({
     <TerminalView
       ref="terminal"
       :active="active"
+      :visible="visible"
       :active-session="activeSession"
       :active-window="activeWindow"
       :input-mode="inputMode"

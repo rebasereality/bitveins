@@ -95,6 +95,33 @@ describe('useExplorerDocuments', () => {
     expect(fetchStub).toHaveBeenCalledTimes(2)
   })
 
+  it('opens a Git diff as a read-only Explorer tab and reuses it', () => {
+    const explorer = useExplorerDocuments(ref('demo'))
+    const diff = {
+      commit: 'a'.repeat(40),
+      path: 'app/example.ts',
+      status: 'modified' as const,
+      binary: false,
+      before: 'before\n',
+      after: 'after\n',
+    }
+
+    explorer.openGitDiff(diff)
+    explorer.openGitDiff(diff)
+
+    expect(explorer.openFiles.value).toEqual([
+      expect.objectContaining({
+        kind: 'git-diff',
+        name: 'example.ts · aaaaaaaa',
+        filePath: 'app/example.ts',
+        before: 'before\n',
+        after: 'after\n',
+        isDirty: false,
+      }),
+    ])
+    expect(explorer.activeOpenFile.value?.kind).toBe('git-diff')
+  })
+
   it('saves only dirty text documents and honors close confirmation', async () => {
     fetchStub
       .mockResolvedValueOnce({ kind: 'text', path: 'file.ts', name: 'file.ts', size: 1 })
