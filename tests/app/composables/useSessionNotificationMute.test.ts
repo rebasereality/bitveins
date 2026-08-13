@@ -119,6 +119,28 @@ describe('useSessionNotificationMute', () => {
     wrapper.unmount()
   })
 
+  it('toggles any sidebar session without changing the active session', async () => {
+    const wrapper = mount(Harness, { props: { sessionId: 'abcdefghijklmnop' } })
+    await flushPromises()
+
+    await wrapper.vm.toggleSession('qrstuvwxyzabcdef')
+    await flushPromises()
+
+    expect(wrapper.vm.muted).toBe(false)
+    expect(wrapper.vm.isMuted('qrstuvwxyzabcdef')).toBe(true)
+    expect(wrapper.vm.isBusy('qrstuvwxyzabcdef')).toBe(false)
+    expect(wrapper.vm.hasError('qrstuvwxyzabcdef')).toBe(false)
+    expect(fetchMock).toHaveBeenLastCalledWith('/api/attention/push/session-mutes', {
+      body: {
+        endpoint,
+        muted: true,
+        sessionId: 'qrstuvwxyzabcdef',
+      },
+      method: 'PUT',
+    })
+    wrapper.unmount()
+  })
+
   it('hides the control as soon as device notifications are disabled', async () => {
     const wrapper = mount(Harness, { props: { sessionId: 'abcdefghijklmnop' } })
     await flushPromises()

@@ -9,6 +9,10 @@ const props = defineProps<{
   activeAgentPaneId?: string | null
   activeWindowId?: string | null
   agents?: TmuxAgent[]
+  hasNotificationMuteError?: (sessionId: string) => boolean
+  isNotificationMuteBusy?: (sessionId: string) => boolean
+  isNotificationMuted?: (sessionId: string) => boolean
+  notificationMuteAvailable?: boolean
   sessions: TmuxSession[]
   isMobile?: boolean
 }>()
@@ -20,11 +24,16 @@ const emit = defineEmits<{
   rename: [session: TmuxSession]
   openAgent: [agent: TmuxAgent]
   renameAgent: [payload: { label: string | null, paneId: string }]
+  toggleNotificationMute: [sessionId: string]
 }>()
 
 const editingPaneId = ref<string | null>(null)
 const editingLabel = ref('')
 const listRoot = ref<HTMLElement | null>(null)
+
+const notificationMuteBusy = (sessionId: string): boolean => props.isNotificationMuteBusy?.(sessionId) ?? false
+const notificationMuteError = (sessionId: string): boolean => props.hasNotificationMuteError?.(sessionId) ?? false
+const notificationMuted = (sessionId: string): boolean => props.isNotificationMuted?.(sessionId) ?? false
 
 const agentsBySession = computed(() => {
   const grouped = new Map<string, TmuxAgent[]>()
@@ -176,6 +185,33 @@ function actionItems(session: TmuxSession): DropdownMenuItem[][] {
         >
           {{ session.name }}
         </button>
+
+        <UButton
+          v-if="notificationMuteAvailable"
+          :aria-label="notificationMuted(session.id)
+            ? `Unmute notifications for ${session.name}`
+            : `Mute notifications for ${session.name}`"
+          :aria-pressed="notificationMuted(session.id)"
+          :class="[
+            'size-5 shrink-0 justify-center p-0 max-lg:size-7',
+            notificationMuteError(session.id)
+              ? ''
+              : 'text-[var(--bitveins-shell-text-subtle)] opacity-60 hover:opacity-100 focus-visible:opacity-100',
+          ]"
+          :color="notificationMuteError(session.id) ? 'error' : 'neutral'"
+          :data-session-notification-mute="session.id"
+          :disabled="notificationMuteBusy(session.id)"
+          :icon="notificationMuted(session.id) ? 'i-lucide-bell-off' : 'i-lucide-bell'"
+          size="xs"
+          square
+          :title="notificationMuteError(session.id)
+            ? `Unable to update notification mute for ${session.name}`
+            : notificationMuted(session.id)
+              ? `Notifications are muted for ${session.name} on this device`
+              : `Mute notifications for ${session.name} on this device`"
+          variant="ghost"
+          @click="emit('toggleNotificationMute', session.id)"
+        />
 
         <UDropdownMenu
           :items="actionItems(session)"

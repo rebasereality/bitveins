@@ -177,7 +177,10 @@ function onLiveModifierKeydown(event: KeyboardEvent): void {
   if (inputMode.value !== 'live' || liveDisabled.value) return
 
   const target = event.target as HTMLElement | null
-  if (target && (target.classList.contains('xterm-helper-textarea') || target.closest('[data-terminal-host]'))) {
+  if (target && target.closest('input, textarea, select, button, [role="dialog"], [contenteditable]')) {
+    return
+  }
+  if (target?.closest('[data-terminal-host]')) {
     return
   }
 

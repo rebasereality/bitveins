@@ -1,10 +1,11 @@
 import MarkdownIt from 'markdown-it'
+import type { Env } from 'markdown-it'
 import {
   explorerImageUrl,
   resolveExplorerReference,
 } from './explorer-reference'
 
-interface MarkdownRenderEnvironment {
+interface MarkdownRenderEnvironment extends Env {
   documentPath: string
   sessionName: string
 }
@@ -19,8 +20,8 @@ const markdown = new MarkdownIt({
 const defaultImageRule = markdown.renderer.rules.image
 markdown.renderer.rules.image = (tokens, index, options, environment, renderer) => {
   const token = tokens[index]!
-  const source = token.attrGet('src')
-  const env = environment as MarkdownRenderEnvironment
+  const source = token.attrGet('src') as string | null
+  const env = environment as unknown as MarkdownRenderEnvironment
   const reference = source && resolveExplorerReference(env.documentPath, source)
   if (reference) {
     token.attrSet('src', explorerImageUrl(env.sessionName, reference.path))
@@ -35,8 +36,8 @@ markdown.renderer.rules.image = (tokens, index, options, environment, renderer) 
 const defaultLinkOpenRule = markdown.renderer.rules.link_open
 markdown.renderer.rules.link_open = (tokens, index, options, environment, renderer) => {
   const token = tokens[index]!
-  const href = token.attrGet('href')
-  const env = environment as MarkdownRenderEnvironment
+  const href = token.attrGet('href') as string | null
+  const env = environment as unknown as MarkdownRenderEnvironment
   const reference = href && resolveExplorerReference(env.documentPath, href)
 
   if (reference) {

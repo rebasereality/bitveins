@@ -23,6 +23,9 @@ until a release is tagged.
   preview shown by Codex `/resume`, with tmux titles retained as a fallback;
 - repository and branch context grouped beneath each agent name, including
   linked-worktree and detached-HEAD detection;
+- per-session notification controls directly in the desktop sidebar and mobile
+  session drawer, sharing the same device-specific mute state as the terminal
+  navbar;
 - a documented long-term path toward lifecycle-backed agent state and an
   optional provider-neutral Herdr integration.
 
@@ -32,13 +35,21 @@ until a release is tagged.
   viewer works inside a repository even when the session started elsewhere and
   no agent is running;
 - commit lanes are rendered as one continuous SVG graph with smooth, rounded
-  branch transitions that remain connected when commit details expand.
+  branch transitions that remain connected when commit details expand;
+- the desktop session sidebar is wider, while its mobile drawer now fills the
+  viewport, removes the drag handle and exposes an explicit close action;
+- Nuxt, Nuxt UI, CodeMirror and the supporting runtime, build and test
+  dependencies have been refreshed to their current compatible versions.
 
 ### Fixed
 
 - opening the Git drawer keeps the terminal visible beneath its overlay while
   terminal input remains safely suspended;
-- synchronized side-by-side diffs now expose a visible, theme-aware scrollbar.
+- synchronized side-by-side diffs now expose a visible, theme-aware scrollbar;
+- opening the new-session dialog from Live mode focuses its name field without
+  leaking typed characters or modifier shortcuts into the terminal;
+- release smoke checks accept the Service Worker event-listener syntax emitted
+  by updated build dependencies while continuing to require Web Push handlers.
 
 ## 1.4.0 - 2026-08-11
 

@@ -29,16 +29,28 @@ export function parseMutedNotificationSessionIds(value: string | null): Set<stri
 }
 
 export function useSessionNotificationMute(options: SessionNotificationMuteOptions) {
-  const busy = ref(false)
-  const error = ref(false)
+  const busySessionIds = ref<Set<string>>(new Set())
+  const errorSessionIds = ref<Set<string>>(new Set())
+  const loadError = ref(false)
   const mutedSessionIds = ref<Set<string>>(readStoredMutes())
   const subscriptionAvailable = ref(false)
   let endpoint: string | null = null
 
   const available = computed(() => subscriptionAvailable.value && Boolean(options.sessionId.value))
+  const busy = computed(() => Boolean(
+    options.sessionId.value && busySessionIds.value.has(options.sessionId.value),
+  ))
+  const error = computed(() => Boolean(
+    loadError.value
+    || (options.sessionId.value && errorSessionIds.value.has(options.sessionId.value)),
+  ))
   const muted = computed(() => Boolean(
     options.sessionId.value && mutedSessionIds.value.has(options.sessionId.value),
   ))
+
+  const isBusy = (sessionId: string): boolean => busySessionIds.value.has(sessionId)
+  const hasError = (sessionId: string): boolean => loadError.value || errorSessionIds.value.has(sessionId)
+  const isMuted = (sessionId: string): boolean => mutedSessionIds.value.has(sessionId)
 
   function readStoredMutes(): Set<string> {
     if (typeof window === 'undefined') return new Set()
@@ -63,6 +75,7 @@ export function useSessionNotificationMute(options: SessionNotificationMuteOptio
       endpoint = null
       subscriptionAvailable.value = false
       replaceMutes([])
+      loadError.value = false
       return
     }
     const registration = await navigator.serviceWorker.ready
@@ -70,7 +83,7 @@ export function useSessionNotificationMute(options: SessionNotificationMuteOptio
     subscriptionAvailable.value = Boolean(endpoint)
     if (!endpoint) {
       replaceMutes([])
-      error.value = false
+      loadError.value = false
       return
     }
     const response = notificationSessionMuteListSchema.parse(await $fetch(
@@ -79,35 +92,46 @@ export function useSessionNotificationMute(options: SessionNotificationMuteOptio
     ))
     subscriptionAvailable.value = response.subscribed
     replaceMutes(response.sessionIds)
-    error.value = false
+    loadError.value = false
   }
 
-  async function toggle(): Promise<void> {
-    const sessionId = options.sessionId.value
-    if (!available.value || busy.value || !endpoint || !sessionId) return
-    busy.value = true
+  function replaceSessionSet(target: Ref<Set<string>>, sessionId: string, included: boolean): void {
+    const next = new Set(target.value)
+    if (included) next.add(sessionId)
+    else next.delete(sessionId)
+    target.value = next
+  }
+
+  async function toggleSession(sessionId: string): Promise<void> {
+    if (!subscriptionAvailable.value || isBusy(sessionId) || !endpoint || !isSessionId(sessionId)) return
+    replaceSessionSet(busySessionIds, sessionId, true)
     try {
       const response = await $fetch<{ muted: boolean }>('/api/attention/push/session-mutes', {
-        body: { endpoint, muted: !muted.value, sessionId },
+        body: { endpoint, muted: !isMuted(sessionId), sessionId },
         method: 'PUT',
       })
       const nextMutes = new Set(mutedSessionIds.value)
       if (response.muted) nextMutes.add(sessionId)
       else nextMutes.delete(sessionId)
       replaceMutes(nextMutes)
-      error.value = false
+      replaceSessionSet(errorSessionIds, sessionId, false)
     }
     catch {
-      error.value = true
+      replaceSessionSet(errorSessionIds, sessionId, true)
     }
     finally {
-      busy.value = false
+      replaceSessionSet(busySessionIds, sessionId, false)
     }
+  }
+
+  async function toggle(): Promise<void> {
+    const sessionId = options.sessionId.value
+    if (sessionId) await toggleSession(sessionId)
   }
 
   function handleSubscriptionChange(): void {
     void load().catch(() => {
-      error.value = true
+      loadError.value = true
     })
   }
 
@@ -125,7 +149,7 @@ export function useSessionNotificationMute(options: SessionNotificationMuteOptio
     window.addEventListener(PUSH_SUBSCRIPTION_CHANGED_EVENT, handleSubscriptionChange)
     window.addEventListener('storage', handleStorage)
     void load().catch(() => {
-      error.value = true
+      loadError.value = true
     })
   })
 
@@ -134,5 +158,17 @@ export function useSessionNotificationMute(options: SessionNotificationMuteOptio
     window.removeEventListener('storage', handleStorage)
   })
 
-  return { available, busy, error, muted, suppresses, toggle }
+  return {
+    available,
+    busy,
+    error,
+    hasError,
+    isBusy,
+    isMuted,
+    muted,
+    sessionAvailable: subscriptionAvailable,
+    suppresses,
+    toggle,
+    toggleSession,
+  }
 }
