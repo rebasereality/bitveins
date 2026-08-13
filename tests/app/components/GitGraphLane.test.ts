@@ -31,7 +31,12 @@ describe('GitGraphLane', () => {
       },
     })
 
-    expect(wrapper.findAll('path')).toHaveLength(3)
+    const paths = wrapper.findAll('path')
+    expect(paths).toHaveLength(3)
+    expect(paths[0]?.attributes('d')).toBe('M 10 0 V 34')
+    expect(paths[1]?.attributes('d')).toBe('M 30 17 V 34')
+    expect(paths[2]?.attributes('d')).toBe('M 30 17 L 50 34')
+    expect(paths.every(path => !path.attributes('d')?.includes('C'))).toBe(true)
     expect(wrapper.find('circle').attributes('stroke')).toBe('var(--bitveins-git-0)')
     expect(wrapper.attributes('aria-label')).toBe('Commit graph lane 2')
   })

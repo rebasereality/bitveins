@@ -32,6 +32,13 @@ test('opens a resizable Git graph and sends a selected file diff to Explorer', a
   await commit('Add example')
   await writeFile(join(workspace, 'example.ts'), 'export const value = 2\nexport const ready = true\n')
   const selectedHash = await commit('Expand example')
+  await git('checkout', '-b', 'feature/graph-e2e')
+  await writeFile(join(workspace, 'feature.ts'), 'export const graph = true\n')
+  await commit('Add graph branch')
+  await git('checkout', 'main')
+  await writeFile(join(workspace, 'main.ts'), 'export const main = true\n')
+  await commit('Update main branch')
+  await git('merge', '--no-ff', 'feature/graph-e2e', '-m', 'Merge graph branch')
   await authenticate(page)
 
   try {
@@ -47,7 +54,11 @@ test('opens a resizable Git graph and sends a selected file diff to Explorer', a
     const drawer = page.locator('.bitveins-git-drawer')
     await expect(drawer).toBeVisible()
     await expect(drawer.getByText('main', { exact: false }).first()).toBeVisible()
-    await expect(drawer.locator('[data-git-commit]')).toHaveCount(2)
+    await expect(drawer.locator('[data-git-commit]')).toHaveCount(5)
+    const graphPaths = drawer.locator('svg[aria-label^="Commit graph lane"] path')
+    const pathData = await graphPaths.evaluateAll(paths => paths.map(path => path.getAttribute('d') || ''))
+    expect(pathData.some(path => path.includes(' L '))).toBe(true)
+    expect(pathData.every(path => !path.includes(' C '))).toBe(true)
 
     const initialWidth = await drawer.evaluate(element => Math.round(element.getBoundingClientRect().width))
     await drawer.getByRole('separator', { name: 'Resize Git graph' }).press('ArrowRight')

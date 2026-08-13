@@ -6,6 +6,7 @@ import type {
   GitGraphResponse,
 } from '#shared/contracts/git'
 import { layoutGitGraph } from '~/git/git-graph-layout'
+import { GIT_GRAPH_LANE_GAP } from '~/git/git-graph-metrics'
 import { apiErrorMessage } from '~/utils/api-error'
 
 const props = defineProps<{ activeSession: string | null }>()
@@ -307,7 +308,7 @@ onMounted(() => {
             <GitCommitDetailsPanel
               v-else-if="details.get(row.commit.hash)"
               :details="details.get(row.commit.hash)!"
-              :graph-gutter="24 + row.laneCount * 16"
+              :graph-gutter="28 + row.laneCount * GIT_GRAPH_LANE_GAP"
               :opening-path="openingPath"
               @open-diff="openFileDiff(row.commit.hash, $event)"
             />
