@@ -21,9 +21,14 @@ function path(from: number, to: number, outgoing: boolean): string {
   const startY = outgoing ? centerY : rowTop
   const startX = x(from)
   const endX = x(to)
-  return startX === endX
-    ? `M ${startX} ${startY} V ${rowBottom}`
-    : `M ${startX} ${startY} C ${startX} ${startY + 4}, ${endX} ${rowBottom - 4}, ${endX} ${rowBottom}`
+  if (startX === endX) return `M ${startX} ${startY} V ${rowBottom}`
+
+  if (outgoing) {
+    const departureX = startX + (endX - startX) / 2
+    return `M ${startX} ${startY} C ${departureX} ${startY}, ${endX} ${startY}, ${endX} ${rowBottom}`
+  }
+
+  return `M ${startX} ${startY} C ${startX} ${centerY}, ${endX} ${centerY}, ${endX} ${rowBottom}`
 }
 </script>
 
@@ -51,6 +56,7 @@ function path(from: number, to: number, outgoing: boolean): string {
       :y1="rowTop"
       :y2="centerY"
       :stroke="color(row.color)"
+      stroke-linecap="round"
       stroke-width="2"
       vector-effect="non-scaling-stroke"
     />

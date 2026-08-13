@@ -30,6 +30,7 @@ const width = computed(() => gitGraphWidth(props.row.laneCount))
       y1="0"
       y2="100%"
       :stroke="`var(--bitveins-git-${connection.color % 8})`"
+      stroke-linecap="round"
       stroke-width="2"
       vector-effect="non-scaling-stroke"
     />

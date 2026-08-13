@@ -26,16 +26,18 @@ describe('GitGraphLane', () => {
             { color: 1, from: 0, kind: 'through', to: 0 },
             { color: 0, from: 1, kind: 'outgoing', to: 1 },
             { color: 2, from: 1, kind: 'outgoing', to: 2 },
+            { color: 3, from: 2, kind: 'through', to: 0 },
           ],
         },
       },
     })
 
     const paths = wrapper.findAll('path')
-    expect(paths).toHaveLength(3)
+    expect(paths).toHaveLength(4)
     expect(paths[0]?.attributes('d')).toBe('M 10 -1 V 35')
     expect(paths[1]?.attributes('d')).toBe('M 30 17 V 35')
-    expect(paths[2]?.attributes('d')).toBe('M 30 17 C 30 21, 50 31, 50 35')
+    expect(paths[2]?.attributes('d')).toBe('M 30 17 C 40 17, 50 17, 50 35')
+    expect(paths[3]?.attributes('d')).toBe('M 50 -1 C 50 17, 10 17, 10 35')
     expect(paths.every(path => path.attributes('d')?.endsWith('35'))).toBe(true)
     expect(wrapper.find('line').attributes('y1')).toBe('-1')
     expect(wrapper.find('circle').attributes('stroke')).toBe('var(--bitveins-git-0)')
