@@ -94,7 +94,7 @@ const previewableFile = computed(() => (
     />
 
     <UButton
-      v-if="activeOpenFile"
+      v-if="activeOpenFile && activeOpenFile.kind !== 'git-diff'"
       aria-label="Download active file"
       class="mb-1 size-6 shrink-0"
       color="neutral"

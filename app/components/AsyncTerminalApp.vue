@@ -5,6 +5,7 @@ import type {
   TerminalFileResolution,
 } from '#shared/contracts/explorer'
 import type { AttentionEvent } from '#shared/contracts/attention'
+import type { GitFileDiff } from '#shared/contracts/git'
 import { createAttentionDeepLink } from '#shared/contracts/attention'
 import { saveSubmittedAsyncPrompt } from '~/utils/async-prompt-recovery'
 import { asyncTerminalSubmissionChunks } from '~/utils/async-terminal-submission'
@@ -20,6 +21,7 @@ import AsyncTerminalExplorer from '~/components/AsyncTerminalExplorer.vue'
 import AsyncTerminalWorkspace from '~/components/AsyncTerminalWorkspace.vue'
 import CommandInput from '~/components/CommandInput.vue'
 import SessionWelcome from '~/components/SessionWelcome.vue'
+import GitGraphDrawer from '~/components/GitGraphDrawer.vue'
 
 import { useBitveinsAppSessions } from '~/composables/useBitveinsAppSessions'
 
@@ -45,6 +47,7 @@ const pendingFileResolution = ref<AmbiguousResolution | null>(null)
 const settingsOpen = ref(false)
 const inboxOpen = ref(false)
 const attentionNavigationError = ref<string | null>(null)
+const gitGraphOpen = ref(false)
 let shouldSuppressAttentionEvent = (_event: AttentionEvent): boolean => false
 
 const {
@@ -117,6 +120,7 @@ const {
   isMobileTreeOpen,
   openPath,
   openFile,
+  openGitDiff,
   closeFile,
   closeOtherFiles,
   closeAllFiles,
@@ -140,6 +144,7 @@ const {
 const terminalInteractionEnabled = computed(() => (
   viewMode.value === 'terminal'
   && !settingsOpen.value
+  && !gitGraphOpen.value
   && !pendingFileResolution.value
   && !rootChoices.value
 ))
@@ -372,6 +377,13 @@ function openPathFromUi(path: string): void {
 
 function openExplorerFromUi(): void {
   permalinks.clearEventMetadata()
+  viewMode.value = 'explorer'
+}
+
+function openGitDiffFromUi(diff: GitFileDiff): void {
+  permalinks.clearEventMetadata()
+  openGitDiff(diff)
+  gitGraphOpen.value = false
   viewMode.value = 'explorer'
 }
 
@@ -666,6 +678,7 @@ watch(activeSession, () => {
             @forget-all-path-link-roots="forgetAllPathLinkRoots"
             @forget-path-link-root="forgetPathLinkRoot"
             @open-explorer="openExplorerFromUi"
+            @open-git-graph="gitGraphOpen = true"
             @panes-change="void fetchWindows()"
             @ready="onTerminalReady"
             @select-tmux-window="selectTmuxWindowFromUi"
@@ -717,7 +730,7 @@ watch(activeSession, () => {
       <CommandInput
         v-show="viewMode === 'terminal' && !settingsOpen && Boolean(activeSession)"
         ref="input"
-        :disabled="!activeSession || settingsOpen || viewMode !== 'terminal'"
+        :disabled="!activeSession || settingsOpen || gitGraphOpen || viewMode !== 'terminal'"
         :history-messages="historyMessageTexts"
         :input-mode="inputMode"
         :live-available="terminalConnected"
@@ -741,6 +754,12 @@ watch(activeSession, () => {
     />
 
     <FileUploadOverlay />
+
+    <GitGraphDrawer
+      v-model:open="gitGraphOpen"
+      :active-session="activeSession"
+      @open-diff="openGitDiffFromUi"
+    />
 
     <GlobalTransferDropOverlay
       :current-prompt-available="!settingsOpen && currentPromptDropAvailable"

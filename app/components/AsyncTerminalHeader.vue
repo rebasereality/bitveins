@@ -24,6 +24,7 @@ const emit = defineEmits<{
   forgetAllPathLinkRoots: []
   forgetPathLinkRoot: []
   openExplorer: []
+  openGitGraph: []
   toggleNotificationMute: []
   selectTmuxWindow: [value: string]
   startTmuxWindowRename: [index: number]
@@ -97,6 +98,18 @@ const editingWindowName = defineModel<string>('editingWindowName', { default: ''
       title="Split Pane Vertically (Top / Bottom)"
       variant="ghost"
       @click="emit('splitTmuxWindow', 'vertical')"
+    />
+
+    <UButton
+      aria-label="Git Graph"
+      class="mb-1 h-6 shrink-0 px-1.5 text-[length:var(--bitveins-ui-caption-size)]"
+      color="neutral"
+      icon="i-lucide-git-graph"
+      label="Git"
+      size="xs"
+      title="Open Git Graph"
+      variant="ghost"
+      @click="emit('openGitGraph')"
     />
 
     <UButton

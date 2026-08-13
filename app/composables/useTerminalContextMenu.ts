@@ -1,6 +1,6 @@
 import { reactive, type Ref } from 'vue'
 import type { ExplorerDocument, ExplorerFileNode } from '~/types/explorer'
-import { isTextDocument } from '~/types/explorer'
+import { isGitDiffDocument, isTextDocument } from '~/types/explorer'
 
 export function useTerminalContextMenu(
   sessions: Ref<Array<{ name: string, path: string }>>,
@@ -59,6 +59,16 @@ export function useTerminalContextMenu(
 
   function handleTabContextMenu(payload: { event: MouseEvent, file: ExplorerDocument }): void {
     const { event, file } = payload
+    if (isGitDiffDocument(file)) {
+      triggerContextMenu(event, [
+        { label: 'Copy file path', icon: 'i-lucide-copy', click: () => copyToClipboard(file.filePath) },
+        { label: 'Copy commit hash', icon: 'i-lucide-git-commit-horizontal', click: () => copyToClipboard(file.commit) },
+        { label: 'Close diff', icon: 'i-lucide-x', click: () => closeFileFn(file.path) },
+        { label: 'Close others', icon: 'i-lucide-copy-minus', click: () => closeOtherFilesFn(file.path) },
+        { label: 'Close all', icon: 'i-lucide-minus-circle', click: () => closeAllFilesFn() },
+      ])
+      return
+    }
     const session = sessions.value.find(s => s.name === activeSession.value)
     const sessionPath = session?.path || ''
     const relativePath = file.path

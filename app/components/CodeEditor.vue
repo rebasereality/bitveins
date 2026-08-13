@@ -2,7 +2,7 @@
 import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue'
 import { EditorState } from '@codemirror/state'
 import type { Extension } from '@codemirror/state'
-import { EditorView, keymap, lineNumbers, highlightActiveLineGutter } from '@codemirror/view'
+import { Decoration, EditorView, keymap, lineNumbers, highlightActiveLineGutter } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { syntaxHighlighting, defaultHighlightStyle, indentOnInput } from '@codemirror/language'
 import { oneDark } from '@codemirror/theme-one-dark'
@@ -13,6 +13,9 @@ const props = defineProps<{
   line?: number
   column?: number
   navigationToken?: number
+  readOnly?: boolean
+  highlightedLines?: number[]
+  highlightTone?: 'added' | 'deleted'
 }>()
 
 const emit = defineEmits<{
@@ -107,6 +110,16 @@ const lightStyles = EditorView.theme({
   },
 })
 
+function stateLineStart(value: string, lineNumber: number): number {
+  let offset = 0
+  for (let line = 1; line < lineNumber; line += 1) {
+    const next = value.indexOf('\n', offset)
+    if (next === -1) return value.length
+    offset = next + 1
+  }
+  return offset
+}
+
 async function initEditor(): Promise<void> {
   const container = editorContainer.value
   if (!container) return
@@ -115,31 +128,45 @@ async function initEditor(): Promise<void> {
   const languageExtension = await loadLanguageExtension(props.filePath)
   if (generation !== initGeneration || !editorContainer.value) return
 
-  const extensions = [
+  const extensions: Extension[] = [
     lineNumbers(),
-    highlightActiveLineGutter(),
-    history(),
-    indentOnInput(),
     syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
     languageExtension,
     EditorView.lineWrapping,
     EditorView.updateListener.of((update) => {
-      if (update.docChanged) {
+      if (!props.readOnly && update.docChanged) {
         emit('update:modelValue', update.state.doc.toString())
       }
     }),
-    keymap.of([
-      ...defaultKeymap,
-      ...historyKeymap,
-      {
-        key: 'Mod-s',
-        run: () => {
-          emit('save')
-          return true
-        },
-      },
-    ]),
   ]
+
+  if (props.readOnly) {
+    extensions.push(EditorState.readOnly.of(true), EditorView.editable.of(false))
+    const className = props.highlightTone === 'deleted' ? 'cm-diff-line-deleted' : 'cm-diff-line-added'
+    const ranges = (props.highlightedLines || []).flatMap((number) => {
+      if (number < 1 || number > props.modelValue.split('\n').length) return []
+      return [Decoration.line({ attributes: { class: className } }).range(stateLineStart(props.modelValue, number))]
+    })
+    extensions.push(EditorView.decorations.of(Decoration.set(ranges, true)))
+  }
+  else {
+    extensions.push(
+      highlightActiveLineGutter(),
+      history(),
+      indentOnInput(),
+      keymap.of([
+        ...defaultKeymap,
+        ...historyKeymap,
+        {
+          key: 'Mod-s',
+          run: () => {
+            emit('save')
+            return true
+          },
+        },
+      ]),
+    )
+  }
 
   if (isDark.value) {
     extensions.push(oneDark, customStyles)
@@ -193,6 +220,10 @@ watch(() => props.filePath, () => {
   recreateEditor()
 })
 
+watch(() => [props.readOnly, props.highlightTone, props.highlightedLines?.join(',')], () => {
+  recreateEditor()
+})
+
 watch(() => props.modelValue, (newVal) => {
   if (editorView && newVal !== editorView.state.doc.toString()) {
     editorView.dispatch({
@@ -221,5 +252,13 @@ watch(() => colorMode.value, () => {
 /* Override default codemirror heights to expand */
 .cm-editor {
   height: 100% !important;
+}
+
+.cm-diff-line-added {
+  background: color-mix(in srgb, var(--bitveins-agent-working) 15%, transparent);
+}
+
+.cm-diff-line-deleted {
+  background: color-mix(in srgb, var(--bitveins-agent-failed) 15%, transparent);
 }
 </style>

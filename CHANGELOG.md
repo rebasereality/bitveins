@@ -8,6 +8,9 @@ until a release is tagged.
 
 ### Added
 
+- a read-only Git Graph drawer with a resizable, theme-aware commit graph,
+  expandable commit metadata and changed-file lists, plus side-by-side diffs
+  opened directly in Explorer tabs;
 - automatic discovery of Codex, Hermes, Claude, OpenCode, Gemini, Cursor,
   Copilot, Aider and Pi agents across every tmux session, window and pane;
 - agent rows nested below their owning session, with theme-aware working,

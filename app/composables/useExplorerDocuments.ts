@@ -6,6 +6,7 @@ import type {
 } from '~/types/explorer'
 import { isTextDocument } from '~/types/explorer'
 import type { ExplorerDocumentMetadata } from '#shared/contracts/explorer'
+import type { GitFileDiff } from '#shared/contracts/git'
 import { apiErrorMessage } from '~/utils/api-error'
 
 export function useExplorerDocuments(activeSession: Ref<string | null>) {
@@ -123,6 +124,30 @@ export function useExplorerDocuments(activeSession: Ref<string | null>) {
     await openPath(fileNode.path, fileNode.name)
   }
 
+  function openGitDiff(diff: GitFileDiff): void {
+    const documentPath = `git-diff://${diff.commit}/${encodeURIComponent(diff.path)}`
+    const existing = openFiles.value.find(file => file.path === documentPath)
+    if (existing) {
+      activeFilePath.value = existing.path
+      return
+    }
+    openFiles.value.push({
+      kind: 'git-diff',
+      path: documentPath,
+      name: `${diff.path.split('/').at(-1) || diff.path} · ${diff.commit.slice(0, 8)}`,
+      commit: diff.commit,
+      filePath: diff.path,
+      previousPath: diff.previousPath,
+      status: diff.status,
+      binary: diff.binary,
+      before: diff.before,
+      after: diff.after,
+      isDirty: false,
+    })
+    activeFilePath.value = documentPath
+    isMobileTreeOpen.value = false
+  }
+
   function closeFile(filePath: string): void {
     const idx = openFiles.value.findIndex(f => f.path === filePath)
     if (idx === -1) return
@@ -200,6 +225,7 @@ export function useExplorerDocuments(activeSession: Ref<string | null>) {
     isMobileTreeOpen,
     openPath,
     openFile,
+    openGitDiff,
     closeFile,
     closeOtherFiles,
     closeAllFiles,
