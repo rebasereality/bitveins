@@ -2,10 +2,11 @@
 import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue'
 import { EditorState } from '@codemirror/state'
 import type { Extension } from '@codemirror/state'
-import { Decoration, EditorView, keymap, lineNumbers, highlightActiveLineGutter } from '@codemirror/view'
+import { EditorView, keymap, lineNumbers, highlightActiveLineGutter } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { syntaxHighlighting, defaultHighlightStyle, indentOnInput } from '@codemirror/language'
 import { oneDark } from '@codemirror/theme-one-dark'
+import { loadCodeLanguageExtension } from '~/editor/code-language'
 
 const props = defineProps<{
   modelValue: string
@@ -14,8 +15,6 @@ const props = defineProps<{
   column?: number
   navigationToken?: number
   readOnly?: boolean
-  highlightedLines?: number[]
-  highlightTone?: 'added' | 'deleted'
 }>()
 
 const emit = defineEmits<{
@@ -29,34 +28,6 @@ let initGeneration = 0
 
 const colorMode = useColorMode()
 const isDark = computed(() => colorMode.value === 'dark')
-
-async function loadLanguageExtension(filename: string): Promise<Extension> {
-  const ext = filename.split('.').pop()?.toLowerCase()
-  switch (ext) {
-    case 'vue':
-      return (await import('@codemirror/lang-vue')).vue()
-    case 'js':
-    case 'jsx':
-    case 'ts':
-    case 'tsx':
-      return (await import('@codemirror/lang-javascript')).javascript({
-        jsx: true,
-        typescript: true,
-      })
-    case 'html':
-      return (await import('@codemirror/lang-html')).html()
-    case 'css':
-    case 'scss':
-      return (await import('@codemirror/lang-css')).css()
-    case 'json':
-      return (await import('@codemirror/lang-json')).json()
-    case 'md':
-    case 'markdown':
-      return (await import('@codemirror/lang-markdown')).markdown()
-    default:
-      return []
-  }
-}
 
 const customStyles = EditorView.theme({
   '&': {
@@ -110,22 +81,12 @@ const lightStyles = EditorView.theme({
   },
 })
 
-function stateLineStart(value: string, lineNumber: number): number {
-  let offset = 0
-  for (let line = 1; line < lineNumber; line += 1) {
-    const next = value.indexOf('\n', offset)
-    if (next === -1) return value.length
-    offset = next + 1
-  }
-  return offset
-}
-
 async function initEditor(): Promise<void> {
   const container = editorContainer.value
   if (!container) return
 
   const generation = ++initGeneration
-  const languageExtension = await loadLanguageExtension(props.filePath)
+  const languageExtension = await loadCodeLanguageExtension(props.filePath)
   if (generation !== initGeneration || !editorContainer.value) return
 
   const extensions: Extension[] = [
@@ -142,12 +103,6 @@ async function initEditor(): Promise<void> {
 
   if (props.readOnly) {
     extensions.push(EditorState.readOnly.of(true), EditorView.editable.of(false))
-    const className = props.highlightTone === 'deleted' ? 'cm-diff-line-deleted' : 'cm-diff-line-added'
-    const ranges = (props.highlightedLines || []).flatMap((number) => {
-      if (number < 1 || number > props.modelValue.split('\n').length) return []
-      return [Decoration.line({ attributes: { class: className } }).range(stateLineStart(props.modelValue, number))]
-    })
-    extensions.push(EditorView.decorations.of(Decoration.set(ranges, true)))
   }
   else {
     extensions.push(
@@ -220,7 +175,7 @@ watch(() => props.filePath, () => {
   recreateEditor()
 })
 
-watch(() => [props.readOnly, props.highlightTone, props.highlightedLines?.join(',')], () => {
+watch(() => props.readOnly, () => {
   recreateEditor()
 })
 
@@ -252,13 +207,5 @@ watch(() => colorMode.value, () => {
 /* Override default codemirror heights to expand */
 .cm-editor {
   height: 100% !important;
-}
-
-.cm-diff-line-added {
-  background: color-mix(in srgb, var(--bitveins-agent-working) 15%, transparent);
-}
-
-.cm-diff-line-deleted {
-  background: color-mix(in srgb, var(--bitveins-agent-failed) 15%, transparent);
 }
 </style>

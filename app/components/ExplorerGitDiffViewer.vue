@@ -1,10 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
 import type { ExplorerGitDiffDocument } from '~/types/explorer'
-import { gitChangedLines } from '~/git/git-line-diff'
 
-const props = defineProps<{ document: ExplorerGitDiffDocument }>()
-const changes = computed(() => gitChangedLines(props.document.before || '', props.document.after || ''))
+defineProps<{ document: ExplorerGitDiffDocument }>()
 </script>
 
 <template>
@@ -39,36 +36,23 @@ const changes = computed(() => gitChangedLines(props.document.before || '', prop
 
     <div
       v-else
-      class="grid min-h-0 flex-1 grid-cols-1 overflow-auto lg:grid-cols-2 lg:overflow-hidden"
+      class="flex min-h-0 flex-1 flex-col overflow-hidden"
     >
-      <section class="flex min-h-64 min-w-0 flex-col border-b border-[var(--bitveins-shell-border)] lg:min-h-0 lg:border-b-0 lg:border-r">
+      <div class="grid shrink-0 grid-cols-2 border-b border-[var(--bitveins-shell-border)]">
         <div class="flex h-7 shrink-0 items-center justify-between bg-rose-500/8 px-3 text-[length:var(--bitveins-ui-caption-size)]">
           <span class="truncate text-[var(--bitveins-shell-text-muted)]">{{ document.previousPath || document.filePath }}</span>
           <span class="font-semibold text-rose-500">Before</span>
         </div>
-        <CodeEditor
-          class="min-h-0 flex-1"
-          :file-path="document.previousPath || document.filePath"
-          highlight-tone="deleted"
-          :highlighted-lines="changes.before"
-          :model-value="document.before || ''"
-          read-only
-        />
-      </section>
-      <section class="flex min-h-64 min-w-0 flex-col lg:min-h-0">
-        <div class="flex h-7 shrink-0 items-center justify-between bg-emerald-500/8 px-3 text-[length:var(--bitveins-ui-caption-size)]">
+        <div class="flex h-7 shrink-0 items-center justify-between border-l border-[var(--bitveins-shell-border)] bg-emerald-500/8 px-3 text-[length:var(--bitveins-ui-caption-size)]">
           <span class="truncate text-[var(--bitveins-shell-text-muted)]">{{ document.filePath }}</span>
           <span class="font-semibold text-emerald-500">After</span>
         </div>
-        <CodeEditor
-          class="min-h-0 flex-1"
-          :file-path="document.filePath"
-          highlight-tone="added"
-          :highlighted-lines="changes.after"
-          :model-value="document.after || ''"
-          read-only
-        />
-      </section>
+      </div>
+      <GitDiffMergeEditor
+        :after="document.after || ''"
+        :before="document.before || ''"
+        :file-path="document.filePath"
+      />
     </div>
   </div>
 </template>

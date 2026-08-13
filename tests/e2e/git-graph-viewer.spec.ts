@@ -24,13 +24,14 @@ async function commit(message: string): Promise<string> {
 }
 
 test('opens a resizable Git graph and sends a selected file diff to Explorer', async ({ page }) => {
+  const stableLines = Array.from({ length: 80 }, (_, index) => `export const stable${index} = ${index}`).join('\n')
   await mkdir(workspace, { recursive: true })
   await git('init', '-b', 'main')
   await git('config', 'user.name', 'Git Graph E2E')
   await git('config', 'user.email', 'git-graph@example.test')
-  await writeFile(join(workspace, 'example.ts'), 'export const value = 1\n')
+  await writeFile(join(workspace, 'example.ts'), `export const value = 1\n${stableLines}\n`)
   await commit('Add example')
-  await writeFile(join(workspace, 'example.ts'), 'export const value = 2\nexport const ready = true\n')
+  await writeFile(join(workspace, 'example.ts'), `export const value = 2\nexport const ready = true\nexport const inserted = true\n${stableLines}\n`)
   const selectedHash = await commit('Expand example')
   await git('checkout', '-b', 'feature/graph-e2e')
   await writeFile(join(workspace, 'feature.ts'), 'export const graph = true\n')
@@ -75,7 +76,7 @@ test('opens a resizable Git graph and sends a selected file diff to Explorer', a
     const details = drawer.locator('[data-git-commit-details]')
     await expect(details).toBeVisible()
     await expect(details).toContainText('Expand example')
-    await expect(details.locator('[data-git-file="example.ts"]')).toContainText('+2')
+    await expect(details.locator('[data-git-file="example.ts"]')).toContainText('+3')
     const continuation = drawer.locator('svg[aria-hidden="true"]')
     await expect(continuation).toBeVisible()
     expect(await continuation.evaluate(element => element.getBoundingClientRect().height)).toBeGreaterThan(100)
@@ -85,12 +86,33 @@ test('opens a resizable Git graph and sends a selected file diff to Explorer', a
     const diff = page.locator('[data-explorer-git-diff]')
     await expect(diff).toBeVisible()
     await expect(diff).toContainText('example.ts')
-    const editors = diff.locator('.cm-content')
+    const mergeView = diff.locator('.cm-mergeView')
+    await expect(mergeView).toBeVisible()
+    const editors = mergeView.locator('.cm-content')
     await expect(editors).toHaveCount(2)
     await expect(editors.nth(0)).toContainText('export const value = 1')
     await expect(editors.nth(1)).toContainText('export const ready = true')
-    await expect(diff.locator('.cm-diff-line-deleted')).toHaveCount(1)
-    await expect(diff.locator('.cm-diff-line-added')).toHaveCount(2)
+    await expect(diff.locator('.cm-merge-a .cm-changedLine').first()).toBeVisible()
+    await expect(diff.locator('.cm-merge-b .cm-changedLine').first()).toBeVisible()
+    await expect(diff.locator('.cm-merge-a .cm-mergeSpacer').first()).toBeAttached()
+
+    const stableLineTops = await mergeView.evaluate((element) => {
+      const top = (side: string) => [...element.querySelectorAll(`${side} .cm-line`)]
+        .find(line => line.textContent === 'export const stable0 = 0')!
+        .getBoundingClientRect().top
+      return [top('.cm-merge-a'), top('.cm-merge-b')]
+    })
+    expect(Math.abs(stableLineTops[0]! - stableLineTops[1]!)).toBeLessThan(1)
+
+    const scrollState = await mergeView.evaluate((element) => {
+      element.scrollTop = 300
+      return {
+        outer: element.scrollTop,
+        sides: [...element.querySelectorAll('.cm-scroller')].map(side => side.scrollTop),
+      }
+    })
+    expect(scrollState.outer).toBeGreaterThan(0)
+    expect(scrollState.sides).toEqual([0, 0])
   }
   finally {
     await page.request.delete(`/api/sessions/${sessionName}`).catch(() => undefined)
