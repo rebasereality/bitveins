@@ -19,6 +19,7 @@ import { buildUploadDestinationPath } from '~/utils/upload-path'
 
 const props = defineProps<{
   active: boolean
+  visible: boolean
   application?: 'hermes'
   focused: boolean
   inputMode: InputMode
@@ -377,7 +378,7 @@ onBeforeUnmount(() => {
 <template>
   <section
     class="absolute inset-0 min-h-0 overflow-hidden bg-[var(--bitveins-terminal-bg)] transition-opacity duration-100"
-    :class="active ? 'z-10 opacity-100' : 'pointer-events-none z-0 opacity-0'"
+    :class="visible ? 'z-10 opacity-100' : 'pointer-events-none z-0 opacity-0'"
     :data-connection-state="connectionState"
     :data-select-mode="selectMode"
   >

@@ -100,6 +100,25 @@ watch(() => colorMode.value, recreateMergeView)
 .bitveins-git-merge-editor > .cm-mergeView {
   height: 100%;
   overflow: auto;
+  scrollbar-color: var(--bitveins-shell-border-strong) var(--bitveins-terminal-chrome);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.bitveins-git-merge-editor > .cm-mergeView::-webkit-scrollbar {
+  display: block;
+  width: 10px;
+  height: 10px;
+}
+
+.bitveins-git-merge-editor > .cm-mergeView::-webkit-scrollbar-track {
+  background: var(--bitveins-terminal-chrome);
+}
+
+.bitveins-git-merge-editor > .cm-mergeView::-webkit-scrollbar-thumb {
+  border: 2px solid var(--bitveins-terminal-chrome);
+  border-radius: 999px;
+  background: var(--bitveins-shell-border-strong);
 }
 
 .bitveins-git-merge-editor .cm-mergeViewEditors {

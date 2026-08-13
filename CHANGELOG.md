@@ -26,6 +26,20 @@ until a release is tagged.
 - a documented long-term path toward lifecycle-backed agent state and an
   optional provider-neutral Herdr integration.
 
+### Changed
+
+- Git history now follows the active tmux window's current directory, so the
+  viewer works inside a repository even when the session started elsewhere and
+  no agent is running;
+- commit lanes are rendered as one continuous SVG graph with smooth, rounded
+  branch transitions that remain connected when commit details expand.
+
+### Fixed
+
+- opening the Git drawer keeps the terminal visible beneath its overlay while
+  terminal input remains safely suspended;
+- synchronized side-by-side diffs now expose a visible, theme-aware scrollbar.
+
 ## 1.4.0 - 2026-08-11
 
 ### Added

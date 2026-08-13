@@ -6,10 +6,13 @@ import type {
   GitGraphResponse,
 } from '#shared/contracts/git'
 import { layoutGitGraph } from '~/git/git-graph-layout'
-import { GIT_GRAPH_LANE_GAP } from '~/git/git-graph-metrics'
+import { gitGraphWidth } from '~/git/git-graph-metrics'
 import { apiErrorMessage } from '~/utils/api-error'
 
-const props = defineProps<{ activeSession: string | null }>()
+const props = defineProps<{
+  activeSession: string | null
+  activeWindowId: string | null
+}>()
 const emit = defineEmits<{ openDiff: [diff: GitFileDiff] }>()
 const open = defineModel<boolean>('open', { default: false })
 
@@ -30,6 +33,8 @@ const width = ref(DEFAULT_WIDTH)
 let requestToken = 0
 
 const rows = computed(() => layoutGitGraph(graph.value?.commits || []))
+const graphWidth = computed(() => gitGraphWidth(Math.max(1, ...rows.value.map(row => row.laneCount))))
+const windowQuery = computed(() => props.activeWindowId ? { windowId: props.activeWindowId } : {})
 
 function clampWidth(value: number): number {
   return Math.round(Math.min(Math.max(MIN_WIDTH, value), Math.max(MIN_WIDTH, window.innerWidth - 8)))
@@ -50,7 +55,7 @@ async function load(reset = false): Promise<void> {
     const offset = reset ? 0 : graph.value?.commits.length || 0
     const response = await $fetch<GitGraphResponse>(
       `/api/sessions/${encodeURIComponent(props.activeSession)}/git`,
-      { query: { limit: PAGE_SIZE, offset } },
+      { query: { ...windowQuery.value, limit: PAGE_SIZE, offset } },
     )
     if (token !== requestToken) return
     graph.value = reset || !graph.value
@@ -77,6 +82,7 @@ async function toggleCommit(hash: string): Promise<void> {
   try {
     details.set(hash, await $fetch<GitCommitDetails>(
       `/api/sessions/${encodeURIComponent(props.activeSession)}/git/commits/${hash}`,
+      { query: windowQuery.value },
     ))
   }
   catch (cause: unknown) {
@@ -94,7 +100,7 @@ async function openFileDiff(commit: string, file: GitFileChange): Promise<void> 
   try {
     const diff = await $fetch<GitFileDiff>(
       `/api/sessions/${encodeURIComponent(props.activeSession)}/git/diff`,
-      { query: { commit, path: file.path } },
+      { query: { ...windowQuery.value, commit, path: file.path } },
     )
     emit('openDiff', diff)
   }
@@ -143,7 +149,7 @@ function resizeWithKeyboard(event: KeyboardEvent): void {
   window.localStorage.setItem(STORAGE_KEY, String(width.value))
 }
 
-watch([open, () => props.activeSession], ([isOpen]) => {
+watch([open, () => props.activeSession, () => props.activeWindowId], ([isOpen]) => {
   if (isOpen) void load(true)
   else requestToken += 1
 })
@@ -260,59 +266,63 @@ onMounted(() => {
           <span>Graph / Description</span><span>Date</span><span>Author</span><span>Commit</span>
         </div>
 
-        <article
-          v-for="row in rows"
-          :key="row.commit.hash"
-        >
-          <button
-            class="grid h-[34px] w-full grid-cols-[minmax(320px,1fr)_150px_130px_72px] items-center px-2 text-left shadow-[inset_0_-1px_0_var(--bitveins-shell-border)] transition-colors hover:bg-[var(--bitveins-shell-panel-muted)]"
-            :class="selectedHash === row.commit.hash ? 'bg-[var(--bitveins-shell-accent-soft)]' : ''"
-            type="button"
-            :data-git-commit="row.commit.hash"
-            @click="toggleCommit(row.commit.hash)"
+        <GitGraphCanvas :rows="rows">
+          <article
+            v-for="row in rows"
+            :key="row.commit.hash"
           >
-            <span class="flex min-w-0 items-center">
-              <GitGraphLane :row="row" />
-              <span class="flex min-w-0 items-center gap-1.5">
-                <span
-                  v-for="reference in row.commit.references"
-                  :key="`${reference.kind}:${reference.name}`"
-                  class="max-w-32 shrink-0 truncate rounded border border-[var(--bitveins-shell-border-strong)] bg-[var(--bitveins-shell-panel-solid)] px-1.5 py-0.5 text-[length:var(--bitveins-ui-micro-size)]"
-                  :title="reference.name"
-                >
-                  {{ reference.name }}
-                </span>
-                <span class="truncate text-[length:var(--bitveins-ui-label-size)]">{{ row.commit.subject }}</span>
-              </span>
-            </span>
-            <span class="truncate text-[length:var(--bitveins-ui-caption-size)] text-[var(--bitveins-shell-text-muted)]">{{ formatDate(row.commit.authoredAt) }}</span>
-            <span class="truncate text-[length:var(--bitveins-ui-caption-size)] text-[var(--bitveins-shell-text-muted)]">{{ row.commit.authorName }}</span>
-            <span class="font-mono text-[length:var(--bitveins-ui-caption-size)] text-[var(--bitveins-shell-text-subtle)]">{{ row.commit.shortHash }}</span>
-          </button>
-
-          <div
-            v-if="selectedHash === row.commit.hash"
-            class="relative"
-          >
-            <GitGraphContinuation :row="row" />
-            <div
-              v-if="loadingDetails === row.commit.hash"
-              class="grid min-h-36 place-items-center bg-[var(--bitveins-shell-panel)] text-[var(--bitveins-shell-text-muted)]"
+            <button
+              class="grid h-[34px] w-full grid-cols-[minmax(320px,1fr)_150px_130px_72px] items-center px-2 text-left shadow-[inset_0_-1px_0_var(--bitveins-shell-border)] transition-colors hover:bg-[var(--bitveins-shell-panel-muted)]"
+              :class="selectedHash === row.commit.hash ? 'bg-[var(--bitveins-shell-accent-soft)]' : ''"
+              type="button"
+              :data-git-commit="row.commit.hash"
+              @click="toggleCommit(row.commit.hash)"
             >
-              <UIcon
-                name="i-lucide-loader-circle"
-                class="size-4 animate-spin"
+              <span class="flex min-w-0 items-center">
+                <span
+                  aria-hidden="true"
+                  class="shrink-0"
+                  :style="{ width: `${graphWidth}px` }"
+                />
+                <span class="flex min-w-0 items-center gap-1.5">
+                  <span
+                    v-for="reference in row.commit.references"
+                    :key="`${reference.kind}:${reference.name}`"
+                    class="max-w-32 shrink-0 truncate rounded border border-[var(--bitveins-shell-border-strong)] bg-[var(--bitveins-shell-panel-solid)] px-1.5 py-0.5 text-[length:var(--bitveins-ui-micro-size)]"
+                    :title="reference.name"
+                  >
+                    {{ reference.name }}
+                  </span>
+                  <span class="truncate text-[length:var(--bitveins-ui-label-size)]">{{ row.commit.subject }}</span>
+                </span>
+              </span>
+              <span class="truncate text-[length:var(--bitveins-ui-caption-size)] text-[var(--bitveins-shell-text-muted)]">{{ formatDate(row.commit.authoredAt) }}</span>
+              <span class="truncate text-[length:var(--bitveins-ui-caption-size)] text-[var(--bitveins-shell-text-muted)]">{{ row.commit.authorName }}</span>
+              <span class="font-mono text-[length:var(--bitveins-ui-caption-size)] text-[var(--bitveins-shell-text-subtle)]">{{ row.commit.shortHash }}</span>
+            </button>
+
+            <div
+              v-if="selectedHash === row.commit.hash"
+            >
+              <div
+                v-if="loadingDetails === row.commit.hash"
+                class="grid min-h-36 place-items-center bg-[var(--bitveins-shell-panel)] text-[var(--bitveins-shell-text-muted)]"
+              >
+                <UIcon
+                  name="i-lucide-loader-circle"
+                  class="size-4 animate-spin"
+                />
+              </div>
+              <GitCommitDetailsPanel
+                v-else-if="details.get(row.commit.hash)"
+                :details="details.get(row.commit.hash)!"
+                :graph-gutter="8 + graphWidth"
+                :opening-path="openingPath"
+                @open-diff="openFileDiff(row.commit.hash, $event)"
               />
             </div>
-            <GitCommitDetailsPanel
-              v-else-if="details.get(row.commit.hash)"
-              :details="details.get(row.commit.hash)!"
-              :graph-gutter="28 + row.laneCount * GIT_GRAPH_LANE_GAP"
-              :opening-path="openingPath"
-              @open-diff="openFileDiff(row.commit.hash, $event)"
-            />
-          </div>
-        </article>
+          </article>
+        </GitGraphCanvas>
 
         <div
           v-if="error"

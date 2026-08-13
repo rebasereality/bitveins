@@ -7,6 +7,7 @@ import TerminalView from '~/components/TerminalView.vue'
 
 defineProps<{
   active: boolean
+  visible: boolean
   activeSession: string | null
   activeWindow: TmuxWindow | null
   activeWindowValue?: string
@@ -104,6 +105,7 @@ defineExpose({
     <TerminalView
       ref="terminal"
       :active="active"
+      :visible="visible"
       :active-session="activeSession"
       :active-window="activeWindow"
       :input-mode="inputMode"

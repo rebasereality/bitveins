@@ -380,6 +380,11 @@ function openExplorerFromUi(): void {
   viewMode.value = 'explorer'
 }
 
+async function openGitGraphFromUi(): Promise<void> {
+  await fetchWindows()
+  if (activeSession.value && activeWindow.value) gitGraphOpen.value = true
+}
+
 function openGitDiffFromUi(diff: GitFileDiff): void {
   permalinks.clearEventMetadata()
   openGitDiff(diff)
@@ -649,6 +654,7 @@ watch(activeSession, () => {
             ref="terminal"
             v-model:editing-window-name="editingWindowName"
             :active="terminalInteractionEnabled"
+            :visible="viewMode === 'terminal' && Boolean(activeSession) && !settingsOpen"
             :active-session="activeSession"
             :active-window="activeWindow"
             :active-window-value="activeWindowValue"
@@ -678,7 +684,7 @@ watch(activeSession, () => {
             @forget-all-path-link-roots="forgetAllPathLinkRoots"
             @forget-path-link-root="forgetPathLinkRoot"
             @open-explorer="openExplorerFromUi"
-            @open-git-graph="gitGraphOpen = true"
+            @open-git-graph="void openGitGraphFromUi()"
             @panes-change="void fetchWindows()"
             @ready="onTerminalReady"
             @select-tmux-window="selectTmuxWindowFromUi"
@@ -758,6 +764,7 @@ watch(activeSession, () => {
     <GitGraphDrawer
       v-model:open="gitGraphOpen"
       :active-session="activeSession"
+      :active-window-id="activeWindow?.id ?? null"
       @open-diff="openGitDiffFromUi"
     />
 
