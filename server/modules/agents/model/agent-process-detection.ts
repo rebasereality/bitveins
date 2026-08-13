@@ -77,11 +77,30 @@ export function detectAgentProcess(panePid: number, processSnapshot: string): De
     }
   }
 
+  const detected: Array<DetectedAgentProcess & { depth: number }> = []
   for (const process of candidates.values()) {
     const kind = detectAgentKind(process.argv)
-    if (kind) return { kind, pid: process.pid }
+    if (kind) detected.push({ depth: processDepth(process, processes, panePid), kind, pid: process.pid })
   }
-  return null
+  detected.sort((left, right) => right.depth - left.depth)
+  const match = detected[0]
+  return match ? { kind: match.kind, pid: match.pid } : null
+}
+
+function processDepth(
+  process: ProcessRecord,
+  processes: ReadonlyMap<number, ProcessRecord>,
+  panePid: number,
+): number {
+  let current: ProcessRecord | undefined = process
+  let depth = 0
+  const visited = new Set<number>()
+  while (current && current.pid !== panePid && !visited.has(current.pid)) {
+    visited.add(current.pid)
+    depth += 1
+    current = processes.get(current.parentPid)
+  }
+  return depth
 }
 
 export function tmuxAgentDisplayName(kind: TmuxAgentKind): string {

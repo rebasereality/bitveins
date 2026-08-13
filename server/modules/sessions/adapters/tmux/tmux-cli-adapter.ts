@@ -1,6 +1,8 @@
 import type { TmuxPane, TmuxWindow } from '#shared/contracts/terminal'
 import type { TmuxAgent } from '#shared/contracts/agents'
 import { tmuxAgentLabelSchema } from '#shared/contracts/agents'
+import type { CodexAgentMetadataResolver } from '../../../agents/ports/codex-agent-metadata-resolver'
+import type { AgentGitMetadataResolver } from '../../../agents/ports/agent-git-metadata-resolver'
 import { classifyAgentScreenStatus, stripAgentActivityGlyph } from '../../../agents/model/agent-screen-status'
 import { detectAgentProcess, tmuxAgentDisplayName } from '../../../agents/model/agent-process-detection'
 import { normalizeTmuxAgentTitle, parseTmuxAgentPaneCandidates } from '../../../agents/adapters/tmux-agent-output'
@@ -29,7 +31,9 @@ import type { CommandRunner } from './command-runner'
 import { captureTmuxPaneViewport } from './tmux-pane-viewport'
 
 interface TmuxCliAdapterOptions {
+  agentGitMetadata?: AgentGitMetadataResolver
   clock?: () => number
+  codexAgentMetadata?: CodexAgentMetadataResolver
   helperOwner: string
   randomId?: () => string
   runner: CommandRunner
@@ -140,7 +144,7 @@ export class TmuxCliAdapter implements TmuxGateway {
     try {
       candidates = parseTmuxAgentPaneCandidates(await this.run([
         'list-panes', '-a', '-F',
-        '#{session_name}\t#{window_id}\t#{window_index}\t#{window_name}\t#{pane_id}\t#{pane_index}\t#{pane_pid}\t#{pane_dead}\t#{@bitveins_agent_label}\t#{pane_current_path}',
+        '#{session_name}\t#{window_id}\t#{window_index}\t#{window_name}\t#{pane_id}\t#{pane_index}\t#{pane_pid}\t#{pane_dead}\t#{@bitveins_agent_label}\t#{@bitveins_codex_thread_id}\t#{pane_current_path}',
       ]))
     }
     catch (error) {
@@ -167,16 +171,21 @@ export class TmuxCliAdapter implements TmuxGateway {
     })
 
     const agents = await Promise.all(detected.map(async ({ candidate, process }) => {
-      const [rawTitle, screen] = await Promise.all([
+      const [rawTitle, screen, git] = await Promise.all([
         this.run(['display-message', '-p', '-t', candidate.paneId, '#{pane_title}']).catch(() => ''),
         this.run(['capture-pane', '-e', '-p', '-J', '-t', candidate.paneId]).catch(() => null),
+        this.options.agentGitMetadata?.resolve(candidate.path) ?? null,
       ])
       const title = stripAgentActivityGlyph(normalizeTmuxAgentTitle(rawTitle) ?? '')
-      const defaultLabel = title || candidate.windowName || tmuxAgentDisplayName(process.kind)
+      const codexLabel = process.kind === 'codex'
+        ? await this.options.codexAgentMetadata?.labelFor(process.pid, candidate.codexThreadId)
+        : null
+      const defaultLabel = codexLabel || title || candidate.windowName || tmuxAgentDisplayName(process.kind)
       const label = candidate.customLabel ?? defaultLabel
       return {
         ...(candidate.customLabel ? { customLabel: candidate.customLabel } : {}),
         defaultLabel,
+        ...(git ? { git } : {}),
         id: candidate.paneId,
         kind: process.kind,
         label,

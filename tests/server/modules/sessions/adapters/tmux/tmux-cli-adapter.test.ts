@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { TmuxCliAdapter } from '../../../../../../server/modules/sessions/adapters/tmux/tmux-cli-adapter'
+import type { CodexAgentMetadataResolver } from '../../../../../../server/modules/agents/ports/codex-agent-metadata-resolver'
+import type { AgentGitMetadataResolver } from '../../../../../../server/modules/agents/ports/agent-git-metadata-resolver'
 import type {
   CommandResult,
   CommandRunner,
@@ -26,10 +28,16 @@ class FakeCommandRunner implements CommandRunner {
   }
 }
 
-function setup(options: { socketName?: string } = {}) {
+function setup(options: {
+  agentGitMetadata?: AgentGitMetadataResolver
+  codexAgentMetadata?: CodexAgentMetadataResolver
+  socketName?: string
+} = {}) {
   const runner = new FakeCommandRunner()
   const adapter = new TmuxCliAdapter({
+    agentGitMetadata: options.agentGitMetadata,
     clock: () => 1234,
+    codexAgentMetadata: options.codexAgentMetadata,
     helperOwner: 'owner-1',
     randomId: () => 'random',
     runner,
@@ -119,7 +127,7 @@ describe('TmuxCliAdapter', () => {
       if (args[0] === 'list-panes') {
         return {
           stderr: '',
-          stdout: 'main\t@7\t2\twork\t%9\t1\t100\t0\t\t/workspace\n',
+          stdout: 'main\t@7\t2\twork\t%9\t1\t100\t0\t\t\t/workspace\n',
         }
       }
       if (args[0] === 'display-message') return { stderr: '', stdout: '⠦ Bitveins\n' }
@@ -141,6 +149,75 @@ describe('TmuxCliAdapter', () => {
       windowIndex: 2,
       windowName: 'work',
     }])
+  })
+
+  it('uses Codex thread metadata ahead of the tmux pane title', async () => {
+    const codexAgentMetadata: CodexAgentMetadataResolver = {
+      labelFor: async () => 'Implement tmux agent names',
+    }
+    const { adapter, runner } = setup({ codexAgentMetadata })
+    runner.handler = async ({ args, command }) => {
+      if (command === 'ps') {
+        return {
+          stderr: '',
+          stdout: '100 1 100 200 bash\n200 100 200 200 /opt/codex\n',
+        }
+      }
+      if (args[0] === 'list-panes') {
+        return {
+          stderr: '',
+          stdout: 'main\t@7\t2\twork\t%9\t1\t100\t0\t\t019ff7b9-2d85-78d2-9cea-eaff30ed6cef\t/workspace\n',
+        }
+      }
+      if (args[0] === 'display-message') return { stderr: '', stdout: '⠦ Bitveins\n' }
+      if (args[0] === 'capture-pane') return { stderr: '', stdout: 'Thinking...\n' }
+      return { stderr: '', stdout: '' }
+    }
+
+    await expect(adapter.listAgents()).resolves.toEqual([
+      expect.objectContaining({
+        defaultLabel: 'Implement tmux agent names',
+        label: 'Implement tmux agent names',
+      }),
+    ])
+  })
+
+  it('groups Git repository metadata with its detected agent', async () => {
+    const agentGitMetadata: AgentGitMetadataResolver = {
+      resolve: async () => ({
+        detached: false,
+        linkedWorktree: true,
+        reference: 'feature/sidebar',
+        repository: 'bitveins',
+      }),
+    }
+    const { adapter, runner } = setup({ agentGitMetadata })
+    runner.handler = async ({ args, command }) => {
+      if (command === 'ps') {
+        return { stderr: '', stdout: '100 1 100 200 bash\n200 100 200 200 codex\n' }
+      }
+      if (args[0] === 'list-panes') {
+        return {
+          stderr: '',
+          stdout: 'main\t@7\t2\twork\t%9\t1\t100\t0\t\t\t/workspace/bitveins\n',
+        }
+      }
+      if (args[0] === 'display-message') return { stderr: '', stdout: 'Codex\n' }
+      if (args[0] === 'capture-pane') return { stderr: '', stdout: 'Ready\n' }
+      return { stderr: '', stdout: '' }
+    }
+
+    await expect(adapter.listAgents()).resolves.toEqual([
+      expect.objectContaining({
+        git: {
+          detached: false,
+          linkedWorktree: true,
+          reference: 'feature/sidebar',
+          repository: 'bitveins',
+        },
+        paneId: '%9',
+      }),
+    ])
   })
 
   it('sorts discovered agents and falls back to tmux metadata when titles are unavailable', async () => {
@@ -166,11 +243,11 @@ describe('TmuxCliAdapter', () => {
         return {
           stderr: '',
           stdout: [
-            'main\t@7\t2\twork\t%9\t1\t100\t0\tReview agent\t/workspace',
-            'alpha\t@5\t1\tshell\t%5\t2\t300\t0\t\t/workspace/alpha',
-            'alpha\t@5\t1\tshell\t%4\t0\t400\t0\t\t/workspace/alpha',
-            'alpha\t@6\t2\ttests\t%6\t0\t500\t0\t\t/workspace/alpha',
-            'ignored\t@8\t0\tshell\t%8\t0\t999\t0\t\t/workspace/ignored',
+            'main\t@7\t2\twork\t%9\t1\t100\t0\tReview agent\t\t/workspace',
+            'alpha\t@5\t1\tshell\t%5\t2\t300\t0\t\t\t/workspace/alpha',
+            'alpha\t@5\t1\tshell\t%4\t0\t400\t0\t\t\t/workspace/alpha',
+            'alpha\t@6\t2\ttests\t%6\t0\t500\t0\t\t\t/workspace/alpha',
+            'ignored\t@8\t0\tshell\t%8\t0\t999\t0\t\t\t/workspace/ignored',
           ].join('\n'),
         }
       }

@@ -77,6 +77,26 @@ function commitAgentRename(agent: TmuxAgent): void {
   cancelAgentRename()
 }
 
+function agentGitSummary(agent: TmuxAgent): string | null {
+  if (!agent.git) return null
+  return [
+    agent.git.repository,
+    agent.git.reference,
+    agent.git.detached ? 'detached HEAD' : null,
+    agent.git.linkedWorktree ? 'linked worktree' : null,
+  ].filter(Boolean).join(' · ')
+}
+
+function agentTitle(agent: TmuxAgent): string {
+  return [
+    agent.label,
+    agentKindLabels[agent.kind],
+    agentStatusLabels[agent.status],
+    agentGitSummary(agent),
+    agent.windowName,
+  ].filter(Boolean).join(' — ')
+}
+
 function agentActionItems(agent: TmuxAgent): DropdownMenuItem[][] {
   return [[
     { label: 'Open agent', icon: 'i-lucide-terminal', onSelect: () => emit('openAgent', agent) },
@@ -183,7 +203,7 @@ function actionItems(session: TmuxSession): DropdownMenuItem[][] {
         :data-agent-pane-id="agent.paneId"
         data-tmux-agent
         :class="[
-          isMobile ? 'h-9' : 'h-6',
+          isMobile ? (agent.git ? 'h-12' : 'h-9') : (agent.git ? 'h-9' : 'h-6'),
           activeWindowId === agent.windowId ? 'tmux-agent-row--window-active' : '',
         ]"
       >
@@ -210,22 +230,59 @@ function actionItems(session: TmuxSession): DropdownMenuItem[][] {
         <button
           v-else
           :aria-current="activeAgentPaneId === agent.paneId ? 'true' : undefined"
-          :aria-label="`${agent.label}, ${agentKindLabels[agent.kind]}, ${agentStatusLabels[agent.status]}`"
-          class="flex h-full min-w-0 flex-1 items-center gap-1 overflow-hidden rounded pr-1 text-left text-[length:var(--bitveins-ui-label-size)] text-[var(--bitveins-shell-text-muted)] outline-none transition-colors hover:bg-[var(--bitveins-shell-panel-muted)]/70 hover:text-[var(--bitveins-shell-text)] focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--bitveins-shell-accent)]"
+          :aria-label="agentTitle(agent)"
+          class="flex h-full min-w-0 flex-1 overflow-hidden rounded py-0.5 pr-1 text-left text-[length:var(--bitveins-ui-label-size)] text-[var(--bitveins-shell-text-muted)] outline-none transition-colors hover:bg-[var(--bitveins-shell-panel-muted)]/70 hover:text-[var(--bitveins-shell-text)] focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--bitveins-shell-accent)]"
           :class="activeAgentPaneId === agent.paneId ? 'font-semibold text-[var(--bitveins-shell-text)]' : ''"
-          :title="`${agent.label} — ${agent.kind} — ${agentStatusLabels[agent.status]} — ${agent.windowName}`"
+          :title="agentTitle(agent)"
           type="button"
           @click="emit('openAgent', agent)"
           @dblclick.stop.prevent="startAgentRename(agent)"
         >
           <span
-            class="min-w-0 flex-1 truncate"
-            data-agent-instance-name
-          >{{ agent.label }}</span>
-          <span
-            class="ml-auto shrink-0 text-right text-[length:var(--bitveins-ui-micro-size)] text-[var(--bitveins-shell-text-subtle)]"
-            data-agent-kind-name
-          >{{ agentKindLabels[agent.kind] }}</span>
+            class="flex min-w-0 flex-1 flex-col justify-center overflow-hidden"
+            data-agent-identity
+          >
+            <span class="flex min-w-0 items-center gap-1">
+              <span
+                class="min-w-0 flex-1 truncate"
+                data-agent-instance-name
+              >{{ agent.label }}</span>
+              <span
+                class="ml-auto shrink-0 text-right text-[length:var(--bitveins-ui-micro-size)] text-[var(--bitveins-shell-text-subtle)]"
+                data-agent-kind-name
+              >{{ agentKindLabels[agent.kind] }}</span>
+            </span>
+            <span
+              v-if="agent.git"
+              class="flex min-w-0 items-center gap-1 overflow-hidden text-[length:var(--bitveins-ui-micro-size)] font-normal leading-tight text-[var(--bitveins-shell-text-subtle)] opacity-60"
+              data-agent-git
+              :title="agentGitSummary(agent) ?? undefined"
+            >
+              <UIcon
+                aria-hidden="true"
+                class="size-3 shrink-0"
+                name="i-lucide-git-branch"
+              />
+              <span
+                class="max-w-[42%] shrink-0 truncate"
+                data-agent-git-repository
+              >{{ agent.git.repository }}</span>
+              <span
+                aria-hidden="true"
+                class="shrink-0"
+              >·</span>
+              <span
+                class="min-w-0 flex-1 truncate"
+                data-agent-git-reference
+              >{{ agent.git.detached ? `@${agent.git.reference}` : agent.git.reference }}</span>
+              <span
+                v-if="agent.git.linkedWorktree"
+                class="shrink-0"
+                data-agent-git-worktree
+                title="Linked Git worktree"
+              >wt</span>
+            </span>
+          </span>
         </button>
 
         <UDropdownMenu

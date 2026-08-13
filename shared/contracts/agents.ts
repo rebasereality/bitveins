@@ -26,9 +26,23 @@ export const tmuxAgentLabelSchema = z.string()
   .max(80, 'Agent names must be 1-80 characters.')
   .refine(value => !/[\u0000-\u001F\u007F]/u.test(value), 'Agent names cannot contain control characters.')
 
+const tmuxAgentGitTextSchema = z.string()
+  .trim()
+  .min(1)
+  .max(255)
+  .refine(value => !/[\u0000-\u001F\u007F]/u.test(value))
+
+export const tmuxAgentGitMetadataSchema = z.object({
+  detached: z.boolean(),
+  linkedWorktree: z.boolean(),
+  reference: tmuxAgentGitTextSchema,
+  repository: tmuxAgentGitTextSchema,
+}).strict()
+
 export const tmuxAgentSchema = z.object({
   customLabel: tmuxAgentLabelSchema.optional(),
   defaultLabel: tmuxAgentLabelSchema,
+  git: tmuxAgentGitMetadataSchema.optional(),
   id: z.string().regex(/^%\d+$/u),
   kind: tmuxAgentKindSchema,
   label: tmuxAgentLabelSchema,
@@ -52,6 +66,7 @@ export const renameTmuxAgentBodySchema = z.object({
 }).strict()
 
 export type TmuxAgent = z.infer<typeof tmuxAgentSchema>
+export type TmuxAgentGitMetadata = z.infer<typeof tmuxAgentGitMetadataSchema>
 export type TmuxAgentKind = z.infer<typeof tmuxAgentKindSchema>
 export type TmuxAgentStatus = z.infer<typeof tmuxAgentStatusSchema>
 export type RenameTmuxAgentBody = z.infer<typeof renameTmuxAgentBodySchema>
