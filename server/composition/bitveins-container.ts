@@ -16,6 +16,8 @@ import { NodeWebPushSender } from '../modules/attention/adapters/node-web-push-s
 import { ensureAttentionEnvironment } from '../modules/attention/adapters/attention-environment'
 import { DropzoneService } from '../modules/dropzones/application/dropzone-service'
 import { DrizzleDropzoneRepository } from '../modules/dropzones/adapters/drizzle-dropzone-repository'
+import { GitViewerService } from '../modules/git/application/git-viewer-service'
+import { GitCliRepository } from '../modules/git/adapters/git-cli-repository'
 import { FileReferenceResolver } from '../modules/explorer/application/file-reference-resolver'
 import { WorkspaceDocumentService } from '../modules/explorer/application/workspace-document-service'
 import { NodeWorkspaceCandidateLocator } from '../modules/explorer/adapters/node-workspace-candidate-locator'
@@ -44,6 +46,7 @@ export interface BitveinsContainer {
   dropzones: DropzoneService
   explorerDocuments: WorkspaceDocumentService
   explorerFileReferences: FileReferenceResolver
+  gitViewer: GitViewerService
   history: HistoryService
   hermesNotifications: HermesNotificationService
   sessions: SessionService
@@ -62,6 +65,7 @@ export function createBitveinsContainer(): BitveinsContainer {
     threads: codexThreadMetadata,
   })
   const commandRunner = new NodeCommandRunner()
+  const gitViewer = new GitViewerService(new GitCliRepository({ runner: commandRunner }))
   const tmux = new TmuxCliAdapter({
     agentGitMetadata: new GitCliAgentMetadataResolver({ runner: commandRunner }),
     codexAgentMetadata,
@@ -184,6 +188,7 @@ export function createBitveinsContainer(): BitveinsContainer {
     dropzones,
     explorerDocuments,
     explorerFileReferences,
+    gitViewer,
     history,
     hermesNotifications,
     sessions,
