@@ -57,8 +57,14 @@ test('opens a resizable Git graph and sends a selected file diff to Explorer', a
     await expect(drawer.locator('[data-git-commit]')).toHaveCount(5)
     const graphPaths = drawer.locator('svg[aria-label^="Commit graph lane"] path')
     const pathData = await graphPaths.evaluateAll(paths => paths.map(path => path.getAttribute('d') || ''))
-    expect(pathData.some(path => path.includes(' L '))).toBe(true)
-    expect(pathData.every(path => !path.includes(' C '))).toBe(true)
+    expect(pathData.some(path => path.includes(' C '))).toBe(true)
+    expect(pathData.every(path => path.endsWith('35'))).toBe(true)
+    const rowGaps = await drawer.locator('[data-git-commit]').evaluateAll(commits => commits.slice(0, -1).map((commit, index) => {
+      const current = commit.querySelector('svg')!.getBoundingClientRect()
+      const next = commits[index + 1]!.querySelector('svg')!.getBoundingClientRect()
+      return Math.round((next.top - current.bottom) * 100) / 100
+    }))
+    expect(rowGaps.every(gap => gap === 0)).toBe(true)
 
     const initialWidth = await drawer.evaluate(element => Math.round(element.getBoundingClientRect().width))
     await drawer.getByRole('separator', { name: 'Resize Git graph' }).press('ArrowRight')

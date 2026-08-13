@@ -10,18 +10,20 @@ import {
 
 const props = defineProps<{ row: GitGraphRow }>()
 const centerY = GIT_GRAPH_ROW_HEIGHT / 2
+const rowTop = -1
+const rowBottom = GIT_GRAPH_ROW_HEIGHT + 1
 
 const width = computed(() => gitGraphWidth(props.row.laneCount))
 const x = (lane: number) => GIT_GRAPH_PADDING + lane * GIT_GRAPH_LANE_GAP
 const color = (index: number) => `var(--bitveins-git-${index % 8})`
 
 function path(from: number, to: number, outgoing: boolean): string {
-  const startY = outgoing ? centerY : 0
+  const startY = outgoing ? centerY : rowTop
   const startX = x(from)
   const endX = x(to)
   return startX === endX
-    ? `M ${startX} ${startY} V ${GIT_GRAPH_ROW_HEIGHT}`
-    : `M ${startX} ${startY} L ${endX} ${GIT_GRAPH_ROW_HEIGHT}`
+    ? `M ${startX} ${startY} V ${rowBottom}`
+    : `M ${startX} ${startY} C ${startX} ${startY + 4}, ${endX} ${rowBottom - 4}, ${endX} ${rowBottom}`
 }
 </script>
 
@@ -46,7 +48,7 @@ function path(from: number, to: number, outgoing: boolean): string {
     <line
       :x1="x(row.lane)"
       :x2="x(row.lane)"
-      y1="0"
+      :y1="rowTop"
       :y2="centerY"
       :stroke="color(row.color)"
       stroke-width="2"

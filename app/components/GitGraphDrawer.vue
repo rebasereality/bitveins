@@ -263,10 +263,9 @@ onMounted(() => {
         <article
           v-for="row in rows"
           :key="row.commit.hash"
-          class="border-b border-[var(--bitveins-shell-border)]/70"
         >
           <button
-            class="grid h-[34px] w-full grid-cols-[minmax(320px,1fr)_150px_130px_72px] items-center px-2 text-left transition-colors hover:bg-[var(--bitveins-shell-panel-muted)]"
+            class="grid h-[34px] w-full grid-cols-[minmax(320px,1fr)_150px_130px_72px] items-center px-2 text-left shadow-[inset_0_-1px_0_var(--bitveins-shell-border)] transition-colors hover:bg-[var(--bitveins-shell-panel-muted)]"
             :class="selectedHash === row.commit.hash ? 'bg-[var(--bitveins-shell-accent-soft)]' : ''"
             type="button"
             :data-git-commit="row.commit.hash"
