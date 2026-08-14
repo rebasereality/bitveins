@@ -98,6 +98,17 @@ export const antigravityNotificationPreferences = sqliteTable('antigravity_notif
   updatedAt: integer('updated_at').notNull(),
 })
 
+export const asyncPromptDrafts = sqliteTable('async_prompt_drafts', {
+  sessionName: text('session_name').notNull(),
+  windowId: text('window_id').notNull(),
+  draft: text('draft').notNull(),
+  revision: integer('revision').notNull().default(1),
+  updatedAt: integer('updated_at').notNull(),
+}, table => [
+  primaryKey({ columns: [table.sessionName, table.windowId] }),
+  index('idx_async_prompt_drafts_updated_at').on(table.updatedAt),
+])
+
 export type Session = typeof sessions.$inferSelect
 export type InvalidatedSessionId = typeof invalidatedSessionIds.$inferSelect
 export type NewSession = typeof sessions.$inferInsert
@@ -111,3 +122,5 @@ export type WebPushSessionMuteRow = typeof webPushSessionMutes.$inferSelect
 export type HermesNotificationPreferenceRow = typeof hermesNotificationPreferences.$inferSelect
 export type CodexNotificationPreferenceRow = typeof codexNotificationPreferences.$inferSelect
 export type AntigravityNotificationPreferenceRow = typeof antigravityNotificationPreferences.$inferSelect
+export type AsyncPromptDraftRow = typeof asyncPromptDrafts.$inferSelect
+export type NewAsyncPromptDraftRow = typeof asyncPromptDrafts.$inferInsert

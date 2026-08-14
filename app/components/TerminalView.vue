@@ -4,10 +4,14 @@ import type { TerminalFileResolution } from '#shared/contracts/explorer'
 import type { InputMode } from '~/types/session'
 
 interface TerminalPaneHandle {
+  claimPromptFocus(payload: { clientId: string, sessionName: string, windowId: string }): boolean
+  clearPromptDraft(payload: { clientId: string, sessionName: string, windowId: string }): boolean
   dispose(): void
-  fitAndResize(): void
+  fitAndResize(force?: boolean): void
   focus(): void
+  releasePromptFocus(payload: { clientId: string, sessionName: string, windowId: string }): boolean
   sendInput(data: string): void
+  sendPromptDraft(payload: { clientId: string, draft: string, revision?: number, sessionName: string, windowId: string }): boolean
   sendReliableInput(data: string): boolean
   sendReliableInputs(data: readonly string[]): boolean
 }
@@ -190,7 +194,16 @@ function setPaneRef(paneId: string, value: unknown): void {
 }
 
 function targetPane(): TerminalPaneHandle | undefined {
-  return focusedPaneId.value ? paneRefs.get(focusedPaneId.value) : undefined
+  if (focusedPaneId.value) {
+    const pane = paneRefs.get(focusedPaneId.value)
+    if (pane) return pane
+  }
+  const activePaneId = panes.value.find(p => p.active)?.id ?? panes.value[0]?.id
+  if (activePaneId) {
+    const pane = paneRefs.get(activePaneId)
+    if (pane) return pane
+  }
+  return paneRefs.values().next().value
 }
 
 function focus(): void {
@@ -219,8 +232,7 @@ async function splitWindow(direction: 'horizontal' | 'vertical'): Promise<void> 
   await split(paneId, direction)
   focusedPaneId.value = panes.value.find(pane => pane.active)?.id ?? panes.value.at(-1)?.id ?? null
   emit('panesChange')
-  await nextTick()
-  focus()
+  nextTick(focus)
 }
 
 async function closePane(paneId: string): Promise<void> {
@@ -259,10 +271,27 @@ function setConnection(paneId: string, connected: boolean): void {
 defineExpose({
   attach,
   attachWindow,
+  claimPromptFocus: (payload: { clientId: string, sessionName: string, windowId: string }) => (
+    targetPane()?.claimPromptFocus(payload)
+  ),
+  clearPromptDraft: (payload: { clientId: string, sessionName: string, windowId: string }) => (
+    targetPane()?.clearPromptDraft(payload)
+  ),
   detach,
+  fitAndResize: (force = false) => targetPane()?.fitAndResize(force),
   focus,
   focusPane: focusPaneById,
+  releasePromptFocus: (payload: { clientId: string, sessionName: string, windowId: string }) => (
+    targetPane()?.releasePromptFocus(payload)
+  ),
   sendInput: (data: string) => targetPane()?.sendInput(data),
+  sendPromptDraft: (payload: {
+    clientId: string
+    draft: string
+    revision?: number
+    sessionName: string
+    windowId: string
+  }) => targetPane()?.sendPromptDraft(payload),
   sendReliableInput: (data: string) => targetPane()?.sendReliableInput(data) ?? false,
   sendReliableInputs: (data: readonly string[]) => targetPane()?.sendReliableInputs(data) ?? false,
   splitWindow,

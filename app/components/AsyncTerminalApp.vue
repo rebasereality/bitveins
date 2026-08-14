@@ -24,6 +24,7 @@ import SessionWelcome from '~/components/SessionWelcome.vue'
 import GitGraphDrawer from '~/components/GitGraphDrawer.vue'
 
 import { useBitveinsAppSessions } from '~/composables/useBitveinsAppSessions'
+import { useAsyncPromptDrafts } from '~/composables/useAsyncPromptDrafts'
 
 defineProps<{
   linuxUsername: string | null
@@ -119,6 +120,34 @@ const {
 } = useTmuxWindows(activeSession, handleAuthError, agents)
 
 const activeHistoryScopeKey = computed(() => (activeSession.value && activeWindow.value ? `${activeSession.value}:${activeWindow.value.id}:${activeWindow.value.index}` : null))
+
+const {
+  claimFocus: claimPromptFocus,
+  currentDraft,
+  clearCurrentDraft,
+  isFocused: isPromptFocused,
+  releaseFocus: releasePromptFocus,
+} = useAsyncPromptDrafts({
+  activeSession,
+  activeWindowId: computed(() => activeWindow.value?.id ?? null),
+  onClaimFocus(payload) {
+    terminal.value?.claimPromptFocus(payload)
+  },
+  onReleaseFocus(payload) {
+    terminal.value?.releasePromptFocus(payload)
+  },
+  onSyncDraft(payload) {
+    terminal.value?.sendPromptDraft(payload)
+  },
+  onClearDraft(payload) {
+    terminal.value?.clearPromptDraft(payload)
+  },
+})
+
+function handlePromptFocus(): void {
+  claimPromptFocus()
+  terminal.value?.fitAndResize(true)
+}
 
 const { deleteFileOrFolder } = useFileTreeModal(activeSession)
 
@@ -533,6 +562,8 @@ async function handleCommandSubmit(payload: { command: string, terminator: '\r' 
     saveSubmittedAsyncPrompt(localStorage, activeHistoryScopeKey.value, payload.command)
   }
 
+  clearCurrentDraft()
+
   terminal.value?.sendReliableInputs(
     asyncTerminalSubmissionChunks(payload.command, payload.terminator),
   )
@@ -760,14 +791,18 @@ watch(activeSession, () => {
       <CommandInput
         v-show="viewMode === 'terminal' && !settingsOpen && Boolean(activeSession)"
         ref="input"
+        v-model:draft-value="currentDraft"
         :disabled="!activeSession || settingsOpen || sessionSidebarOverlayOpen || gitGraphOpen || viewMode !== 'terminal'"
+        :focused="isPromptFocused"
         :history-messages="historyMessageTexts"
         :input-mode="inputMode"
         :live-available="terminalConnected"
         :prompt-recovery-key="activeHistoryScopeKey"
         :session-name="activeSession"
         :window-name="activeWindow?.name"
+        @blur="releasePromptFocus"
         @control="handleControlInput"
+        @focus="handlePromptFocus"
         @mode-change="setInputMode"
         @submit="handleCommandSubmit"
       />

@@ -3,6 +3,7 @@ import type { InputMode } from '~/types/session'
 
 defineProps<{
   disabled: boolean
+  focused?: boolean
   historyPreview: string
   inputMode: InputMode
   modeControls: Array<{ icon: string, label: string, mode: InputMode, title: string }>
@@ -11,7 +12,9 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{
+  blur: []
   commitHistoryPreview: []
+  focus: []
   keydown: [event: KeyboardEvent]
   onDrop: [event: DragEvent]
   onPaste: [event: ClipboardEvent]
@@ -62,11 +65,13 @@ defineExpose({
           :disabled="disabled"
           :maxrows="8"
           :rows="2"
-          class="w-full"
+          class="w-full transition-opacity duration-150"
+          :class="[focused ? 'opacity-100' : 'opacity-60 cursor-pointer']"
           :placeholder="placeholder"
           :ui="{ base: 'max-h-[30vh] min-h-[var(--bitveins-input-min-height)] overflow-y-auto bg-[var(--bitveins-shell-panel)] [font-family:var(--bitveins-prompt-font-family)] text-[length:var(--bitveins-input-font-size)] md:text-[length:var(--bitveins-input-font-size)] leading-[var(--bitveins-input-line-height)] text-[var(--bitveins-shell-text)] placeholder:text-[var(--bitveins-shell-text-subtle)]' }"
-          @click="!value && historyPreview && emit('commitHistoryPreview')"
-          @focus="!value && historyPreview && emit('commitHistoryPreview')"
+          @click="!value && historyPreview ? emit('commitHistoryPreview') : emit('focus')"
+          @focus="emit('focus'); if (!value && historyPreview) emit('commitHistoryPreview')"
+          @blur="emit('blur')"
           @keydown="emit('keydown', $event)"
           @paste="emit('onPaste', $event)"
           @dragover.prevent
@@ -134,13 +139,15 @@ defineExpose({
       />
       <div class="min-w-0 flex-1">
         <UInput
-          class="w-full cursor-pointer"
+          class="w-full cursor-pointer transition-opacity duration-150"
+          :class="[focused ? 'opacity-100' : 'opacity-60']"
           :disabled="disabled"
+          :model-value="value"
           :placeholder="placeholder"
           readonly
           size="md"
           :ui="{ base: '[font-family:var(--bitveins-prompt-font-family)] text-[length:var(--bitveins-input-font-size)] md:text-[length:var(--bitveins-input-font-size)] cursor-pointer' }"
-          @click="emit('openDrawer')"
+          @click="emit('openDrawer'); emit('focus')"
         />
       </div>
       <UButton

@@ -273,5 +273,131 @@ describe('ws protocol', () => {
       type: 'inputAck',
       data: '',
     }))).toThrow()
+
+    expect(parseServerMessage(JSON.stringify({
+      type: 'promptDraft',
+      clientId: 'c1',
+      draft: 'npm test',
+      revision: 3,
+      sessionName: 'main',
+      updatedAt: 123456,
+      windowId: '@1',
+    }))).toEqual({
+      type: 'promptDraft',
+      clientId: 'c1',
+      draft: 'npm test',
+      revision: 3,
+      sessionName: 'main',
+      updatedAt: 123456,
+      windowId: '@1',
+    })
+
+    expect(parseServerMessage(JSON.stringify({
+      type: 'promptDraftCleared',
+      clientId: 'c1',
+      sessionName: 'main',
+      windowId: '@1',
+    }))).toEqual({
+      type: 'promptDraftCleared',
+      clientId: 'c1',
+      sessionName: 'main',
+      windowId: '@1',
+    })
+  })
+
+  it('parses syncPromptDraft and clearPromptDraft client messages', () => {
+    expect(parseClientMessage(JSON.stringify({
+      action: 'syncPromptDraft',
+      payload: {
+        clientId: 'c1',
+        draft: 'npm test',
+        revision: 3,
+        sessionName: 'main',
+        windowId: '@1',
+      },
+    }))).toEqual({
+      action: 'syncPromptDraft',
+      payload: {
+        clientId: 'c1',
+        draft: 'npm test',
+        revision: 3,
+        sessionName: 'main',
+        windowId: '@1',
+      },
+    })
+
+    expect(parseClientMessage(JSON.stringify({
+      action: 'clearPromptDraft',
+      payload: {
+        clientId: 'c1',
+        sessionName: 'main',
+        windowId: '@1',
+      },
+    }))).toEqual({
+      action: 'clearPromptDraft',
+      payload: {
+        clientId: 'c1',
+        sessionName: 'main',
+        windowId: '@1',
+      },
+    })
+
+    expect(parseClientMessage(JSON.stringify({
+      action: 'claimPromptFocus',
+      payload: {
+        clientId: 'c1',
+        sessionName: 'main',
+        windowId: '@1',
+      },
+    }))).toEqual({
+      action: 'claimPromptFocus',
+      payload: {
+        clientId: 'c1',
+        sessionName: 'main',
+        windowId: '@1',
+      },
+    })
+
+    expect(parseClientMessage(JSON.stringify({
+      action: 'releasePromptFocus',
+      payload: {
+        clientId: 'c1',
+        sessionName: 'main',
+        windowId: '@1',
+      },
+    }))).toEqual({
+      action: 'releasePromptFocus',
+      payload: {
+        clientId: 'c1',
+        sessionName: 'main',
+        windowId: '@1',
+      },
+    })
+  })
+
+  it('parses promptFocusClaimed and promptFocusReleased server messages', () => {
+    expect(parseServerMessage(JSON.stringify({
+      type: 'promptFocusClaimed',
+      clientId: 'c1',
+      sessionName: 'main',
+      windowId: '@1',
+    }))).toEqual({
+      type: 'promptFocusClaimed',
+      clientId: 'c1',
+      sessionName: 'main',
+      windowId: '@1',
+    })
+
+    expect(parseServerMessage(JSON.stringify({
+      type: 'promptFocusReleased',
+      clientId: 'c1',
+      sessionName: 'main',
+      windowId: '@1',
+    }))).toEqual({
+      type: 'promptFocusReleased',
+      clientId: 'c1',
+      sessionName: 'main',
+      windowId: '@1',
+    })
   })
 })

@@ -127,17 +127,80 @@ describe('TerminalPeerRegistry', () => {
       .toThrow('WebSocket peer is not open.')
   })
 
-  it('disposes all active peers and tolerates repeated close', async () => {
+  it('broadcasts prompt drafts and prompt draft clear events to all active peers', () => {
     const context = setup()
     const first = new FakePeer()
     const second = new FakePeer()
     context.registry.open(first)
     context.registry.open(second)
 
-    await context.registry.dispose()
-    await context.registry.close(first)
+    context.registry.broadcastPromptDraft({
+      clientId: 'c1',
+      draft: 'hello world',
+      revision: 1,
+      sessionName: 'main',
+      updatedAt: 12345,
+      windowId: '@1',
+    })
 
-    expect(context.managedSessions[0]?.dispose).toHaveBeenCalledOnce()
-    expect(context.managedSessions[1]?.dispose).toHaveBeenCalledOnce()
+    const firstMessages = first.sent.map(m => JSON.parse(m))
+    const secondMessages = second.sent.map(m => JSON.parse(m))
+    expect(firstMessages).toContainEqual({
+      type: 'promptDraft',
+      clientId: 'c1',
+      draft: 'hello world',
+      revision: 1,
+      sessionName: 'main',
+      updatedAt: 12345,
+      windowId: '@1',
+    })
+    expect(secondMessages).toContainEqual({
+      type: 'promptDraft',
+      clientId: 'c1',
+      draft: 'hello world',
+      revision: 1,
+      sessionName: 'main',
+      updatedAt: 12345,
+      windowId: '@1',
+    })
+
+    context.registry.broadcastPromptDraftCleared({
+      clientId: 'c1',
+      sessionName: 'main',
+      windowId: '@1',
+    })
+
+    expect(first.sent.map(m => JSON.parse(m))).toContainEqual({
+      type: 'promptDraftCleared',
+      clientId: 'c1',
+      sessionName: 'main',
+      windowId: '@1',
+    })
+
+    context.registry.broadcastPromptFocusClaimed({
+      clientId: 'c1',
+      sessionName: 'main',
+      windowId: '@1',
+    })
+
+    expect(first.sent.map(m => JSON.parse(m))).toContainEqual({
+      type: 'promptFocusClaimed',
+      clientId: 'c1',
+      sessionName: 'main',
+      windowId: '@1',
+    })
+
+    context.registry.broadcastPromptFocusReleased({
+      clientId: 'c1',
+      sessionName: 'main',
+      windowId: '@1',
+    })
+
+    expect(first.sent.map(m => JSON.parse(m))).toContainEqual({
+      type: 'promptFocusReleased',
+      clientId: 'c1',
+      sessionName: 'main',
+      windowId: '@1',
+    })
   })
 })

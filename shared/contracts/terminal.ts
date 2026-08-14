@@ -197,6 +197,50 @@ const indexedWindowActionSchema = (action: 'selectWindow' | 'killWindow') => z.o
   }, { error: 'A payload object is required.' }),
 })
 
+const syncPromptDraftSchema = z.object({
+  action: z.literal('syncPromptDraft'),
+  payload: z.object({
+    clientId: z.string().min(1, 'Sync prompt draft requires a clientId string.'),
+    draft: z.string().max(MAX_INPUT_BYTES, `Prompt draft exceeds ${MAX_INPUT_BYTES} bytes.`),
+    revision: z.number().int().positive().optional(),
+    sessionName: z.string().min(1, 'Sync prompt draft requires a sessionName string.'),
+    windowId: z.string().min(1, 'Sync prompt draft requires a windowId string.'),
+  }, { error: 'A payload object is required.' }),
+})
+
+const clearPromptDraftSchema = z.object({
+  action: z.literal('clearPromptDraft'),
+  payload: z.object({
+    clientId: z.string().min(1, 'Clear prompt draft requires a clientId string.'),
+    sessionName: z.string().min(1, 'Clear prompt draft requires a sessionName string.'),
+    windowId: z.string().min(1, 'Clear prompt draft requires a windowId string.'),
+  }, { error: 'A payload object is required.' }),
+})
+
+const claimPromptFocusSchema = z.object({
+  action: z.literal('claimPromptFocus'),
+  payload: z.object({
+    clientId: z.string().min(1, 'Claim prompt focus requires a clientId string.'),
+    sessionName: z.string().min(1, 'Claim prompt focus requires a sessionName string.'),
+    windowId: z.string().min(1, 'Claim prompt focus requires a windowId string.'),
+  }, { error: 'A payload object is required.' }),
+})
+
+const releasePromptFocusSchema = z.object({
+  action: z.literal('releasePromptFocus'),
+  payload: z.object({
+    clientId: z.string().min(1, 'Release prompt focus requires a clientId string.'),
+    sessionName: z.string().min(1, 'Release prompt focus requires a sessionName string.'),
+    windowId: z.string().min(1, 'Release prompt focus requires a windowId string.'),
+  }, { error: 'A payload object is required.' }),
+})
+
+export const sessionPromptDraftsResponseSchema = z.object({
+  drafts: z.record(z.string(), z.string()),
+})
+
+export type SessionPromptDraftsResponse = z.infer<typeof sessionPromptDraftsResponseSchema>
+
 export const clientMessageSchema = z.discriminatedUnion('action', [
   attachSchema,
   attachWindowSchema,
@@ -210,6 +254,10 @@ export const clientMessageSchema = z.discriminatedUnion('action', [
   indexedWindowActionSchema('selectWindow'),
   indexedWindowActionSchema('killWindow'),
   wheelInputSchema,
+  syncPromptDraftSchema,
+  clearPromptDraftSchema,
+  claimPromptFocusSchema,
+  releasePromptFocusSchema,
   z.object({ action: z.literal('detach') }),
   z.object({ action: z.literal('ping') }),
 ])
@@ -230,6 +278,33 @@ export const serverMessageSchema = z.union([
     type: z.literal('inputAck'),
     data: z.string(),
     inputId: z.string(),
+  }),
+  z.object({
+    type: z.literal('promptDraft'),
+    clientId: z.string(),
+    draft: z.string(),
+    revision: z.number().int(),
+    sessionName: z.string(),
+    updatedAt: z.number().int(),
+    windowId: z.string(),
+  }),
+  z.object({
+    type: z.literal('promptDraftCleared'),
+    clientId: z.string(),
+    sessionName: z.string(),
+    windowId: z.string(),
+  }),
+  z.object({
+    type: z.literal('promptFocusClaimed'),
+    clientId: z.string(),
+    sessionName: z.string(),
+    windowId: z.string(),
+  }),
+  z.object({
+    type: z.literal('promptFocusReleased'),
+    clientId: z.string(),
+    sessionName: z.string(),
+    windowId: z.string(),
   }),
   attentionWebSocketMessageSchema,
 ])

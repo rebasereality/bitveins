@@ -8,6 +8,13 @@ until a release is tagged.
 
 ### Added
 
+- real-time multi-device Async prompt sync and per-tmux-window drafts: the Async
+  prompt composer now synchronizes live across all connected devices (browsers, mobile,
+  workstations) via WebSockets without typing lag, persists drafts per tmux window tab
+  in SQLite across tab switches and restarts, features cross-device focus arbitration
+  where inactive devices display a grayed-out live preview of the draft and automatically
+  transfer focus and adapt terminal window geometry (`resize-window`) on tap/click, and
+  clears drafts upon prompt submission;
 - agent status indicator squares on tmux window tabs: the colored state square
   (working, blocked, failed, idle) is now rendered directly in front of the window
   tab name when an agent is running in that tmux window;

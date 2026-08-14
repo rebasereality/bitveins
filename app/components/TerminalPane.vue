@@ -45,16 +45,16 @@ const fitAddon = shallowRef<FitAddon | null>(null)
 const colorMode = useColorMode()
 const { accentColor, terminalFontSize } = useAppearanceSettings()
 const ready = ref(true)
-let terminalDataDisposable: IDisposable | null = null
-let terminalBinaryDisposable: IDisposable | null = null
-let terminalSelectionDisposable: IDisposable | null = null
-let terminalFileLinkDisposable: IDisposable | null = null
-let terminalFileLinkProvider: TerminalFileLinkProvider | null = null
-let terminalUrlLinkDisposable: IDisposable | null = null
-let terminalUrlLinkProvider: TerminalUrlLinkProvider | null = null
-let terminalResizeObserver: ResizeObserver | null = null
-let terminalResizeFrame = 0
-let disposed = false
+let terminalDataDisposable: IDisposable | null = null,
+  terminalBinaryDisposable: IDisposable | null = null,
+  terminalSelectionDisposable: IDisposable | null = null,
+  terminalFileLinkDisposable: IDisposable | null = null,
+  terminalFileLinkProvider: TerminalFileLinkProvider | null = null,
+  terminalUrlLinkDisposable: IDisposable | null = null,
+  terminalUrlLinkProvider: TerminalUrlLinkProvider | null = null,
+  terminalResizeObserver: ResizeObserver | null = null,
+  terminalResizeFrame = 0,
+  disposed = false
 
 const activeSession = computed(() => props.sessionName)
 const active = computed(() => props.active)
@@ -311,10 +311,14 @@ function dispose(): void {
 }
 
 defineExpose({
+  claimPromptFocus: (payload: { clientId: string, sessionName: string, windowId: string }) => terminalSocket.claimPromptFocus(payload),
+  clearPromptDraft: (payload: { clientId: string, sessionName: string, windowId: string }) => terminalSocket.clearPromptDraft(payload),
   dispose,
-  fitAndResize,
+  fitAndResize: (force = false) => fitAndResize(force),
   focus,
+  releasePromptFocus: (payload: { clientId: string, sessionName: string, windowId: string }) => terminalSocket.releasePromptFocus(payload),
   sendInput,
+  sendPromptDraft: (payload: { clientId: string, draft: string, revision?: number, sessionName: string, windowId: string }) => terminalSocket.sendPromptDraft(payload),
   sendReliableInput,
   sendReliableInputs,
 })

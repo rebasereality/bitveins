@@ -115,6 +115,68 @@ describe('BrowserWebSocketTransport', () => {
     window.removeEventListener('bitveins:attention-event', listener)
   })
 
+  it('dispatches promptDraft and promptDraftCleared events to window', () => {
+    const { handlers, socket } = setup()
+    const draftListener = vi.fn()
+    const clearListener = vi.fn()
+    const focusClaimedListener = vi.fn()
+    const focusReleasedListener = vi.fn()
+    window.addEventListener('bitveins:prompt-draft', draftListener)
+    window.addEventListener('bitveins:prompt-draft-cleared', clearListener)
+    window.addEventListener('bitveins:prompt-focus-claimed', focusClaimedListener)
+    window.addEventListener('bitveins:prompt-focus-released', focusReleasedListener)
+
+    socket.dispatchEvent(new MessageEvent('message', {
+      data: JSON.stringify({
+        type: 'promptDraft',
+        clientId: 'c1',
+        draft: 'npm test',
+        revision: 1,
+        sessionName: 'main',
+        updatedAt: 1234,
+        windowId: '@1',
+      }),
+    }))
+
+    socket.dispatchEvent(new MessageEvent('message', {
+      data: JSON.stringify({
+        type: 'promptDraftCleared',
+        clientId: 'c1',
+        sessionName: 'main',
+        windowId: '@1',
+      }),
+    }))
+
+    socket.dispatchEvent(new MessageEvent('message', {
+      data: JSON.stringify({
+        type: 'promptFocusClaimed',
+        clientId: 'c1',
+        sessionName: 'main',
+        windowId: '@1',
+      }),
+    }))
+
+    socket.dispatchEvent(new MessageEvent('message', {
+      data: JSON.stringify({
+        type: 'promptFocusReleased',
+        clientId: 'c1',
+        sessionName: 'main',
+        windowId: '@1',
+      }),
+    }))
+
+    expect(draftListener).toHaveBeenCalledOnce()
+    expect(clearListener).toHaveBeenCalledOnce()
+    expect(focusClaimedListener).toHaveBeenCalledOnce()
+    expect(focusReleasedListener).toHaveBeenCalledOnce()
+    expect(handlers.onMessage).not.toHaveBeenCalled()
+
+    window.removeEventListener('bitveins:prompt-draft', draftListener)
+    window.removeEventListener('bitveins:prompt-draft-cleared', clearListener)
+    window.removeEventListener('bitveins:prompt-focus-claimed', focusClaimedListener)
+    window.removeEventListener('bitveins:prompt-focus-released', focusReleasedListener)
+  })
+
   it('forwards browser errors and remote close exactly once', () => {
     const { handlers, socket } = setup()
     socket.dispatchEvent(new Event('error'))

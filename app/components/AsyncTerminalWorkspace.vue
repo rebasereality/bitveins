@@ -64,10 +64,27 @@ async function splitTmuxWindow(direction: 'horizontal' | 'vertical'): Promise<vo
 defineExpose({
   attach,
   attachWindow,
+  claimPromptFocus: (payload: { clientId: string, sessionName: string, windowId: string }) => (
+    terminal.value?.claimPromptFocus(payload)
+  ),
+  clearPromptDraft: (payload: { clientId: string, sessionName: string, windowId: string }) => (
+    terminal.value?.clearPromptDraft(payload)
+  ),
   detach: (sessionName?: string) => terminal.value?.detach(sessionName),
+  fitAndResize: (force = false) => terminal.value?.fitAndResize(force),
   focus: () => terminal.value?.focus(),
   focusPane: (paneId: string) => terminal.value?.focusPane(paneId) ?? Promise.resolve(false),
+  releasePromptFocus: (payload: { clientId: string, sessionName: string, windowId: string }) => (
+    terminal.value?.releasePromptFocus(payload)
+  ),
   sendInput: (data: string) => terminal.value?.sendInput(data),
+  sendPromptDraft: (payload: {
+    clientId: string
+    draft: string
+    revision?: number
+    sessionName: string
+    windowId: string
+  }) => terminal.value?.sendPromptDraft(payload),
   sendReliableInput: (data: string) => terminal.value?.sendReliableInput(data) ?? false,
   sendReliableInputs: (data: readonly string[]) =>
     terminal.value?.sendReliableInputs(data) ?? false,

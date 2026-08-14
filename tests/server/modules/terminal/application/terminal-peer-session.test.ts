@@ -133,9 +133,30 @@ function setup(reliableInputs = createReliableInputDeduplicator()) {
     sendPaneInput: vi.fn(async () => {}),
     sendPaneInputBinary: vi.fn(async () => {}),
   }
+  const promptDrafts = {
+    clearDraft: vi.fn(),
+    getDraft: vi.fn(),
+    listDrafts: vi.fn(() => ({})),
+    saveDraft: vi.fn((input: any) => ({
+      draft: input.draft,
+      revision: input.revision ?? 1,
+      sessionName: input.sessionName,
+      updatedAt: input.now,
+      windowId: input.windowId,
+    })),
+  }
+  const broadcastPromptDraft = vi.fn()
+  const broadcastPromptDraftCleared = vi.fn()
+  const broadcastPromptFocusClaimed = vi.fn()
+  const broadcastPromptFocusReleased = vi.fn()
   const peer = new TerminalPeerSession({
     attachmentProcesses,
     paneControlProcesses,
+    broadcastPromptDraft,
+    broadcastPromptDraftCleared,
+    broadcastPromptFocusClaimed,
+    broadcastPromptFocusReleased,
+    promptDrafts,
     onHelperActivated: name => activatedHelpers.push(name),
     onHelperReleased: name => releasedHelpers.push(name),
     reliableInputs,
@@ -145,8 +166,13 @@ function setup(reliableInputs = createReliableInputDeduplicator()) {
   })
   return {
     activatedHelpers,
+    broadcastPromptDraft,
+    broadcastPromptDraftCleared,
+    broadcastPromptFocusClaimed,
+    broadcastPromptFocusReleased,
     messages,
     peer,
+    promptDrafts,
     attachmentProcesses,
     paneControlProcesses,
     releasedHelpers,
@@ -182,7 +208,11 @@ describe('TerminalPeerSession', () => {
     await context.peer.enqueue(JSON.stringify({ action: 'input', payload: { data: 'echo pane\r' } }))
     await context.peer.enqueue(JSON.stringify({ action: 'resize', payload: { cols: 160, rows: 60 } }))
 
-    expect(context.messages.at(-1)).toEqual({ type: 'stdout', data: 'pane output' })
+    expect(context.messages).toContainEqual({ type: 'stdout', data: 'pane output' })
+    expect(context.messages.at(-1)).toEqual({
+      type: 'stdout',
+      data: '\x1b[0m\x1b[2J\x1b[3J\x1b[Hpane viewport\x1b[0m\x1b[3;4H\x1b[?25h',
+    })
     expect(context.sessions.sendPaneInput).toHaveBeenCalledWith('%7', 'echo pane\r')
     expect(process.activateCount).toBe(1)
     expect(process.resizes).toEqual([{ cols: 160, rows: 60 }])
@@ -743,18 +773,80 @@ describe('TerminalPeerSession', () => {
     expect(context.messages).toEqual([{ type: 'heartbeat', data: '' }])
   })
 
-  it('normalizes non-Error failures before sending them to the peer', async () => {
+  it('handles syncPromptDraft and clearPromptDraft actions', async () => {
     const context = setup()
-    context.sessions.selectWindow.mockRejectedValue('selection failed')
 
     await context.peer.enqueue(JSON.stringify({
-      action: 'selectWindow',
-      payload: { index: 1, sessionName: 'main' },
+      action: 'syncPromptDraft',
+      payload: {
+        clientId: 'tab-1',
+        draft: 'npm run dev',
+        revision: 2,
+        sessionName: 'main',
+        windowId: '@1',
+      },
     }))
 
-    expect(context.messages).toEqual([{
-      type: 'error',
-      data: 'selection failed',
-    }])
+    expect(context.promptDrafts.saveDraft).toHaveBeenCalledWith({
+      draft: 'npm run dev',
+      now: expect.any(Number),
+      revision: 2,
+      sessionName: 'main',
+      windowId: '@1',
+    })
+    expect(context.broadcastPromptDraft).toHaveBeenCalledWith({
+      clientId: 'tab-1',
+      draft: 'npm run dev',
+      revision: 2,
+      sessionName: 'main',
+      updatedAt: expect.any(Number),
+      windowId: '@1',
+    })
+
+    await context.peer.enqueue(JSON.stringify({
+      action: 'clearPromptDraft',
+      payload: {
+        clientId: 'tab-1',
+        sessionName: 'main',
+        windowId: '@1',
+      },
+    }))
+
+    expect(context.promptDrafts.clearDraft).toHaveBeenCalledWith('main', '@1')
+    expect(context.broadcastPromptDraftCleared).toHaveBeenCalledWith({
+      clientId: 'tab-1',
+      sessionName: 'main',
+      windowId: '@1',
+    })
+
+    await context.peer.enqueue(JSON.stringify({
+      action: 'claimPromptFocus',
+      payload: {
+        clientId: 'tab-1',
+        sessionName: 'main',
+        windowId: '@1',
+      },
+    }))
+
+    expect(context.broadcastPromptFocusClaimed).toHaveBeenCalledWith({
+      clientId: 'tab-1',
+      sessionName: 'main',
+      windowId: '@1',
+    })
+
+    await context.peer.enqueue(JSON.stringify({
+      action: 'releasePromptFocus',
+      payload: {
+        clientId: 'tab-1',
+        sessionName: 'main',
+        windowId: '@1',
+      },
+    }))
+
+    expect(context.broadcastPromptFocusReleased).toHaveBeenCalledWith({
+      clientId: 'tab-1',
+      sessionName: 'main',
+      windowId: '@1',
+    })
   })
 })

@@ -43,6 +43,8 @@ import { TmuxPaneControlProcessFactory } from '../modules/terminal/adapters/tmux
 import { db, useDrizzle } from '../utils/db'
 import { getValidatedEnv } from '../utils/env'
 
+import { DrizzlePromptDraftRepository } from '../modules/sessions/adapters/drizzle-prompt-draft-repository'
+
 export interface BitveinsContainer {
   antigravityNotifications: AntigravityNotificationService
   attention: AttentionService
@@ -54,6 +56,7 @@ export interface BitveinsContainer {
   gitViewer: GitViewerService
   history: HistoryService
   hermesNotifications: HermesNotificationService
+  promptDrafts: DrizzlePromptDraftRepository
   sessions: SessionService
   terminalPeers: TerminalPeerRegistry<TerminalPeer>
   pushPublicKey: string
@@ -119,11 +122,25 @@ export function createBitveinsContainer(): BitveinsContainer {
     socketName: environment.BITVEINS_TMUX_SOCKET_NAME,
   })
   const reliableInputs = createReliableInputDeduplicator()
+  const promptDrafts = new DrizzlePromptDraftRepository(useDrizzle())
   const terminalPeers = new TerminalPeerRegistry<TerminalPeer>({
     createSession(peer, helperLifecycle) {
       return new TerminalPeerSession({
         attachmentProcesses,
         paneControlProcesses,
+        broadcastPromptDraft(draft) {
+          terminalPeers.broadcastPromptDraft(draft)
+        },
+        broadcastPromptDraftCleared(info) {
+          terminalPeers.broadcastPromptDraftCleared(info)
+        },
+        broadcastPromptFocusClaimed(info) {
+          terminalPeers.broadcastPromptFocusClaimed(info)
+        },
+        broadcastPromptFocusReleased(info) {
+          terminalPeers.broadcastPromptFocusReleased(info)
+        },
+        promptDrafts,
         onHelperActivated: helperLifecycle.activated,
         onHelperReleased: helperLifecycle.released,
         reliableInputs,
@@ -208,6 +225,7 @@ export function createBitveinsContainer(): BitveinsContainer {
     gitViewer,
     history,
     hermesNotifications,
+    promptDrafts,
     sessions,
     terminalPeers,
     pushPublicKey: environment.BITVEINS_VAPID_PUBLIC_KEY,

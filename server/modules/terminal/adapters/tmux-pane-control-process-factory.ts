@@ -59,6 +59,7 @@ class ChildTmuxPaneControlProcess implements TerminalPaneControlProcess {
 
   resize(columns: number, rows: number): void {
     this.lastSize = { cols: columns, rows }
+    this.activate()
     this.applyRequestedSize()
   }
 
@@ -69,7 +70,7 @@ class ChildTmuxPaneControlProcess implements TerminalPaneControlProcess {
 
   applyRequestedSize(): void {
     if (!this.resizeAuthority || !this.lastSize || this.exited || !this.child.stdin.writable) return
-    this.child.stdin.write(`refresh-client -C ${this.lastSize.cols}x${this.lastSize.rows}\n`)
+    this.child.stdin.write(`refresh-client -C ${this.lastSize.cols}x${this.lastSize.rows}\nresize-window -x ${this.lastSize.cols} -y ${this.lastSize.rows}\n`)
   }
 
   private consume(chunk: string): void {

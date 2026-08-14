@@ -1,65 +1,14 @@
 import { Buffer } from 'node:buffer'
-import type { ClientMessage, ServerMessage } from '#shared/contracts/terminal'
+import type { ClientMessage } from '#shared/contracts/terminal'
 import { parseClientMessage, parseTerminalSize } from '#shared/contracts/terminal'
 import { normalizeSessionName } from '../../sessions/model/session-validation'
 import type { TmuxPaneViewport } from '../../sessions/ports/tmux-gateway'
-import type { Disposable, PtyProcess } from '../ports/pty-factory'
-import type { TerminalAttachmentProcessFactory } from '../ports/terminal-attachment-process-factory'
+import type { PtyProcess } from '../ports/pty-factory'
+import type { TerminalPaneControlProcess } from '../ports/terminal-pane-control-process-factory'
 import type {
-  TerminalPaneControlProcess,
-  TerminalPaneControlProcessFactory,
-} from '../ports/terminal-pane-control-process-factory'
-
-interface ReliableInputDeduplicator {
-  deliver(
-    id: string,
-    target: string,
-    operation: () => Promise<void> | void,
-  ): Promise<void>
-}
-
-interface TerminalSessionOperations {
-  applyClientAppearance?(sessionName: string, appearance: 'dark' | 'light'): Promise<void>
-  capturePaneViewport(paneId: unknown): Promise<TmuxPaneViewport>
-  createWindow(name: string): Promise<unknown>
-  createWindowClientSession(name: string, index: unknown): Promise<{
-    helperSessionName: string
-    sessionName: string
-    windowIndex: number
-  }>
-  killBitveinsHelperSession(name: string): Promise<void>
-  killWindow(name: string, index: unknown): Promise<void>
-  listPanes(name: string, index: unknown): Promise<Array<{ id: string }>>
-  prepareTerminalWheel(sessionName: string, direction: 'down' | 'up', lineCount?: 1): Promise<boolean>
-  resetTerminalScroll(sessionName: string): Promise<void>
-  selectWindow(name: string, index: unknown): Promise<void>
-  sendPaneInput(paneId: unknown, data: string): Promise<void>
-  sendPaneInputBinary(paneId: unknown, data: string): Promise<void>
-}
-
-interface TerminalPeerSessionOptions {
-  attachmentProcesses: TerminalAttachmentProcessFactory
-  paneControlProcesses: TerminalPaneControlProcessFactory
-  onHelperActivated: (name: string) => void
-  onHelperReleased: (name: string) => void
-  reliableInputs: ReliableInputDeduplicator
-  send: (message: ServerMessage) => void
-  sessions: TerminalSessionOperations
-  wait?: (delay: number) => Promise<void>
-}
-
-interface Attachment {
-  dataSubscription?: Disposable
-  exitSubscription?: Disposable
-  helperReleased: boolean
-  helperSessionName?: string
-  label: string
-  paneId?: string
-  process: PtyProcess | TerminalPaneControlProcess
-  reliableInputTarget: string
-  scrollActive?: boolean
-  tmuxTarget: string
-}
+  Attachment,
+  TerminalPeerSessionOptions,
+} from './terminal-peer-session-types'
 
 const initialPaneCaptureDelays = [0, 50, 100, 200, 400] as const
 
@@ -182,6 +131,9 @@ export class TerminalPeerSession {
         if (attachment) {
           const size = parseTerminalSize(message.payload.cols, message.payload.rows)
           attachment.process.resize(size.cols, size.rows)
+          if (attachment.paneId) {
+            await this.renderPaneViewport(attachment)
+          }
         }
         return
       }
@@ -197,6 +149,43 @@ export class TerminalPeerSession {
         await this.options.sessions.killWindow(message.payload.sessionName, message.payload.index)
         this.options.send({ type: 'status', data: `Closed window ${message.payload.index}.` })
         return
+      case 'syncPromptDraft': {
+        const { clientId, draft, revision, sessionName, windowId } = message.payload
+        const saved = this.options.promptDrafts?.saveDraft({
+          draft,
+          now: Date.now(),
+          revision,
+          sessionName,
+          windowId,
+        })
+        this.options.broadcastPromptDraft?.({
+          clientId,
+          draft,
+          revision: saved?.revision ?? revision ?? 1,
+          sessionName,
+          updatedAt: saved?.updatedAt ?? Date.now(),
+          windowId,
+        })
+        return
+      }
+      case 'clearPromptDraft': {
+        const { clientId, sessionName, windowId } = message.payload
+        this.options.promptDrafts?.clearDraft(sessionName, windowId)
+        this.options.broadcastPromptDraftCleared?.({
+          clientId,
+          sessionName,
+          windowId,
+        })
+        return
+      }
+      case 'claimPromptFocus': {
+        this.options.broadcastPromptFocusClaimed?.(message.payload)
+        return
+      }
+      case 'releasePromptFocus': {
+        this.options.broadcastPromptFocusReleased?.(message.payload)
+        return
+      }
       case 'detach':
         await this.detach()
         return

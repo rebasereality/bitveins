@@ -332,6 +332,24 @@ function runMigrations(dbInstance: RawDatabase): void {
         `)
       },
     },
+    {
+      id: 12,
+      name: '012_add_async_prompt_drafts',
+      up: () => {
+        dbInstance.exec(`
+          CREATE TABLE IF NOT EXISTS async_prompt_drafts (
+            session_name TEXT NOT NULL,
+            window_id TEXT NOT NULL,
+            draft TEXT NOT NULL,
+            revision INTEGER NOT NULL DEFAULT 1,
+            updated_at INTEGER NOT NULL,
+            PRIMARY KEY (session_name, window_id)
+          );
+          CREATE INDEX IF NOT EXISTS idx_async_prompt_drafts_updated_at
+            ON async_prompt_drafts (updated_at);
+        `)
+      },
+    },
   ]
 
   for (const migration of migrations) {
