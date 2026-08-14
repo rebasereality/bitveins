@@ -165,6 +165,34 @@ function setup() {
 }
 
 describe('TerminalConnectionController', () => {
+  it('includes the Bitveins appearance when attaching a pane', () => {
+    const context = setup()
+    const controller = new TerminalConnectionController({
+      environment: context.environment,
+      getAppearance: () => 'light',
+      getSize: () => ({ cols: 120, rows: 40 }),
+      onAttachmentBegin: () => {},
+      onAttachmentReady: () => {},
+      onCheckAuthentication: () => {},
+      onInputAcknowledged: () => {},
+      onOutput: () => {},
+      onReliableInputFlush: () => {},
+      onReliableInputReset: () => {},
+      onStateChange: () => {},
+      onStatus: () => {},
+      scheduler: context.scheduler,
+      transportFactory: context.transportFactory,
+    })
+    controller.attachPane('main', 2, '%7')
+    context.transportFactory.transports[0]!.open()
+
+    expect(context.transportFactory.transports[0]!.messages[0]).toMatchObject({
+      action: 'attachPane',
+      payload: { appearance: 'light', paneId: '%7' },
+    })
+    controller.dispose()
+  })
+
   it('attaches and confirms a pane by its stable tmux id', () => {
     const context = setup()
     context.controller.attachPane('main', 2, '%7')

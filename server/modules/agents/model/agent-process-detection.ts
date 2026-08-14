@@ -21,6 +21,14 @@ const AGENT_PATTERNS: ReadonlyArray<{
   { kind: 'claude', patterns: [/(?:^|[\s/])claude(?:[\s]|$)/iu, /claude-code/iu] },
   { kind: 'opencode', patterns: [/(?:^|[\s/])opencode(?:[\s]|$)/iu] },
   { kind: 'gemini', patterns: [/(?:^|[\s/])gemini(?:[\s]|$)/iu, /gemini-cli/iu] },
+  {
+    kind: 'grok',
+    patterns: [
+      /(?:^|[\s/])grok(?:[\s]|$)/iu,
+      /(?:^|[\s/])grok-(?:linux|darwin|windows)/iu,
+      /(?:^|[\s/])\.grok[/\\](?:bin[/\\])?(?:agent|grok)(?:[\s]|$)/iu,
+    ],
+  },
   { kind: 'cursor', patterns: [/(?:^|[\s/])cursor-agent(?:[\s]|$)/iu] },
   { kind: 'copilot', patterns: [/(?:^|[\s/])copilot(?:[\s]|$)/iu, /github-copilot-cli/iu] },
   { kind: 'aider', patterns: [/(?:^|[\s/])aider(?:[\s]|$)/iu] },
@@ -111,6 +119,7 @@ export function tmuxAgentDisplayName(kind: TmuxAgentKind): string {
     copilot: 'Copilot',
     cursor: 'Cursor',
     gemini: 'Gemini',
+    grok: 'Grok',
     hermes: 'Hermes',
     opencode: 'OpenCode',
     pi: 'Pi',

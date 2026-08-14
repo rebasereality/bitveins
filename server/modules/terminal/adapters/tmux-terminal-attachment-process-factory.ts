@@ -1,3 +1,4 @@
+import { terminalClientEnvironment } from '../model/terminal-client-environment'
 import type { PtyFactory, PtyProcess } from '../ports/pty-factory'
 import type {
   TerminalAttachmentProcessFactory,
@@ -28,10 +29,7 @@ export class TmuxTerminalAttachmentProcessFactory implements TerminalAttachmentP
       {
         cols: size.cols,
         cwd: this.options.cwd,
-        env: {
-          ...hostEnvironment,
-          TERM: 'xterm-256color',
-        },
+        env: terminalClientEnvironment(hostEnvironment),
         name: 'xterm-256color',
         rows: size.rows,
       },

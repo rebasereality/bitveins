@@ -17,6 +17,7 @@ import type { TerminalTransport, TerminalTransportFactory } from './terminal-tra
 interface TerminalConnectionControllerOptions {
   clock?: () => number
   environment: ConnectionEnvironment
+  getAppearance?: () => 'dark' | 'light'
   getSize: () => { cols?: number, rows?: number }
   onAttachmentBegin: () => void
   onAttachmentReady: () => void
@@ -116,6 +117,11 @@ export class TerminalConnectionController {
       action: 'wheelInput',
       payload: lineCount ? { data, encoding, lineCount } : { data, encoding },
     })
+  }
+
+  sendAppearance(appearance: 'dark' | 'light'): boolean {
+    if (!this.isAttached || this.watchdog.isStale()) return false
+    return this.sendMessage({ action: 'setAppearance', payload: { appearance } })
   }
 
   sendScroll(direction: 'down' | 'up', lineCount?: 1): boolean {
@@ -319,6 +325,8 @@ export class TerminalConnectionController {
     const attachment = this.machine.snapshot.attachment
     if (!attachment) return
     const size = this.options.getSize()
+    const appearance = this.options.getAppearance?.()
+    const appearancePayload = appearance ? { appearance } : {}
     const message: ClientMessage = attachment.type === 'pane'
       ? {
           action: 'attachPane',
@@ -326,6 +334,7 @@ export class TerminalConnectionController {
             sessionName: attachment.sessionName,
             windowIndex: attachment.windowIndex,
             paneId: attachment.paneId,
+            ...appearancePayload,
             ...size,
           },
         }
@@ -335,6 +344,7 @@ export class TerminalConnectionController {
             payload: {
               sessionName: attachment.sessionName,
               windowIndex: attachment.windowIndex,
+              ...appearancePayload,
               ...size,
             },
           }
@@ -342,6 +352,7 @@ export class TerminalConnectionController {
             action: 'attach',
             payload: {
               sessionName: attachment.sessionName,
+              ...appearancePayload,
               ...size,
             },
           }

@@ -314,6 +314,21 @@ describe('TmuxCliAdapter', () => {
     ])
   })
 
+  it('stamps Grok appearance into the tmux session environment', async () => {
+    const { adapter, runner } = setup()
+
+    await adapter.applyClientAppearance('main', 'light')
+
+    expect(runner.calls.map(call => call.args)).toEqual([
+      ['set-option', '-g', '-a', 'terminal-features', ',*:RGB'],
+      ['set-option', '-wg', 'allow-passthrough', 'on'],
+      ['set-environment', '-t', 'main', 'COLORTERM', 'truecolor'],
+      ['set-environment', '-t', 'main', 'LC_GROK_THEME', 'auto'],
+      ['set-environment', '-t', 'main', 'LC_GROK_APPEARANCE', 'light'],
+      ['set-environment', '-t', 'main', 'COLORFGBG', '0;15'],
+    ])
+  })
+
   it('sets and clears the stable session id through a tmux user option', async () => {
     const { adapter, runner } = setup()
 
@@ -420,7 +435,7 @@ describe('TmuxCliAdapter', () => {
     runner.handler = async ({ command }) => command === 'ps'
       ? {
           stderr: '',
-          stdout: '101 201 bash\n201 201 hermes\n102 202 bash\n202 202 node\n',
+          stdout: '101 201 bash\n201 201 hermes\n102 202 bash\n202 202 grok\n',
         }
       : {
           stderr: '',
@@ -442,6 +457,7 @@ describe('TmuxCliAdapter', () => {
         id: '@2',
         index: 2,
         name: 'logs',
+        application: 'grok',
         panesCount: 1,
         path: '/workspace',
       },
@@ -473,7 +489,7 @@ describe('TmuxCliAdapter', () => {
     runner.handler = async ({ command }) => command === 'ps'
       ? {
           stderr: '',
-          stdout: '101 201 bash\n201 201 hermes\n102 202 bash\n202 202 node\n',
+          stdout: '101 201 bash\n201 201 hermes\n102 202 bash\n202 202 grok\n',
         }
       : {
           stderr: '',
@@ -499,6 +515,7 @@ describe('TmuxCliAdapter', () => {
       },
       {
         active: false,
+        application: 'grok',
         height: 40,
         id: '%2',
         index: 1,

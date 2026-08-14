@@ -26,6 +26,10 @@ import {
   normalizeWindowIndex,
   normalizeWindowName,
 } from '../../model/session-validation'
+import {
+  foregroundApplicationForPane,
+  parseProcessCommandSnapshot,
+} from '../../model/terminal-application'
 import type { DiscoveredTmuxSession, TmuxGateway, WindowClientSession } from '../../ports/tmux-gateway'
 import type { CommandRunner } from './command-runner'
 import { captureTmuxPaneViewport } from './tmux-pane-viewport'
@@ -46,6 +50,7 @@ const TMUX_MAX_BUFFER = 1024 * 1024
 export class TmuxCliAdapter implements TmuxGateway {
   private readonly clock: () => number
   private readonly randomId: () => string
+  private truecolorReady = false
 
   constructor(private readonly options: TmuxCliAdapterOptions) {
     this.clock = options.clock ?? Date.now
@@ -94,6 +99,16 @@ export class TmuxCliAdapter implements TmuxGateway {
 
   async createSession(name: string, path: string): Promise<void> {
     await this.run(['new-session', '-d', '-s', normalizeSessionName(name), '-c', path])
+    await this.ensureTruecolorPassthrough()
+  }
+
+  async applyClientAppearance(name: string, appearance: 'dark' | 'light'): Promise<void> {
+    const session = normalizeSessionName(name)
+    await this.ensureTruecolorPassthrough()
+    await this.run(['set-environment', '-t', session, 'COLORTERM', 'truecolor'])
+    await this.run(['set-environment', '-t', session, 'LC_GROK_THEME', 'auto'])
+    await this.run(['set-environment', '-t', session, 'LC_GROK_APPEARANCE', appearance])
+    await this.run(['set-environment', '-t', session, 'COLORFGBG', appearance === 'light' ? '0;15' : '15;0'])
   }
 
   async killSession(name: string): Promise<void> {
@@ -484,79 +499,56 @@ export class TmuxCliAdapter implements TmuxGateway {
   private async withDetectedApplications(
     windows: ReturnType<typeof parseTmuxWindowsWithPanePids>,
   ): Promise<TmuxWindow[]> {
-    if (!windows.some(window => window.panePid !== null)) {
-      return windows.map(({ window }) => window)
-    }
-
-    try {
-      const { stdout } = await this.options.runner.run(
-        'ps',
-        ['-eo', 'pid=,tpgid=,comm='],
-        { maxBuffer: TMUX_MAX_BUFFER, timeoutMs: TMUX_TIMEOUT_MS },
-      )
-      const processes = new Map<number, { command: string, foregroundPid: number }>()
-
-      for (const line of stdout.split('\n')) {
-        const match = line.match(/^\s*(\d+)\s+(-?\d+)\s+(\S+)\s*$/)
-        if (!match) continue
-        processes.set(Number(match[1]), {
-          command: match[3]!,
-          foregroundPid: Number(match[2]),
-        })
-      }
-
-      return windows.map(({ panePid, window }) => {
-        const paneProcess = panePid === null ? undefined : processes.get(panePid)
-        const foregroundProcess = paneProcess
-          ? processes.get(paneProcess.foregroundPid)
-          : undefined
-
-        return foregroundProcess?.command === 'hermes'
-          ? { ...window, application: 'hermes' as const }
-          : window
-      })
-    }
-    catch {
-      return windows.map(({ window }) => window)
-    }
+    const applications = await this.detectApplications(windows.map(window => window.panePid))
+    return windows.map(({ panePid, window }) => {
+      const application = panePid === null ? null : applications.get(panePid)
+      return application ? { ...window, application } : window
+    })
   }
 
   private async withDetectedPaneApplications(
     panes: ReturnType<typeof parseTmuxPanes>,
   ): Promise<TmuxPane[]> {
     const applications = await this.detectApplications(panes.map(({ panePid }) => panePid))
-    return panes.map(({ pane, panePid }) => (
-      panePid !== null && applications.get(panePid) === 'hermes'
-        ? { ...pane, application: 'hermes' as const }
-        : pane
-    ))
+    return panes.map(({ pane, panePid }) => {
+      const application = panePid === null ? undefined : applications.get(panePid)
+      return application ? { ...pane, application } : pane
+    })
   }
 
-  private async detectApplications(panePids: readonly (number | null)[]): Promise<Map<number, string>> {
-    const result = new Map<number, string>()
+  private async detectApplications(
+    panePids: readonly (number | null)[],
+  ): Promise<Map<number, NonNullable<TmuxPane['application']>>> {
+    const result = new Map<number, NonNullable<TmuxPane['application']>>()
     if (!panePids.some(pid => pid !== null)) return result
     try {
       const { stdout } = await this.options.runner.run('ps', ['-eo', 'pid=,tpgid=,comm='], {
         maxBuffer: TMUX_MAX_BUFFER,
         timeoutMs: TMUX_TIMEOUT_MS,
       })
-      const processes = new Map<number, { command: string, foregroundPid: number }>()
-      for (const line of stdout.split('\n')) {
-        const match = line.match(/^\s*(\d+)\s+(-?\d+)\s+(\S+)\s*$/)
-        if (!match) continue
-        processes.set(Number(match[1]), { command: match[3]!, foregroundPid: Number(match[2]) })
-      }
+      const processes = parseProcessCommandSnapshot(stdout)
       for (const panePid of panePids) {
         if (panePid === null) continue
-        const paneProcess = processes.get(panePid)
-        const command = paneProcess ? processes.get(paneProcess.foregroundPid)?.command : undefined
-        if (command) result.set(panePid, command)
+        const application = foregroundApplicationForPane(panePid, processes)
+        if (application) result.set(panePid, application)
       }
     }
     catch {
       // Application labels are an optional UI enhancement.
     }
     return result
+  }
+
+  private async ensureTruecolorPassthrough(): Promise<void> {
+    if (this.truecolorReady) return
+    try {
+      await this.run(['set-option', '-g', '-a', 'terminal-features', ',*:RGB'])
+      await this.run(['set-option', '-wg', 'allow-passthrough', 'on'])
+      this.truecolorReady = true
+    }
+    catch {
+      // Truecolor passthrough is an optional rendering enhancement.
+    }
   }
 
   private async run(args: readonly string[]): Promise<string> {

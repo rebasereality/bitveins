@@ -4,6 +4,29 @@ All notable changes to Bitveins are documented here. The project follows
 [Semantic Versioning](https://semver.org/) and keeps an `Unreleased` section
 until a release is tagged.
 
+## Unreleased
+
+### Added
+
+- minimal Grok Build integration: automatic discovery of Grok Build panes in the
+  sidebar (across `grok` binary, platform download names, and `~/.grok/bin/agent`)
+  with light/dark theme adaptation (`LC_GROK_APPEARANCE`, OSC 11, and 256-color palette
+  remapping) and mouse-wheel scrolling in Grok's TUI (without hook-based lifecycle notifications);
+- a Fullscreen control after the pane-split buttons, which puts Bitveins in
+  browser fullscreen and hides the session sidebar so only the session navbar,
+  terminal and Async/Live composer remain.
+
+### Fixed
+
+- background Bitveins tabs no longer keep a live tmux stream or paint Grok
+  frames, which could grow until Chrome killed the tab. Hidden tabs detach and
+  resume from a fresh snapshot when they become visible again;
+- mouse-wheel scrolling in Grok Build's TUI reaches the app again after a
+  terminal snapshot, instead of being dropped between xterm and tmux;
+- Grok Build follows Bitveins light and dark mode: the web terminal advertises
+  truecolor, answers OSC 11 in Async mode, stamps `LC_GROK_APPEARANCE`, and
+  remaps GrokNight's 256-color surfaces so light mode stays readable.
+
 ## 1.5.0 - 2026-08-13
 
 ### Added

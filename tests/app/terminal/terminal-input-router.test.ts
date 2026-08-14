@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createTerminalInputRouter } from '../../../app/terminal/terminal-input-router'
+import { createTerminalInputRouter, sgrWheelReport } from '../../../app/terminal/terminal-input-router'
 import { markTerminalTouchWheelEvent } from '../../../app/terminal/terminal-touch-scroll'
 
 function setup(options: {
@@ -7,6 +7,7 @@ function setup(options: {
   asyncWheelEnabled?: boolean
   mode?: 'async' | 'live'
   mouseTracking?: boolean
+  resolveWheelCell?: (event: WheelEvent) => { col: number, row: number }
 } = {}) {
   let mode = options.mode ?? 'async'
   const scheduled: Array<() => void> = []
@@ -21,6 +22,7 @@ function setup(options: {
     isActive: () => options.active ?? true,
     isAsyncWheelEnabled: () => options.asyncWheelEnabled ?? true,
     isMouseTrackingEnabled: () => options.mouseTracking ?? true,
+    resolveWheelCell: options.resolveWheelCell,
     restoreInputMode,
     scheduleRestore: callback => scheduled.push(callback),
     sendInput,
@@ -42,6 +44,20 @@ function setup(options: {
 }
 
 describe('terminal input router', () => {
+  it('builds SGR wheel reports', () => {
+    expect(sgrWheelReport('up')).toBe('\x1b[<64;1;1M')
+    expect(sgrWheelReport('down', 42, 12)).toBe('\x1b[<65;42;12M')
+  })
+
+  it('forwards OSC 11 color reports in async mode so Grok can read the canvas', () => {
+    const context = setup({ mode: 'async' })
+    const report = '\u001B]11;rgb:fafa/fafb/fafb\u001B\\'
+
+    context.router.onData(report)
+
+    expect(context.sendInput).toHaveBeenCalledExactlyOnceWith(report)
+  })
+
   it('routes only data produced synchronously by an async wheel event', () => {
     const context = setup()
 
@@ -113,7 +129,7 @@ describe('terminal input router', () => {
     expect(context.restoreInputMode).not.toHaveBeenCalled()
   })
 
-  it('routes untracked wheel events to native tmux scrolling but ignores inactive panes', () => {
+  it('forwards untracked wheels as SGR reports so Grok still receives them', () => {
     const untracked = setup({ mouseTracking: false })
     const inactive = setup({ active: false })
     const wheel = { deltaY: -120, preventDefault: vi.fn() } as unknown as WheelEvent
@@ -121,8 +137,8 @@ describe('terminal input router', () => {
     expect(untracked.router.onWheel(wheel)).toBe(false)
     expect(inactive.router.onWheel(wheel)).toBe(true)
 
-    expect(untracked.sendWheelInput).not.toHaveBeenCalled()
-    expect(untracked.sendScroll).toHaveBeenCalledExactlyOnceWith('up', undefined)
+    expect(untracked.sendScroll).not.toHaveBeenCalled()
+    expect(untracked.sendWheelInput).toHaveBeenCalledExactlyOnceWith('\u001B[<64;1;1M', 'utf8')
     expect(wheel.preventDefault).toHaveBeenCalledOnce()
     expect(inactive.sendWheelInput).not.toHaveBeenCalled()
     expect(untracked.scheduled).toHaveLength(0)
@@ -137,7 +153,19 @@ describe('terminal input router', () => {
     } as unknown as WheelEvent)
 
     expect(context.router.onWheel(touchWheel)).toBe(false)
-    expect(context.sendScroll).toHaveBeenCalledExactlyOnceWith('down', 1)
+    expect(context.sendWheelInput).toHaveBeenCalledExactlyOnceWith('\u001B[<65;1;1M', 'utf8', 1)
+    expect(context.sendScroll).not.toHaveBeenCalled()
+  })
+
+  it('uses the resolved terminal cell in untracked SGR wheel reports', () => {
+    const context = setup({
+      mouseTracking: false,
+      resolveWheelCell: () => ({ col: 42, row: 12 }),
+    })
+
+    context.router.onWheel({ deltaY: 80, preventDefault: vi.fn() } as unknown as WheelEvent)
+
+    expect(context.sendWheelInput).toHaveBeenCalledExactlyOnceWith(sgrWheelReport('down', 42, 12), 'utf8')
   })
 
   it('cancels late wheel restoration after disposal', () => {

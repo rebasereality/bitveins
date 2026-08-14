@@ -60,6 +60,7 @@ const agentKindLabels: Record<TmuxAgent['kind'], string> = {
   copilot: 'Copilot',
   cursor: 'Cursor',
   gemini: 'Gemini',
+  grok: 'Grok',
   hermes: 'Hermes',
   opencode: 'OpenCode',
   pi: 'Pi',

@@ -85,6 +85,7 @@ function setup(initial: DiscoveredTmuxSession[], ids = [NEXT_ID, THIRD_ID]) {
   const tmux = {
     captureWindowSnapshot: vi.fn(async () => ''),
     clearSessionId,
+    applyClientAppearance: vi.fn(async () => {}),
     createSession: vi.fn(async (name: string, path: string) => { live.push({ name, path }) }),
     createWindow: vi.fn(),
     createWindowClientSession: vi.fn(),

@@ -20,7 +20,7 @@ import { buildUploadDestinationPath } from '~/utils/upload-path'
 const props = defineProps<{
   active: boolean
   visible: boolean
-  application?: 'hermes'
+  application?: TmuxPane['application']
   focused: boolean
   inputMode: InputMode
   paneKey: string
@@ -53,6 +53,7 @@ let terminalFileLinkProvider: TerminalFileLinkProvider | null = null
 let terminalUrlLinkDisposable: IDisposable | null = null
 let terminalUrlLinkProvider: TerminalUrlLinkProvider | null = null
 let terminalResizeObserver: ResizeObserver | null = null
+let terminalResizeFrame = 0
 let disposed = false
 
 const activeSession = computed(() => props.sessionName)
@@ -61,12 +62,14 @@ const inputActive = computed(() => props.active && props.focused)
 const inputMode = computed(() => props.inputMode)
 const isLightTheme = computed(() => colorMode.value === 'light')
 const terminalOutputNormalizer = createTerminalOutputNormalizer(
-  () => props.application === 'hermes',
+  () => props.application === 'hermes'
+    || (props.application === 'grok' && isLightTheme.value),
 )
 
 const terminalTheme = computed<ITheme>(() => terminalThemeForAccent(
   isLightTheme.value ? 'light' : 'dark',
   accentColor.value,
+  props.application,
 ))
 
 function resolvePaneWindowSize({ cols, rows }: { cols: number, rows: number }) {
@@ -74,6 +77,26 @@ function resolvePaneWindowSize({ cols, rows }: { cols: number, rows: number }) {
     cols: Math.round(cols * props.pane.windowWidth / props.pane.width),
     rows: Math.round(rows * props.pane.windowHeight / props.pane.height),
   }
+}
+
+function resolveTerminalCell(event: WheelEvent): { col: number, row: number } {
+  const term = terminal.value
+  const host = terminalHost.value
+  if (!term || !host || term.cols < 1 || term.rows < 1) return { col: 1, row: 1 }
+  const rect = host.getBoundingClientRect()
+  const col = Math.floor((event.clientX - rect.left) / (rect.width / term.cols)) + 1
+  const row = Math.floor((event.clientY - rect.top) / (rect.height / term.rows)) + 1
+  return {
+    col: Math.min(term.cols, Math.max(1, col)),
+    row: Math.min(term.rows, Math.max(1, row)),
+  }
+}
+
+function enableGrokMouseTracking(): void {
+  if (props.application !== 'grok' || !terminal.value) return
+  // Snapshots reset the visible buffer but not Grok's DECSET mouse mode in tmux.
+  // Re-enable tracking in xterm so wheel reports reach Grok instead of tmux copy-mode.
+  terminal.value.write('\x1b[?1000h\x1b[?1002h\x1b[?1006h')
 }
 
 const terminalSocket = useTerminalSocket({
@@ -117,8 +140,10 @@ const terminalInputRouter = createTerminalInputRouter({
   },
   inputMode: () => props.inputMode,
   isActive: () => props.active && props.focused,
+  isAttached: () => props.active,
   isAsyncWheelEnabled: () => connectionState.value === 'attached',
   isMouseTrackingEnabled: () => terminal.value?.modes.mouseTrackingMode !== 'none',
+  resolveWheelCell: event => resolveTerminalCell(event),
   restoreInputMode: applyInputMode,
   sendInput,
   sendScroll,
@@ -276,6 +301,8 @@ function dispose(): void {
   terminalFileLinkProvider?.dispose()
   terminalUrlLinkDisposable?.dispose()
   terminalUrlLinkProvider?.dispose()
+  if (terminalResizeFrame) cancelAnimationFrame(terminalResizeFrame)
+  terminalResizeFrame = 0
   terminalResizeObserver?.disconnect()
   terminalInputRouter.dispose()
   terminalSelection.dispose()
@@ -339,7 +366,11 @@ onMounted(async () => {
   applyInputMode()
   fitAndResize()
   terminalResizeObserver = new ResizeObserver(() => {
-    if (props.active) fitAndResize()
+    if (!props.active || terminalResizeFrame) return
+    terminalResizeFrame = requestAnimationFrame(() => {
+      terminalResizeFrame = 0
+      if (!disposed && props.active) fitAndResize()
+    })
   })
   terminalResizeObserver.observe(terminalHost.value)
   terminalSelection.mount()
@@ -355,6 +386,13 @@ watch(terminalTheme, () => {
 watch(terminalFontSize, applyTerminalFontSize)
 
 watch(connectionState, state => emit('connectionChange', state === 'attached'), { immediate: true })
+
+watch(
+  () => [props.application, connectionState.value] as const,
+  () => {
+    if (connectionState.value === 'attached') enableGrokMouseTracking()
+  },
+)
 
 watch(
   () => [props.inputMode, props.active, props.focused] as const,

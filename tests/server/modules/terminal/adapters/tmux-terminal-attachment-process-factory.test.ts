@@ -49,6 +49,8 @@ describe('TmuxTerminalAttachmentProcessFactory', () => {
         cols: 120,
         cwd: '/workspace',
         env: {
+          COLORTERM: 'truecolor',
+          LC_GROK_THEME: 'auto',
           PATH: '/usr/bin',
           TERM: 'xterm-256color',
         },

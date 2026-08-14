@@ -35,6 +35,22 @@ describe('agent process detection', () => {
     expect(detectAgentProcess(100, snapshot)).toBeNull()
   })
 
+  it('finds Grok when a tool temporarily owns the pane foreground group', () => {
+    const snapshot = [
+      '100 1 100 300 bash',
+      '200 100 200 200 grok',
+      '300 200 300 300 bash -lc pnpm test',
+      '301 200 301 -1 systemd-inhibit --what=idle --who=grok --why=agent turn in progress sleep infinity',
+    ].join('\n')
+
+    expect(detectAgentProcess(100, snapshot)).toEqual({ kind: 'grok', pid: 200 })
+  })
+
+  it('does not treat Grok helper argv as the agent itself', () => {
+    expect(detectAgentKind('systemd-inhibit --what=idle --who=grok --why=agent turn in progress sleep infinity')).toBeNull()
+    expect(detectAgentKind('bash -O extglob -c builtin export GROK_AGENT=1; local __grok_bin=')).toBeNull()
+  })
+
   it('ignores malformed snapshots and missing pane processes', () => {
     const snapshot = [
       'not a process row',
@@ -53,6 +69,10 @@ describe('agent process detection', () => {
     ['node /opt/opencode/bin/opencode', 'opencode'],
     ['python -m hermes_cli.main', 'hermes'],
     ['/usr/local/bin/gemini --yolo', 'gemini'],
+    ['grok', 'grok'],
+    ['/home/theman/.local/bin/grok --yolo', 'grok'],
+    ['/home/theman/.grok/downloads/grok-linux-x86_64', 'grok'],
+    ['/home/theman/.grok/bin/agent', 'grok'],
     ['/usr/local/bin/cursor-agent', 'cursor'],
   ] as const)('recognizes %s as %s', (argv, kind) => {
     expect(detectAgentKind(argv)).toBe(kind)
@@ -61,5 +81,6 @@ describe('agent process detection', () => {
   it('provides stable product labels', () => {
     expect(tmuxAgentDisplayName('opencode')).toBe('OpenCode')
     expect(tmuxAgentDisplayName('codex')).toBe('Codex')
+    expect(tmuxAgentDisplayName('grok')).toBe('Grok')
   })
 })

@@ -6,6 +6,7 @@ import type {
   TerminalPaneControlProcessFactory,
   TerminalPaneControlTarget,
 } from '../ports/terminal-pane-control-process-factory'
+import { terminalClientEnvironment } from '../model/terminal-client-environment'
 import { parseTmuxPaneOutput } from './tmux-control-protocol'
 
 interface TmuxPaneControlProcessFactoryOptions {
@@ -108,7 +109,7 @@ export class TmuxPaneControlProcessFactory implements TerminalPaneControlProcess
       [...socketArgs, '-C', 'attach-session', '-t', `${target.sessionName}:${target.windowIndex}`],
       {
         cwd: this.options.cwd,
-        env: { ...hostEnvironment, TERM: 'xterm-256color' },
+        env: terminalClientEnvironment(hostEnvironment),
         stdio: ['pipe', 'pipe', 'pipe'],
       },
     )

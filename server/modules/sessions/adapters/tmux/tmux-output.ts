@@ -141,6 +141,7 @@ export function isMissingTmuxServerError(causeText?: string): boolean {
   return Boolean(
     causeText?.includes('no server running')
     || causeText?.includes('failed to connect to server')
-    || causeText?.includes('error connecting to'),
+    || causeText?.includes('error connecting to')
+    || causeText?.includes('server exited unexpectedly'),
   )
 }
