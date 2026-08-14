@@ -188,3 +188,10 @@ body {
   background-color: transparent !important;
   overflow-y: hidden !important;
 }
+
+.tmux-agent-state--working { background: var(--bitveins-agent-working); }
+.tmux-agent-state--blocked { background: var(--bitveins-agent-blocked); }
+.tmux-agent-state--failed { background: var(--bitveins-agent-failed); }
+.tmux-agent-state--idle { background: var(--bitveins-agent-idle); }
+.tmux-agent-state--unknown { border-color: var(--bitveins-agent-idle); }
+

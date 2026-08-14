@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { readdir, readlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import Database from 'better-sqlite3'
@@ -62,23 +62,60 @@ export class SqliteAntigravityAgentMetadataResolver implements AntigravityAgentM
 
   private readConversationTitle(conversationId: string): string | null {
     const dbPath = join(this.homeDirectory, '.gemini', 'antigravity-cli', 'conversation_summaries.db')
-    if (!existsSync(dbPath)) return null
+    if (existsSync(dbPath)) {
+      let db: InstanceType<typeof Database> | null = null
+      try {
+        db = new Database(dbPath, { readonly: true, fileMustExist: true, timeout: 500 })
+        const row = db
+          .prepare('SELECT title, preview FROM conversation_summaries WHERE conversation_id = ?')
+          .get(conversationId) as { preview?: string, title?: string } | undefined
 
-    let db: InstanceType<typeof Database> | null = null
+        const rawLabel = row?.title?.trim() || row?.preview?.trim() || null
+        const normalized = normalizeAgentLabel(rawLabel)
+        if (normalized) return normalized
+      }
+      catch {
+        // Continue to fallback transcript reader.
+      }
+      finally {
+        db?.close()
+      }
+    }
+
+    return this.readTranscriptTitle(conversationId)
+  }
+
+  private readTranscriptTitle(conversationId: string): string | null {
+    const transcriptPath = join(
+      this.homeDirectory,
+      '.gemini',
+      'antigravity-cli',
+      'brain',
+      conversationId,
+      '.system_generated',
+      'logs',
+      'transcript.jsonl',
+    )
+    if (!existsSync(transcriptPath)) return null
+
     try {
-      db = new Database(dbPath, { readonly: true, fileMustExist: true, timeout: 500 })
-      const row = db
-        .prepare('SELECT title, preview FROM conversation_summaries WHERE conversation_id = ?')
-        .get(conversationId) as { preview?: string, title?: string } | undefined
-
-      const rawLabel = row?.title?.trim() || row?.preview?.trim() || null
-      return normalizeAgentLabel(rawLabel)
+      const content = readFileSync(transcriptPath, 'utf-8')
+      const lines = content.split('\n')
+      for (const line of lines) {
+        if (!line.trim()) continue
+        const parsed = JSON.parse(line) as { content?: string, type?: string }
+        if (parsed.type === 'USER_INPUT' && typeof parsed.content === 'string') {
+          const userRequestMatch = parsed.content.match(/<USER_REQUEST>([\s\S]*?)<\/USER_REQUEST>/u)
+          const rawText = userRequestMatch ? userRequestMatch[1]?.trim() : parsed.content.trim()
+          const firstLine = rawText?.split('\n').map(l => l.trim()).find(Boolean)
+          const label = normalizeAgentLabel(firstLine ?? null)
+          if (label) return label
+        }
+      }
     }
     catch {
-      return null
+      // Transcript unreadable or invalid JSON
     }
-    finally {
-      db?.close()
-    }
+    return null
   }
 }

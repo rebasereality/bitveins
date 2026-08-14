@@ -1,4 +1,4 @@
-import type { TmuxAgent } from '#shared/contracts/agents'
+import type { TmuxAgent, TmuxAgentKind } from '#shared/contracts/agents'
 import type { AgentGitMetadataResolver } from '../../../agents/ports/agent-git-metadata-resolver'
 import type { AntigravityAgentMetadataResolver } from '../../../agents/ports/antigravity-agent-metadata-resolver'
 import type { CodexAgentMetadataResolver } from '../../../agents/ports/codex-agent-metadata-resolver'
@@ -16,6 +16,20 @@ export interface TmuxAgentListerOptions {
   maxBuffer: number
   runner: CommandRunner
   timeoutMs: number
+}
+
+const GENERIC_OR_AGENT_TITLES = new Set([
+  'bash', 'zsh', 'sh', 'fish', 'tmux', 'node', 'python', 'python3',
+  'aider', 'antigravity', 'agy', 'claude', 'codex', 'copilot', 'cursor', 'gemini', 'grok', 'hermes', 'opencode', 'pi',
+])
+
+function isMeaningfulAgentTitle(title: string, kind: TmuxAgentKind): boolean {
+  if (!title) return false
+  const lower = title.toLowerCase()
+  if (GENERIC_OR_AGENT_TITLES.has(lower)) {
+    return lower === kind || lower === tmuxAgentDisplayName(kind).toLowerCase()
+  }
+  return true
 }
 
 export async function listDiscoveredTmuxAgents(
@@ -63,7 +77,15 @@ export async function listDiscoveredTmuxAgents(
       ? await options.grokAgentMetadata?.labelFor(process.pid, candidate.path)
       : null
     const dynamicAgentLabel = codexLabel || antigravityLabel || grokLabel
-    const defaultLabel = dynamicAgentLabel || title || candidate.windowName || tmuxAgentDisplayName(process.kind)
+    const meaningfulTitle = isMeaningfulAgentTitle(title, process.kind) ? title : null
+    const meaningfulWindowName = candidate.windowName && candidate.windowName !== 'bash' && candidate.windowName !== 'zsh' && !candidate.windowName.startsWith('window-')
+      ? candidate.windowName
+      : null
+    const defaultLabel = dynamicAgentLabel
+      || meaningfulTitle
+      || meaningfulWindowName
+      || candidate.sessionName
+      || tmuxAgentDisplayName(process.kind)
     const label = candidate.customLabel ?? defaultLabel
     return {
       ...(candidate.customLabel ? { customLabel: candidate.customLabel } : {}),

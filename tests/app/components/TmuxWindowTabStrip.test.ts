@@ -90,4 +90,32 @@ describe('TmuxWindowTabStrip', () => {
     focus.mockRestore()
     selectText.mockRestore()
   })
+
+  it('renders colored agent status indicator square before the tab label when agent status is present', () => {
+    const itemsWithStatus = [
+      { agentStatus: 'working' as const, label: 'agent-1', name: 'agent-1', title: '/workspace', value: '0', windowIndex: 0 },
+      { agentStatus: 'blocked' as const, label: 'agent-2', name: 'agent-2', title: '/workspace', value: '1', windowIndex: 1 },
+      { label: 'shell', name: 'shell', title: '/workspace', value: '2', windowIndex: 2 },
+    ]
+    const wrapper = mountStrip({
+      items: itemsWithStatus,
+      windowCount: 3,
+    })
+
+    const tabs = wrapper.findAll('[role="tab"]')
+    expect(tabs).toHaveLength(3)
+
+    const indicator0 = tabs[0]!.find('[data-agent-status]')
+    expect(indicator0.exists()).toBe(true)
+    expect(indicator0.attributes('data-status')).toBe('working')
+    expect(indicator0.classes()).toContain('tmux-agent-state--working')
+
+    const indicator1 = tabs[1]!.find('[data-agent-status]')
+    expect(indicator1.exists()).toBe(true)
+    expect(indicator1.attributes('data-status')).toBe('blocked')
+    expect(indicator1.classes()).toContain('tmux-agent-state--blocked')
+
+    const indicator2 = tabs[2]!.find('[data-agent-status]')
+    expect(indicator2.exists()).toBe(false)
+  })
 })
