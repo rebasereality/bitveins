@@ -41,6 +41,9 @@ jobs:
           pnpm test:coverage
           pnpm test:cli:coverage
 
+      - name: Antigravity plugin tests
+        run: pnpm test:antigravity-plugin
+
       - name: Hermes plugin tests
         run: pnpm test:hermes-plugin
 

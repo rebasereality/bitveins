@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  antigravityLifecycleEventSchema,
+  antigravityNotificationPreferenceResponseSchema,
+  antigravityNotificationPreferenceSchema,
+  antigravityNotificationPreferenceUpdateSchema,
   attentionEventSchema,
   codexLifecycleEventSchema,
   codexNotificationPreferenceResponseSchema,
@@ -15,6 +19,7 @@ import {
   hermesNotificationPreferenceUpdateSchema,
   integrationAttentionEventResponseSchema,
   integrationAttentionEventSchema,
+  isAntigravityLifecycleEnabled,
   isCodexLifecycleEnabled,
   isHermesLifecycleEnabled,
   notificationPreferenceSchema,
@@ -179,6 +184,54 @@ describe('attention contracts', () => {
     })).toEqual({ completedWithoutTools: true })
     expect(() => hermesNotificationPreferenceUpdateSchema.parse({})).toThrow()
     expect(() => hermesNotificationPreferenceUpdateSchema.parse({ unknown: true })).toThrow()
+  })
+
+  it('accepts partial Antigravity preference updates but rejects empty updates', () => {
+    expect(antigravityNotificationPreferenceUpdateSchema.parse({
+      completedWithoutTools: true,
+    })).toEqual({ completedWithoutTools: true })
+    expect(() => antigravityNotificationPreferenceUpdateSchema.parse({})).toThrow()
+    expect(() => antigravityNotificationPreferenceUpdateSchema.parse({ unknown: true })).toThrow()
+  })
+
+  it('evaluates Antigravity lifecycle defaults correctly', () => {
+    const preference = antigravityNotificationPreferenceSchema.parse({})
+    expect(preference).toEqual({
+      completedWithTools: true,
+      completedWithoutTools: false,
+      failed: true,
+      inputRequired: true,
+      permissionRequired: true,
+    })
+    expect(antigravityNotificationPreferenceResponseSchema.parse({ preference })).toEqual({ preference })
+    expect(isAntigravityLifecycleEnabled(preference, 'completed_with_tools')).toBe(true)
+    expect(isAntigravityLifecycleEnabled(preference, 'completed_without_tools')).toBe(false)
+    expect(isAntigravityLifecycleEnabled(preference, 'failed')).toBe(true)
+    expect(isAntigravityLifecycleEnabled(preference, 'input_required')).toBe(true)
+    expect(isAntigravityLifecycleEnabled(preference, 'permission_required')).toBe(true)
+  })
+
+  it('requires privacy-safe typed lifecycle signals for Antigravity events', () => {
+    expect(antigravityLifecycleEventSchema.parse({
+      lifecycle: 'completed_with_tools',
+      paneId: '%8',
+      source: 'antigravity',
+      type: 'completed',
+      windowId: '@4',
+    })).toEqual({
+      lifecycle: 'completed_with_tools',
+      paneId: '%8',
+      source: 'antigravity',
+      type: 'completed',
+      windowId: '@4',
+    })
+    expect(() => antigravityLifecycleEventSchema.parse({
+      lifecycle: 'completed_with_tools',
+      paneId: '%8',
+      source: 'hermes',
+      type: 'completed',
+      windowId: '@4',
+    })).toThrow()
   })
 
   it('requires privacy-safe typed lifecycle signals for Hermes events', () => {

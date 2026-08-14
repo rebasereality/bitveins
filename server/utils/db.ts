@@ -306,6 +306,32 @@ function runMigrations(dbInstance: RawDatabase): void {
         `)
       },
     },
+    {
+      id: 11,
+      name: '011_add_antigravity_notification_preferences',
+      up: () => {
+        dbInstance.exec(`
+          CREATE TABLE IF NOT EXISTS antigravity_notification_preferences (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            completed_with_tools INTEGER NOT NULL DEFAULT 1,
+            completed_without_tools INTEGER NOT NULL DEFAULT 0,
+            failed INTEGER NOT NULL DEFAULT 1,
+            input_required INTEGER NOT NULL DEFAULT 1,
+            permission_required INTEGER NOT NULL DEFAULT 1,
+            updated_at INTEGER NOT NULL
+          );
+          INSERT OR IGNORE INTO antigravity_notification_preferences (
+            id,
+            completed_with_tools,
+            completed_without_tools,
+            failed,
+            input_required,
+            permission_required,
+            updated_at
+          ) VALUES (1, 1, 0, 1, 1, 1, 0);
+        `)
+      },
+    },
   ]
 
   for (const migration of migrations) {

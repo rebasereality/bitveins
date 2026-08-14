@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type {
+  AntigravityNotificationPreference,
   CodexNotificationPreference,
   HermesNotificationPreference,
 } from '#shared/contracts/attention'
@@ -19,6 +20,13 @@ const {
 } = useWebPushNotifications()
 
 const {
+  busy: antigravityBusy,
+  error: antigravityError,
+  preference: antigravityPreference,
+  setPreference: setAntigravityPreference,
+} = useAntigravityNotificationPreferences()
+
+const {
   busy: codexBusy,
   error: codexError,
   preference: codexPreference,
@@ -31,6 +39,38 @@ const {
   preference: hermesPreference,
   setPreference: setHermesPreference,
 } = useHermesNotificationPreferences()
+
+const antigravityOptions: Array<{
+  description: string
+  key: keyof AntigravityNotificationPreference
+  label: string
+}> = [
+  {
+    description: 'When Antigravity is waiting for an answer to a clarification or user input.',
+    key: 'inputRequired',
+    label: 'Input requests',
+  },
+  {
+    description: 'When a tool or protected action requires your approval.',
+    key: 'permissionRequired',
+    label: 'Permission requests',
+  },
+  {
+    description: 'When Antigravity finishes a turn after using one or more tools.',
+    key: 'completedWithTools',
+    label: 'Completed tool turns',
+  },
+  {
+    description: 'When Antigravity finishes with a text response and no tool use.',
+    key: 'completedWithoutTools',
+    label: 'Text-only responses',
+  },
+  {
+    description: 'When Antigravity stops because of an error.',
+    key: 'failed',
+    label: 'Failed turns',
+  },
+]
 
 const codexOptions: Array<{
   description: string
@@ -85,6 +125,13 @@ const hermesOptions: Array<{
     label: 'Failed turns',
   },
 ]
+
+function updateAntigravityPreference(
+  key: keyof AntigravityNotificationPreference,
+  value: boolean,
+): void {
+  void setAntigravityPreference(key, value)
+}
 
 function updateHermesPreference(
   key: keyof HermesNotificationPreference,
@@ -201,6 +248,53 @@ const status = computed(() => {
           Configure which lifecycle events each connected agent sends to Agent Inbox and subscribed devices.
         </p>
       </div>
+
+      <AgentNotificationSettingsGroup
+        agent="antigravity"
+        class="mt-4"
+        description="Choose which Antigravity lifecycle events enter Agent Inbox and reach subscribed devices. These settings apply across devices. Sub-agents and intentional interruptions stay silent."
+        icon="i-lucide-sparkles"
+        title="Antigravity Agent"
+      >
+        <div
+          v-if="antigravityError"
+          class="border-b border-[var(--bitveins-shell-border)] py-3"
+        >
+          <UAlert
+            color="error"
+            :title="antigravityError"
+            variant="subtle"
+          />
+        </div>
+
+        <div class="divide-y divide-[var(--bitveins-shell-border)]">
+          <div
+            v-for="option in antigravityOptions"
+            :key="option.key"
+            class="flex items-start justify-between gap-4 py-3 sm:items-center sm:gap-6"
+            data-agent-notification-option
+          >
+            <div
+              class="min-w-0 flex-1"
+              data-agent-notification-copy
+            >
+              <p class="text-sm">
+                {{ option.label }}
+              </p>
+              <p class="mt-0.5 text-xs leading-relaxed text-[var(--bitveins-shell-text-muted)]">
+                {{ option.description }}
+              </p>
+            </div>
+            <USwitch
+              class="mt-0.5 shrink-0 sm:mt-0"
+              :aria-label="option.label"
+              :disabled="antigravityBusy"
+              :model-value="antigravityPreference[option.key]"
+              @update:model-value="updateAntigravityPreference(option.key, $event)"
+            />
+          </div>
+        </div>
+      </AgentNotificationSettingsGroup>
 
       <AgentNotificationSettingsGroup
         agent="codex"

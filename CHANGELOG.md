@@ -8,15 +8,23 @@ until a release is tagged.
 
 ### Added
 
+- Antigravity agent integration: automatic discovery of Antigravity (`agy` / `antigravity`)
+  processes in the sidebar with dynamic conversation title and preview resolution from
+  `conversation_summaries.db`, native lifecycle hook notifications (`bitveins antigravity install` / `~/.gemini/config/hooks.json`),
+  and customizable notification preferences in the Settings modal;
 - minimal Grok Build integration: automatic discovery of Grok Build panes in the
   sidebar (across `grok` binary, platform download names, and `~/.grok/bin/agent`)
-  with light/dark theme adaptation (`LC_GROK_APPEARANCE`, OSC 11, and 256-color palette
-  remapping) and mouse-wheel scrolling in Grok's TUI (without hook-based lifecycle notifications);
+  with dynamic session title resolution from `session_search.sqlite`, light/dark theme
+  adaptation (`LC_GROK_APPEARANCE`, OSC 11, and 256-color palette remapping) and mouse-wheel
+  scrolling in Grok's TUI (without hook-based lifecycle notifications);
 - a Fullscreen control after the pane-split buttons, which puts Bitveins in
   browser fullscreen and hides the session sidebar so only the session navbar,
   terminal and Async/Live composer remain.
 
 ### Fixed
+
+- single-line prompt submissions from Async mode now use bracketed paste mode so
+  prompts paste instantaneously instead of being typed character-by-character;
 
 - background Bitveins tabs no longer keep a live tmux stream or paint Grok
   frames, which could grow until Chrome killed the tab. Hidden tabs detach and

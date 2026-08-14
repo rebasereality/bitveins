@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto'
 import type {
   AttentionEvent,
+  CreateAntigravityAttentionEvent,
   CreateCodexAttentionEvent,
   CreateAttentionEvent,
   CreateHermesAttentionEvent,
 } from '#shared/contracts/attention'
 import {
+  createAntigravityAttentionEventSchema,
   createAttentionEventSchema,
   createCodexAttentionEventSchema,
   createHermesAttentionEventSchema,
@@ -46,8 +48,16 @@ export class AttentionService {
     return this.persist(createCodexAttentionEventSchema.parse(input))
   }
 
+  async createAntigravity(input: CreateAntigravityAttentionEvent): Promise<AttentionEvent> {
+    return this.persist(createAntigravityAttentionEventSchema.parse(input))
+  }
+
   private async persist(
-    validated: CreateAttentionEvent | CreateCodexAttentionEvent | CreateHermesAttentionEvent,
+    validated:
+      | CreateAttentionEvent
+      | CreateAntigravityAttentionEvent
+      | CreateCodexAttentionEvent
+      | CreateHermesAttentionEvent,
   ): Promise<AttentionEvent> {
     const sessionId = validated.sessionName
       ? await this.options.resolveSessionId?.(validated.sessionName).catch(() => null)
