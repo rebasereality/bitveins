@@ -1,6 +1,6 @@
 {
   "name": "bitveins",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "type": "module",
   "private": true,
   "description": "Async-first web terminal for local tmux sessions.",
