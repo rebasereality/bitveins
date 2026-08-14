@@ -27,6 +27,13 @@ const onePixelPng = Buffer.from(
   'base64',
 )
 
+function normalizePayload(data: string): string {
+  if (data.startsWith('\x1b[200~') && data.endsWith('\x1b[201~')) {
+    return data.slice('\x1b[200~'.length, -'\x1b[201~'.length)
+  }
+  return data
+}
+
 function reliablePayloads(frames: readonly string[]): string[] {
   return frames.flatMap((raw) => {
     try {
@@ -35,7 +42,7 @@ function reliablePayloads(frames: readonly string[]): string[] {
         payload?: { data?: string }
       }
       return message.action === 'reliableInput' && typeof message.payload?.data === 'string'
-        ? [message.payload.data]
+        ? [normalizePayload(message.payload.data)]
         : []
     }
     catch {

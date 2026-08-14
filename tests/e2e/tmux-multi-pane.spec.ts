@@ -72,7 +72,11 @@ test('renders stable resizable tmux panes and pastes an image into the focused l
     await expect.poll(() => sentFrames.flatMap((raw) => {
       try {
         const message = JSON.parse(raw) as { action?: string, payload?: { data?: string } }
-        return message.action === 'reliableInput' ? [message.payload?.data] : []
+        if (message.action !== 'reliableInput' || typeof message.payload?.data !== 'string') return []
+        const data = message.payload.data
+        return data.startsWith('\x1b[200~') && data.endsWith('\x1b[201~')
+          ? [data.slice('\x1b[200~'.length, -'\x1b[201~'.length)]
+          : [data]
       }
       catch {
         return []
