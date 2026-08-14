@@ -79,6 +79,26 @@ function resolvePaneWindowSize({ cols, rows }: { cols: number, rows: number }) {
   }
 }
 
+function resolveTerminalCell(event: WheelEvent): { col: number, row: number } {
+  const term = terminal.value
+  const host = terminalHost.value
+  if (!term || !host || term.cols < 1 || term.rows < 1) return { col: 1, row: 1 }
+  const rect = host.getBoundingClientRect()
+  const col = Math.floor((event.clientX - rect.left) / (rect.width / term.cols)) + 1
+  const row = Math.floor((event.clientY - rect.top) / (rect.height / term.rows)) + 1
+  return {
+    col: Math.min(term.cols, Math.max(1, col)),
+    row: Math.min(term.rows, Math.max(1, row)),
+  }
+}
+
+function enableGrokMouseTracking(): void {
+  if (props.application !== 'grok' || !terminal.value) return
+  // Snapshots reset the visible buffer but not Grok's DECSET mouse mode in tmux.
+  // Re-enable tracking in xterm so wheel reports reach Grok instead of tmux copy-mode.
+  terminal.value.write('\x1b[?1000h\x1b[?1002h\x1b[?1006h')
+}
+
 const terminalSocket = useTerminalSocket({
   activeSession,
   active,
@@ -123,6 +143,7 @@ const terminalInputRouter = createTerminalInputRouter({
   isAttached: () => props.active,
   isAsyncWheelEnabled: () => connectionState.value === 'attached',
   isMouseTrackingEnabled: () => terminal.value?.modes.mouseTrackingMode !== 'none',
+  resolveWheelCell: event => resolveTerminalCell(event),
   restoreInputMode: applyInputMode,
   sendInput,
   sendScroll,
@@ -365,6 +386,13 @@ watch(terminalTheme, () => {
 watch(terminalFontSize, applyTerminalFontSize)
 
 watch(connectionState, state => emit('connectionChange', state === 'attached'), { immediate: true })
+
+watch(
+  () => [props.application, connectionState.value] as const,
+  () => {
+    if (connectionState.value === 'attached') enableGrokMouseTracking()
+  },
+)
 
 watch(
   () => [props.inputMode, props.active, props.focused] as const,
