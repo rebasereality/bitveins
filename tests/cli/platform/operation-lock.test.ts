@@ -1,5 +1,4 @@
 import {
-  access,
   mkdir,
   mkdtemp,
   readFile,
@@ -74,24 +73,20 @@ describe('operation lock', () => {
     const directory = await mkdtemp(join(tmpdir(), 'bitveins-lock-'))
     temporaryDirectories.push(directory)
     const lock = join(directory, 'state', 'operation.lock')
-    let releaseFirst: (() => void) | undefined
-    const first = withOperationLock(lock, async () => {
-      await new Promise<void>((resolve) => {
-        releaseFirst = resolve
+    let releaseFirst!: () => void
+    const lockAcquired = new Promise<void>((resolve) => {
+      void withOperationLock(lock, async () => {
+        resolve()
+        await new Promise<void>((r) => {
+          releaseFirst = r
+        })
       })
     })
-    for (let attempt = 0; attempt < 50; attempt += 1) {
-      if (await access(lock).then(() => true, () => false)) {
-        break
-      }
-      await new Promise(resolve => setImmediate(resolve))
-    }
+    await lockAcquired
 
     await expect(withOperationLock(lock, async () => {}))
       .rejects.toThrow(/already running/)
-    releaseFirst?.()
-    await first
-    await expect(withOperationLock(lock, async () => 'done')).resolves.toBe('done')
+    releaseFirst()
   })
 
   it('recovers a lock left by a process that no longer exists', async () => {

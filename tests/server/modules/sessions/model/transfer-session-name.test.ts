@@ -25,6 +25,11 @@ describe('Transfer session names', () => {
 
   it('uses deterministic ordinals', () => {
     expect(transferSessionCandidate('docs', 1)).toBe('docs')
+    expect(transferSessionCandidate('docs', 0)).toBe('docs')
     expect(transferSessionCandidate('docs', 3)).toBe('docs-3')
+    expect(transferSessionCandidate('---', 2)).toBe('transfer-2')
+    expect(transferSessionBaseName('', '')).toBe('transfer')
+    expect(transferSessionBaseName('---', '---')).toBe('transfer')
+    expect(transferSessionBaseName('', '/workspace/my-project')).toBe('my-project')
   })
 })

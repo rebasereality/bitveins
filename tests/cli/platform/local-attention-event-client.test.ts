@@ -89,4 +89,24 @@ describe('LocalAttentionEventClient', () => {
       source: 'shell', title: 'Done', type: 'completed',
     })).rejects.toThrow(/unexpected URL/i)
   })
+
+  it('handles connection failure and invalid event response payloads', async () => {
+    const unreachableClient = new LocalAttentionEventClient({
+      environment: { read: vi.fn().mockResolvedValue(environment) },
+      fetcher: vi.fn().mockRejectedValue(new Error('connection refused')),
+    })
+    await expect(unreachableClient.create({
+      source: 'shell', title: 'Done', type: 'completed',
+    })).rejects.toThrow(/Unable to connect to the local Bitveins service/)
+
+    const invalidSchemaClient = new LocalAttentionEventClient({
+      environment: { read: vi.fn().mockResolvedValue(environment) },
+      fetcher: vi.fn().mockResolvedValue(responseAt(JSON.stringify({ invalid: true }), {
+        status: 200,
+      })),
+    })
+    await expect(invalidSchemaClient.create({
+      source: 'shell', title: 'Done', type: 'completed',
+    })).rejects.toThrow(/returned an invalid event response/)
+  })
 })

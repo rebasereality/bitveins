@@ -49,6 +49,22 @@ describe('LinuxCodexProcessInspector', () => {
 
   it('rejects invalid pids and non-Codex executables', async () => {
     await expect(inspector({}).inspect(0)).resolves.toBeNull()
+    await expect(inspector({ executable: 'relative/codex' }).inspect(42)).resolves.toBeNull()
     await expect(inspector({ executable: '/usr/bin/bash' }).inspect(42)).resolves.toBeNull()
+    await expect(inspector({ executable: '/opt/codex (deleted)' }).inspect(42)).resolves.toEqual({
+      executable: '/opt/codex',
+      threadId: null,
+    })
+  })
+
+  it('handles missing process, filesystem errors, and unreadable cmdline or fd', async () => {
+    const brokenInspector = new LinuxCodexProcessInspector({
+      filesystem: {
+        async readFile() { throw new Error('cmdline err') },
+        async readdir() { throw new Error('readdir err') },
+        async readlink() { throw new Error('exe err') },
+      },
+    })
+    await expect(brokenInspector.inspect(42)).resolves.toBeNull()
   })
 })

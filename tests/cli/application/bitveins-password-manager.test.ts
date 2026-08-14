@@ -89,4 +89,16 @@ describe('BitveinsPasswordManager', () => {
     expect(fixture.service.calls).toEqual(['restart', 'restart'])
     expect(fixture.health.calls).toHaveLength(2)
   })
+
+  it('throws CliTransactionError when both rotation and rollback fail', async () => {
+    const fixture = await configuredManager('bitveins-password-dual-fail-')
+    fixture.health.outcomes.push(
+      new Error('rotation failed'),
+      new Error('rollback failed'),
+    )
+
+    await expect(fixture.manager.rotate()).rejects.toThrow(
+      /Password rotation and automatic rollback both failed/,
+    )
+  })
 })

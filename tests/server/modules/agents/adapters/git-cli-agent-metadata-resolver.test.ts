@@ -111,4 +111,31 @@ describe('GitCliAgentMetadataResolver', () => {
     await expect(resolver.resolve('/tmp')).resolves.toBeNull()
     expect(runner.calls).toHaveLength(1)
   })
+
+  it('handles corrupted output or unresolvable git refs', async () => {
+    const runner = new FakeCommandRunner()
+    runner.handler = async ({ args }) => {
+      if (args.includes('rev-parse') && args.includes('--show-toplevel')) {
+        return { stderr: '', stdout: '/root\n' } // incomplete output
+      }
+      throw new Error('git fail')
+    }
+    const resolver = new GitCliAgentMetadataResolver({ runner })
+    await expect(resolver.resolve('/workspace/repo')).resolves.toBeNull()
+  })
+
+  it('evicts oldest cache entries when MAX_CACHE_ENTRIES is exceeded', async () => {
+    const runner = new FakeCommandRunner()
+    runner.handler = async ({ args }) => ({
+      stderr: '',
+      stdout: args.includes('symbolic-ref')
+        ? 'main\n'
+        : '/workspace/repo\n/workspace/repo/.git\n/workspace/repo/.git\n',
+    })
+    const resolver = new GitCliAgentMetadataResolver({ runner })
+    for (let i = 0; i < 130; i++) {
+      await resolver.resolve(`/workspace/repo${i}`)
+    }
+    expect(runner.calls.length).toBeGreaterThan(200)
+  })
 })

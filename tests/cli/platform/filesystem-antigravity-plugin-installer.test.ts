@@ -83,4 +83,36 @@ describe('FilesystemAntigravityPluginInstaller', () => {
     expect(hooksJson['other-tool']).toBeDefined()
     expect(hooksJson['bitveins-notifications']).toBeDefined()
   })
+
+  it('supports custom geminiHome and recovers from malformed hooks.json', async () => {
+    const { home, source } = await fixture()
+    const customGemini = join(home, 'custom-gemini')
+    const customConfig = join(customGemini, 'config')
+    await mkdir(customConfig, { recursive: true })
+    await writeFile(join(customConfig, 'hooks.json'), 'invalid json {', { mode: 0o600 })
+
+    const installer = new FilesystemAntigravityPluginInstaller({
+      geminiHome: customGemini,
+      home,
+      sourceDirectory: source,
+    })
+
+    const { hooksPath } = await installer.install()
+    expect(hooksPath).toBe(join(customConfig, 'hooks.json'))
+    const hooksJson = JSON.parse(await readFile(hooksPath, 'utf8')) as Record<string, unknown>
+    expect(hooksJson['bitveins-notifications']).toBeDefined()
+  })
+
+  it('rejects group or world-writable source files', async () => {
+    const { home, source } = await fixture()
+    const { chmod } = await import('node:fs/promises')
+    await chmod(join(source, 'bitveins_antigravity_notifications.py'), 0o666)
+
+    const installer = new FilesystemAntigravityPluginInstaller({
+      home,
+      sourceDirectory: source,
+    })
+
+    await expect(installer.install()).rejects.toThrow(/must not be group- or world-writable/)
+  })
 })

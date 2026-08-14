@@ -849,4 +849,66 @@ describe('TerminalPeerSession', () => {
       windowId: '@1',
     })
   })
+
+  it('rejects attachPane when the requested pane is no longer listed in tmux', async () => {
+    const context = setup()
+    context.sessions.listPanes.mockResolvedValue([])
+    await context.peer.enqueue(JSON.stringify({
+      action: 'attachPane',
+      payload: {
+        paneId: '%99',
+        sessionName: 'main',
+        windowIndex: 0,
+      },
+    }))
+
+    expect(context.messages).toContainEqual({
+      type: 'error',
+      data: 'Tmux pane is no longer available.',
+    })
+  })
+
+  it('resets scroll and re-renders viewport when writing input with scrollActive', async () => {
+    const context = setup()
+    context.sessions.prepareTerminalWheel.mockResolvedValue(true)
+    context.sessions.capturePaneViewport.mockResolvedValue({
+      data: 'copy-mode',
+      inMode: true,
+      lines: ['copy-mode'],
+    })
+    await context.peer.enqueue(JSON.stringify({
+      action: 'attachPane',
+      payload: { paneId: '%7', sessionName: 'main', windowIndex: 0 },
+    }))
+
+    // Invoke wheel so renderPaneViewport runs and sets scrollActive = true
+    await context.peer.enqueue(JSON.stringify({
+      action: 'wheel',
+      payload: { data: '\x1b[<64;1;1M' },
+    }))
+
+    // Writing input when scrollActive should reset scroll and render viewport
+    await context.peer.enqueue(JSON.stringify({
+      action: 'input',
+      payload: { data: 'ls\r' },
+    }))
+
+    expect(context.sessions.resetTerminalScroll).toHaveBeenCalledWith('%7')
+    expect(context.sessions.sendPaneInput).toHaveBeenCalledWith('%7', 'ls\r')
+  })
+
+  it('applies client appearance and ignores appearance errors gracefully', async () => {
+    const context = setup()
+    const applyClientAppearance = vi.fn(async () => {
+      throw new Error('appearance unsupported')
+    })
+    context.sessions.applyClientAppearance = applyClientAppearance
+
+    await context.peer.enqueue(JSON.stringify({
+      action: 'attachPane',
+      payload: { appearance: 'light', paneId: '%7', sessionName: 'main', windowIndex: 0 },
+    }))
+
+    expect(applyClientAppearance).toHaveBeenCalledWith('main', 'light')
+  })
 })

@@ -6,25 +6,34 @@ export interface PurgeConfirmationPrompt {
   isInteractive(): boolean
 }
 
-const terminalPrompt: PurgeConfirmationPrompt = {
-  async ask() {
-    const terminal = createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    })
-    try {
-      return await terminal.question(
-        'Type REMOVE to delete Bitveins configuration and data: ',
-      )
-    }
-    finally {
-      terminal.close()
-    }
-  },
-  isInteractive() {
-    return Boolean(process.stdin.isTTY && process.stdout.isTTY)
-  },
+export function createTerminalPurgeConfirmationPrompt(options: {
+  input?: NodeJS.ReadableStream & { isTTY?: boolean }
+  output?: NodeJS.WritableStream & { isTTY?: boolean }
+} = {}): PurgeConfirmationPrompt {
+  const input = options.input ?? process.stdin
+  const output = options.output ?? process.stdout
+  return {
+    async ask() {
+      const terminal = createInterface({
+        input,
+        output,
+      })
+      try {
+        return await terminal.question(
+          'Type REMOVE to delete Bitveins configuration and data: ',
+        )
+      }
+      finally {
+        terminal.close()
+      }
+    },
+    isInteractive() {
+      return Boolean(input.isTTY && output.isTTY)
+    },
+  }
 }
+
+const terminalPrompt = createTerminalPurgeConfirmationPrompt()
 
 export async function confirmPurge(
   prompt: PurgeConfirmationPrompt = terminalPrompt,
