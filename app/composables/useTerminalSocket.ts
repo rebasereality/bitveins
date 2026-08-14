@@ -177,8 +177,16 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
     controller.attachWindow(attachment.sessionName, attachment.windowIndex)
   }
 
+  function onWindowFocus(): void {
+    if (isDocumentHidden()) return
+    fitAndResize(true)
+  }
+
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', onVisibilityChange)
+  }
+  if (typeof window !== 'undefined') {
+    window.addEventListener('focus', onWindowFocus)
   }
 
   async function checkAuthentication(): Promise<void> {
@@ -202,7 +210,7 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
   }
 
   function attachWindow(sessionName: string, windowIndex: number): void {
-    currentWindowAttachment = { sessionName, windowIndex }
+    currentWindowAttachment = { acceptLegacy: false, sessionName, windowIndex }
     reliableInput?.refresh()
     if (isDocumentHidden()) return
     controller.attachWindow(sessionName, windowIndex)
@@ -229,7 +237,7 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
     reliableInput?.refresh()
   }
 
-  function fitAndResize(): void {
+  function fitAndResize(force = false): void {
     if (!(options.active?.value ?? true)) return
     const terminal = options.terminal.value
     const fitAddon = options.fitAddon.value
@@ -238,7 +246,7 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
     const size = options.resolveAttachmentSize
       ? options.resolveAttachmentSize({ cols: terminal.cols, rows: terminal.rows })
       : { cols: terminal.cols, rows: terminal.rows }
-    controller.resize(size.cols, size.rows)
+    controller.resize(size.cols, size.rows, force)
   }
 
   function detach(): void {
@@ -272,6 +280,9 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
     if (typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', onVisibilityChange)
     }
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('focus', onWindowFocus)
+    }
     currentWindowAttachment = null
     options.resetOutput?.()
     controller.dispose()
@@ -286,6 +297,15 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
     connectionState,
     detach,
     dispose,
+    clearPromptDraft: (payload: { clientId: string, sessionName: string, windowId: string }) => (
+      controller.clearPromptDraft(payload)
+    ),
+    claimPromptFocus: (payload: { clientId: string, sessionName: string, windowId: string }) => (
+      controller.claimPromptFocus(payload)
+    ),
+    releasePromptFocus: (payload: { clientId: string, sessionName: string, windowId: string }) => (
+      controller.releasePromptFocus(payload)
+    ),
     fitAndResize,
     killWindow: (sessionName: string, index: number) => controller.killWindow(sessionName, index),
     newWindow: (sessionName: string) => controller.newWindow(sessionName),
@@ -293,6 +313,13 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
     preparePaneAttachment,
     selectWindow: (sessionName: string, index: number) => controller.selectWindow(sessionName, index),
     sendInput,
+    sendPromptDraft: (payload: {
+      clientId: string
+      draft: string
+      revision?: number
+      sessionName: string
+      windowId: string
+    }) => controller.sendPromptDraft(payload),
     sendReliableInput,
     sendReliableInputs,
     sendScroll: (direction: 'down' | 'up', lineCount?: 1) => (

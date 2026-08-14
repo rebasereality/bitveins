@@ -5,6 +5,7 @@ const props = defineProps<{
   canHistoryDown: boolean
   canHistoryUp: boolean
   disabled: boolean
+  focused?: boolean
   historyPreview: string
   placeholder: string
   queueMode: boolean
@@ -12,6 +13,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
+  blur: []
   commitHistoryPreview: []
   focus: []
   historyDown: []
@@ -106,11 +108,13 @@ defineExpose({
           :disabled="disabled"
           :maxrows="10"
           :rows="4"
-          class="w-full"
+          class="w-full transition-opacity duration-150"
+          :class="[focused ? 'opacity-100' : 'opacity-60']"
           :placeholder="placeholder"
           :ui="{ base: 'max-h-[45vh] min-h-28 overflow-y-auto bg-[var(--bitveins-shell-panel)] [font-family:var(--bitveins-prompt-font-family)] text-[length:var(--bitveins-input-font-size)] md:text-[length:var(--bitveins-input-font-size)] leading-[var(--bitveins-input-line-height)] text-[var(--bitveins-shell-text)] placeholder:text-[var(--bitveins-shell-text-subtle)] p-2' }"
-          @click="commitHistoryPreview"
-          @focus="commitHistoryPreview"
+          @click="commitHistoryPreview(); emit('focus')"
+          @focus="commitHistoryPreview(); emit('focus')"
+          @blur="emit('blur')"
           @keydown="emit('keydown', $event)"
           @dragover.prevent
           @drop="emit('onDrop', $event)"

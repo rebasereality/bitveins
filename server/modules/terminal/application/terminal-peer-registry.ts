@@ -66,6 +66,61 @@ export class TerminalPeerRegistry<Peer extends TerminalPeer> {
     }
   }
 
+  broadcastPromptDraft(draft: {
+    clientId: string
+    draft: string
+    revision: number
+    sessionName: string
+    updatedAt: number
+    windowId: string
+  }): void {
+    for (const peer of this.activePeers) {
+      this.send(peer, {
+        type: 'promptDraft',
+        ...draft,
+      })
+    }
+  }
+
+  broadcastPromptDraftCleared(info: {
+    clientId: string
+    sessionName: string
+    windowId: string
+  }): void {
+    for (const peer of this.activePeers) {
+      this.send(peer, {
+        type: 'promptDraftCleared',
+        ...info,
+      })
+    }
+  }
+
+  broadcastPromptFocusClaimed(info: {
+    clientId: string
+    sessionName: string
+    windowId: string
+  }): void {
+    for (const peer of this.activePeers) {
+      this.send(peer, {
+        type: 'promptFocusClaimed',
+        ...info,
+      })
+    }
+  }
+
+  broadcastPromptFocusReleased(info: {
+    clientId: string
+    sessionName: string
+    windowId: string
+  }): void {
+    for (const peer of this.activePeers) {
+      this.send(peer, {
+        type: 'promptFocusReleased',
+        ...info,
+      })
+    }
+  }
+
   cleanupStaleHelpers(): Promise<void> {
     return this.options.sessions.killStaleBitveinsHelpers(this.activeHelpers)
   }

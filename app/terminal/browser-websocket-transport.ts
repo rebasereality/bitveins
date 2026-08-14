@@ -61,6 +61,30 @@ export class BrowserWebSocketTransport implements TerminalTransport {
         }))
         return
       }
+      if (message.type === 'promptDraft') {
+        window.dispatchEvent(new CustomEvent('bitveins:prompt-draft', {
+          detail: message,
+        }))
+        return
+      }
+      if (message.type === 'promptDraftCleared') {
+        window.dispatchEvent(new CustomEvent('bitveins:prompt-draft-cleared', {
+          detail: message,
+        }))
+        return
+      }
+      if (message.type === 'promptFocusClaimed') {
+        window.dispatchEvent(new CustomEvent('bitveins:prompt-focus-claimed', {
+          detail: message,
+        }))
+        return
+      }
+      if (message.type === 'promptFocusReleased') {
+        window.dispatchEvent(new CustomEvent('bitveins:prompt-focus-released', {
+          detail: message,
+        }))
+        return
+      }
       this.handlers.onMessage(message)
     }
     catch {

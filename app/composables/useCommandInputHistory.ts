@@ -7,8 +7,9 @@ import {
 export function useCommandInputHistory(options: {
   historyMessages: Readonly<Ref<string[]>> | (() => string[])
   promptRecoveryKey: Readonly<Ref<string | null>> | (() => string | null)
+  value?: Ref<string>
 }) {
-  const value = ref('')
+  const value = options.value ?? ref('')
   const historyIndex = ref(-1)
   const submittedPromptAvailable = ref(false)
 
@@ -52,7 +53,9 @@ export function useCommandInputHistory(options: {
   }
 
   watch(scopeKey, () => {
-    value.value = ''
+    if (!options.value) {
+      value.value = ''
+    }
     resetHistoryIndex()
     refreshSubmittedPromptAvailability()
   }, { immediate: true })

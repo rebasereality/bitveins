@@ -6,8 +6,11 @@ import { useCommandInputHistory } from '~/composables/useCommandInputHistory'
 import { useMobileLiveKeyboard } from '~/composables/useMobileLiveKeyboard'
 import { useCommandInputUpload } from '~/composables/useCommandInputUpload'
 
+const draftValue = defineModel<string>('draftValue', { default: '' })
+
 const props = defineProps<{
   disabled: boolean
+  focused?: boolean
   historyMessages: string[]
   inputMode: InputMode
   liveAvailable: boolean
@@ -17,7 +20,9 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
+  blur: []
   control: [data: string]
+  focus: []
   modeChange: [mode: InputMode]
   submit: [payload: { command: string, terminator: '\r' | '\t' }]
 }>()
@@ -67,6 +72,14 @@ const {
 } = useCommandInputHistory({
   historyMessages: () => props.historyMessages,
   promptRecoveryKey: () => props.promptRecoveryKey,
+  value: draftValue,
+})
+
+watch(value, () => {
+  nextTick(() => {
+    textarea.value?.autoResize?.()
+    mobileTextarea.value?.autoResize?.()
+  })
 })
 
 const {
@@ -387,12 +400,15 @@ onBeforeUnmount(() => {
         v-model:queue-mode="queueMode"
         v-model:value="value"
         :disabled="disabled"
+        :focused="props.focused"
         :history-preview="historyPreview"
         :input-mode="inputMode"
         :mode-controls="modeControls"
         :placeholder="placeholder"
         :submitted-prompt-available="submittedPromptAvailable"
+        @blur="emit('blur')"
         @commit-history-preview="commitHistoryPreview"
+        @focus="emit('focus')"
         @keydown="onKeydown"
         @on-drop="onDrop"
         @on-paste="onPaste"
@@ -422,11 +438,13 @@ onBeforeUnmount(() => {
       :can-history-down="canHistoryDown"
       :can-history-up="canHistoryUp"
       :disabled="disabled"
+      :focused="props.focused"
       :history-preview="historyPreview"
       :placeholder="placeholder"
       :submitted-prompt-available="submittedPromptAvailable"
+      @blur="emit('blur')"
       @commit-history-preview="commitHistoryPreview"
-      @focus="focus"
+      @focus="emit('focus')"
       @history-down="historyDown"
       @history-up="historyUp"
       @keydown="onKeydown"

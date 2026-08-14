@@ -159,9 +159,9 @@ export class TerminalConnectionController {
     }
   }
 
-  resize(cols: number, rows: number): void {
+  resize(cols: number, rows: number, force = false): void {
     const nextResize = { cols, rows }
-    if (this.lastResize?.cols === cols && this.lastResize.rows === rows) return
+    if (!force && this.lastResize?.cols === cols && this.lastResize.rows === rows) return
     this.lastResize = nextResize
     if (this.isAttached) {
       this.sendMessage({ action: 'resize', payload: nextResize })
@@ -184,6 +184,22 @@ export class TerminalConnectionController {
     if (this.isAttached) {
       this.sendMessage({ action: 'killWindow', payload: { sessionName, index } })
     }
+  }
+
+  sendPromptDraft(payload: { clientId: string, draft: string, revision?: number, sessionName: string, windowId: string }): boolean {
+    return this.sendMessage({ action: 'syncPromptDraft', payload })
+  }
+
+  clearPromptDraft(payload: { clientId: string, sessionName: string, windowId: string }): boolean {
+    return this.sendMessage({ action: 'clearPromptDraft', payload })
+  }
+
+  claimPromptFocus(payload: { clientId: string, sessionName: string, windowId: string }): boolean {
+    return this.sendMessage({ action: 'claimPromptFocus', payload })
+  }
+
+  releasePromptFocus(payload: { clientId: string, sessionName: string, windowId: string }): boolean {
+    return this.sendMessage({ action: 'releasePromptFocus', payload })
   }
 
   private requestAttachment(attachment: TerminalAttachment): void {
@@ -298,6 +314,8 @@ export class TerminalConnectionController {
       message.type === 'attentionEvent'
       || message.type === 'heartbeat'
       || message.type === 'pong'
+      || message.type === 'promptDraft'
+      || message.type === 'promptDraftCleared'
     ) return
     if (message.type === 'attached') {
       this.lastResize = null
@@ -318,7 +336,9 @@ export class TerminalConnectionController {
       this.options.onOutput(message.data)
       return
     }
-    this.options.onStatus(message.data, message.type === 'error')
+    if (message.type === 'status' || message.type === 'error') {
+      this.options.onStatus(message.data, message.type === 'error')
+    }
   }
 
   private sendAttachment(transportId: number): void {
