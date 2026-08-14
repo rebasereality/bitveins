@@ -38,6 +38,23 @@ function inputPayloads(frames: readonly string[]): string[] {
   })
 }
 
+function rawInputPayloads(frames: readonly string[]): string[] {
+  return frames.flatMap((raw) => {
+    try {
+      const message = JSON.parse(raw) as {
+        action?: string
+        payload?: { data?: string }
+      }
+      return message.action === 'input' && typeof message.payload?.data === 'string'
+        ? [message.payload.data]
+        : []
+    }
+    catch {
+      return []
+    }
+  })
+}
+
 test.beforeAll(async () => {
   await mkdir(workspace, { recursive: true })
 })
@@ -216,7 +233,7 @@ async function verifyCopyModeScrollRendering(page: Page, inputMode: 'Async' | 'L
     })
     await Promise.all(Array.from({ length: 12 }, dispatchWheel))
 
-    const mouseFrames = () => sentFrames.filter(frame => inputPayloads([frame])
+    const mouseFrames = () => sentFrames.filter(frame => rawInputPayloads([frame])
       .some(payload => /^\u001B\[<6[45];\d+;\d+M$/.test(payload)))
     expect(mouseFrames()).toEqual([])
     const serverErrors = receivedFrames.flatMap((frame) => {
@@ -235,8 +252,12 @@ async function verifyCopyModeScrollRendering(page: Page, inputMode: 'Async' | 'L
     }).toBe(true)
     const nativeScrollDirections = sentFrames.flatMap((frame) => {
       try {
-        const message = JSON.parse(frame) as { action?: string, payload?: { direction?: string } }
-        return message.action === 'scrollPane' ? [message.payload?.direction] : []
+        const message = JSON.parse(frame) as { action?: string, payload?: { direction?: string, data?: string } }
+        if (message.action === 'scrollPane') return [message.payload?.direction]
+        if (message.action === 'wheelInput') {
+          return /^\u001b\[<64;/.test(message.payload?.data ?? '') ? ['up'] : ['down']
+        }
+        return []
       }
       catch {
         return []
