@@ -21,6 +21,7 @@ defineProps<{
   pathLinkRoot: string | null
   windowTabItems: TmuxWindowTabItem[]
   windows: TmuxWindow[]
+  fullscreen?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -42,6 +43,7 @@ const emit = defineEmits<{
   startTmuxWindowRename: [index: number]
   panesChange: []
   focusedPaneChange: [paneId: string | null]
+  toggleFullscreen: []
 }>()
 
 const editingWindowName = defineModel<string>('editingWindowName', { default: '' })
@@ -87,6 +89,7 @@ defineExpose({
       :notification-mute-busy="notificationMuteBusy"
       :notification-mute-error="notificationMuteError"
       :notification-muted="notificationMuted"
+      :fullscreen="fullscreen"
       @change-path-link-root="emit('changePathLinkRoot')"
       @cancel-tmux-window-rename="emit('cancelTmuxWindowRename')"
       @close-tmux-window="emit('closeTmuxWindow', $event)"
@@ -100,6 +103,7 @@ defineExpose({
       @select-tmux-window="emit('selectTmuxWindow', $event)"
       @start-tmux-window-rename="emit('startTmuxWindowRename', $event)"
       @split-tmux-window="void splitTmuxWindow($event)"
+      @toggle-fullscreen="emit('toggleFullscreen')"
     />
 
     <TerminalView

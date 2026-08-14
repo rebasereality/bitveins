@@ -4,6 +4,7 @@ import { watch, type Ref, type ShallowRef } from 'vue'
 import { BrowserWebSocketTransportFactory } from '~/terminal/browser-websocket-transport'
 import { BrowserConnectionEnvironment } from '~/terminal/connection-environment'
 import { BrowserScheduler } from '~/terminal/scheduler'
+import { isDocumentHidden } from '~/terminal/document-visibility'
 import { TerminalConnectionController } from '~/terminal/terminal-connection-controller'
 import type { InputMode, TerminalConnectionState } from '~/types/session'
 import { saveSubmittedAsyncPrompt } from '~/utils/async-prompt-recovery'
@@ -104,6 +105,7 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
       reliableInput?.acknowledge(inputId)
     },
     onOutput(data) {
+      if (isDocumentHidden()) return
       const normalizedData = options.normalizeOutput?.(data) ?? data
       if (outputBuffer.buffer(normalizedData)) return
       options.onStdout?.()
@@ -150,9 +152,34 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
   })
   const pendingReliableCount = reliableInput.pendingCount
 
-  watch(colorMode, (value) => {
-    controller.sendAppearance(value === 'light' ? 'light' : 'dark')
-  })
+  watch(
+    () => (colorMode.value === 'light' ? 'light' : 'dark'),
+    (appearance) => {
+      controller.sendAppearance(appearance)
+    },
+  )
+
+  function onVisibilityChange(): void {
+    if (isDocumentHidden()) {
+      if (currentWindowAttachment) controller.detach()
+      return
+    }
+    resumeAttachment()
+  }
+
+  function resumeAttachment(): void {
+    const attachment = currentWindowAttachment
+    if (!attachment) return
+    if (attachment.paneId) {
+      controller.attachPane(attachment.sessionName, attachment.windowIndex, attachment.paneId)
+      return
+    }
+    controller.attachWindow(attachment.sessionName, attachment.windowIndex)
+  }
+
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', onVisibilityChange)
+  }
 
   async function checkAuthentication(): Promise<void> {
     try {
@@ -170,12 +197,14 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
   function attach(sessionName: string): void {
     currentWindowAttachment = null
     reliableInput?.refresh()
+    if (isDocumentHidden()) return
     controller.attach(sessionName)
   }
 
   function attachWindow(sessionName: string, windowIndex: number): void {
     currentWindowAttachment = { sessionName, windowIndex }
     reliableInput?.refresh()
+    if (isDocumentHidden()) return
     controller.attachWindow(sessionName, windowIndex)
   }
 
@@ -186,6 +215,7 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
     acceptLegacy = false,
   ): void {
     preparePaneAttachment(sessionName, windowIndex, paneId, acceptLegacy)
+    if (isDocumentHidden()) return
     controller.attachPane(sessionName, windowIndex, paneId)
   }
 
@@ -239,6 +269,9 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
   }
 
   function dispose(): void {
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
     currentWindowAttachment = null
     options.resetOutput?.()
     controller.dispose()

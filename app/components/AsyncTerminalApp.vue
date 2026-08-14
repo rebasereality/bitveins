@@ -49,6 +49,7 @@ const inboxOpen = ref(false)
 const attentionNavigationError = ref<string | null>(null)
 const sessionSidebarOverlayOpen = ref(false)
 const gitGraphOpen = ref(false)
+const { isFullscreen, toggle: toggleFullscreen } = useAppFullscreen()
 let shouldSuppressAttentionEvent = (_event: AttentionEvent): boolean => false
 
 const {
@@ -620,9 +621,17 @@ watch(activeSession, () => {
   <main
     class="h-screen w-screen overflow-hidden bg-[var(--bitveins-shell-bg)] text-[var(--bitveins-shell-text)] max-lg:h-dvh"
     data-bitveins-app
+    :data-app-fullscreen="isFullscreen ? 'true' : undefined"
+    :style="isFullscreen ? { '--bitveins-sidebar-width': '0px' } : undefined"
   >
-    <div class="grid h-full w-full grid-cols-[var(--bitveins-sidebar-width)_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] max-lg:grid-cols-1 max-lg:grid-rows-[calc(40px+env(safe-area-inset-top))_minmax(0,1fr)]">
+    <div
+      class="grid h-full w-full grid-rows-[minmax(0,1fr)]"
+      :class="isFullscreen
+        ? 'grid-cols-1'
+        : 'grid-cols-[var(--bitveins-sidebar-width)_minmax(0,1fr)] max-lg:grid-cols-1 max-lg:grid-rows-[calc(40px+env(safe-area-inset-top))_minmax(0,1fr)]'"
+    >
       <SessionSidebar
+        v-show="!isFullscreen"
         ref="sessionSidebar"
         :active-agent-pane-id="activePaneId"
         :active-session="activeSession"
@@ -685,6 +694,7 @@ watch(activeSession, () => {
             :path-link-root="pathLinkRoot"
             :window-tab-items="windowTabItems"
             :windows="windows"
+            :fullscreen="isFullscreen"
             @auth-expired="emit('authExpired')"
             @change-path-link-root="changePathLinkRoot"
             @cancel-tmux-window-rename="cancelTmuxWindowRename"
@@ -703,6 +713,7 @@ watch(activeSession, () => {
             @select-tmux-window="selectTmuxWindowFromUi"
             @start-tmux-window-rename="startTmuxWindowRename"
             @toggle-notification-mute="toggleNotificationMute"
+            @toggle-fullscreen="void toggleFullscreen()"
           />
 
           <AsyncTerminalExplorer

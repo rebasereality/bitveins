@@ -10,9 +10,15 @@ until a release is tagged.
 
 - Grok Build panes are discovered as sidebar agents, including the `grok`
   binary, platform download names, and `~/.grok/bin/agent`.
+- a Fullscreen control after the pane-split buttons, which puts Bitveins in
+  browser fullscreen and hides the session sidebar so only the session navbar,
+  terminal and Async/Live composer remain.
 
 ### Fixed
 
+- background Bitveins tabs no longer keep a live tmux stream or paint Grok
+  frames, which could grow until Chrome killed the tab. Hidden tabs detach and
+  resume from a fresh snapshot when they become visible again.
 - Grok Build follows Bitveins light and dark mode: the web terminal advertises
   truecolor, answers OSC 11 in Async mode, stamps `LC_GROK_APPEARANCE`, and
   remaps GrokNight's 256-color surfaces so light mode stays readable.

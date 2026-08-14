@@ -13,6 +13,7 @@ defineProps<{
   notificationMuteBusy: boolean
   notificationMuteError: boolean
   notificationMuted: boolean
+  fullscreen?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -29,6 +30,7 @@ const emit = defineEmits<{
   selectTmuxWindow: [value: string]
   startTmuxWindowRename: [index: number]
   splitTmuxWindow: [direction: 'horizontal' | 'vertical']
+  toggleFullscreen: []
 }>()
 
 const editingWindowName = defineModel<string>('editingWindowName', { default: '' })
@@ -98,6 +100,19 @@ const editingWindowName = defineModel<string>('editingWindowName', { default: ''
       title="Split Pane Vertically (Top / Bottom)"
       variant="ghost"
       @click="emit('splitTmuxWindow', 'vertical')"
+    />
+
+    <UButton
+      :aria-label="fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+      :aria-pressed="fullscreen"
+      class="mb-1 h-6 shrink-0 px-1.5 text-[length:var(--bitveins-ui-caption-size)]"
+      color="neutral"
+      data-fullscreen-toggle
+      :icon="fullscreen ? 'i-lucide-minimize' : 'i-lucide-maximize'"
+      size="xs"
+      :title="fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+      variant="ghost"
+      @click="emit('toggleFullscreen')"
     />
 
     <UButton

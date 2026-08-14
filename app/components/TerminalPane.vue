@@ -53,6 +53,7 @@ let terminalFileLinkProvider: TerminalFileLinkProvider | null = null
 let terminalUrlLinkDisposable: IDisposable | null = null
 let terminalUrlLinkProvider: TerminalUrlLinkProvider | null = null
 let terminalResizeObserver: ResizeObserver | null = null
+let terminalResizeFrame = 0
 let disposed = false
 
 const activeSession = computed(() => props.sessionName)
@@ -279,6 +280,8 @@ function dispose(): void {
   terminalFileLinkProvider?.dispose()
   terminalUrlLinkDisposable?.dispose()
   terminalUrlLinkProvider?.dispose()
+  if (terminalResizeFrame) cancelAnimationFrame(terminalResizeFrame)
+  terminalResizeFrame = 0
   terminalResizeObserver?.disconnect()
   terminalInputRouter.dispose()
   terminalSelection.dispose()
@@ -342,7 +345,11 @@ onMounted(async () => {
   applyInputMode()
   fitAndResize()
   terminalResizeObserver = new ResizeObserver(() => {
-    if (props.active) fitAndResize()
+    if (!props.active || terminalResizeFrame) return
+    terminalResizeFrame = requestAnimationFrame(() => {
+      terminalResizeFrame = 0
+      if (!disposed && props.active) fitAndResize()
+    })
   })
   terminalResizeObserver.observe(terminalHost.value)
   terminalSelection.mount()
