@@ -8,6 +8,9 @@ until a release is tagged.
 
 ### Added
 
+- agent status indicator squares on tmux window tabs: the colored state square
+  (working, blocked, failed, idle) is now rendered directly in front of the window
+  tab name when an agent is running in that tmux window;
 - Antigravity agent integration: automatic discovery of Antigravity (`agy` / `antigravity`)
   processes in the sidebar with dynamic conversation title and preview resolution from
   `conversation_summaries.db`, native lifecycle hook notifications (`bitveins antigravity install` / `~/.gemini/config/hooks.json`),
@@ -23,6 +26,12 @@ until a release is tagged.
 
 ### Fixed
 
+- Antigravity screen status classification: terminal captures now strip ANSI escape sequences,
+  support the full Unicode Braille spinner range, recognize Antigravity cancel bars (`esc to cancel`),
+  and inspect active footer lines to avoid sticky working-state false positives from past conversation text;
+- Antigravity agent label resolution: initial user prompts are now resolved directly from active
+  `transcript.jsonl` files before summaries are flushed to `conversation_summaries.db`, and stale/generic
+  titles from other shells or previous agent runs are filtered out;
 - single-line prompt submissions from Async mode now use bracketed paste mode so
   prompts paste instantaneously instead of being typed character-by-character;
 

@@ -1,10 +1,14 @@
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, ref, type Ref } from 'vue'
 import type { TmuxWindow } from '~/types/session'
+import type { TmuxAgent } from '#shared/contracts/agents'
+import type { TmuxWindowTabItem } from '~/types/tmux-tabs'
 import { apiErrorMessage } from '~/utils/api-error'
+import { resolveWindowAgentStatus } from '~/utils/tmux-agent-status'
 
 export function useTmuxWindows(
   activeSession: Ref<string | null>,
   handleAuthError: (err: unknown) => void,
+  agents?: Ref<TmuxAgent[]>,
 ) {
   const windows = ref<TmuxWindow[]>([])
   const selectedWindowIndex = ref<number | null>(null)
@@ -14,7 +18,8 @@ export function useTmuxWindows(
   const error = ref<string | null>(null)
   let windowsRefreshTimer: ReturnType<typeof setInterval> | null = null
 
-  const windowTabItems = computed(() => windows.value.map(window => ({
+  const windowTabItems = computed<TmuxWindowTabItem[]>(() => windows.value.map(window => ({
+    agentStatus: agents?.value ? resolveWindowAgentStatus(window, activeSession.value, agents.value) : undefined,
     label: window.name,
     name: window.name,
     title: window.path,

@@ -76,7 +76,7 @@ watch(() => props.editingWindowIndex, index => index === null ? undefined : focu
         v-else
         :aria-label="`Tmux window ${item.windowIndex}: ${item.name}`"
         :aria-selected="activeValue === item.value"
-        class="min-w-0 flex-1 truncate py-1.5 pl-2 text-left text-[length:var(--bitveins-ui-label-size)] font-medium outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--bitveins-shell-accent)]"
+        class="flex min-w-0 flex-1 items-center truncate py-1.5 pl-2 text-left text-[length:var(--bitveins-ui-label-size)] font-medium outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--bitveins-shell-accent)]"
         :class="windowCount > 1 ? 'pr-6' : 'pr-2'"
         role="tab"
         :title="`${item.windowIndex}:${item.name} — ${item.title}`"
@@ -84,7 +84,15 @@ watch(() => props.editingWindowIndex, index => index === null ? undefined : focu
         @click="emit('select', item.value)"
         @dblclick.stop.prevent="emit('startRename', item.windowIndex)"
       >
-        {{ item.label }}
+        <span
+          v-if="item.agentStatus"
+          aria-hidden="true"
+          class="mr-1.5 size-[var(--bitveins-agent-indicator-size)] shrink-0 rounded-[2px] border border-transparent"
+          :class="`tmux-agent-state--${item.agentStatus}`"
+          data-agent-status
+          :data-status="item.agentStatus"
+        />
+        <span class="truncate">{{ item.label }}</span>
       </button>
 
       <button
@@ -116,3 +124,11 @@ watch(() => props.editingWindowIndex, index => index === null ? undefined : focu
     </button>
   </div>
 </template>
+
+<style scoped>
+.tmux-agent-state--working { background: var(--bitveins-agent-working); }
+.tmux-agent-state--blocked { background: var(--bitveins-agent-blocked); }
+.tmux-agent-state--failed { background: var(--bitveins-agent-failed); }
+.tmux-agent-state--idle { background: var(--bitveins-agent-idle); }
+.tmux-agent-state--unknown { border-color: var(--bitveins-agent-idle); }
+</style>

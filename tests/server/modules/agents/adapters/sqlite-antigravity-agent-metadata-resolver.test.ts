@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import Database from 'better-sqlite3'
@@ -50,6 +50,36 @@ describe('SqliteAntigravityAgentMetadataResolver', () => {
 
     const label = await resolver.labelFor(1234)
     expect(label).toBe('Fixing TUI Scroll Issues')
+  })
+
+  it('falls back to transcript.jsonl when conversation_summaries has no record yet', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bitveins-antigravity-meta-'))
+    temporaryDirectories.push(root)
+
+    const home = join(root, 'home')
+    const convId = 'a1b2c3d4-e5f6-7890-1234-56789abcdef0'
+
+    const logsDir = join(home, '.gemini', 'antigravity-cli', 'brain', convId, '.system_generated', 'logs')
+    await mkdir(logsDir, { recursive: true })
+
+    await writeFile(
+      join(logsDir, 'transcript.jsonl'),
+      JSON.stringify({
+        type: 'USER_INPUT',
+        content: '<USER_REQUEST>\nAjouter un carré de couleur sur les onglets\n</USER_REQUEST>',
+      }) + '\n',
+    )
+
+    const resolver = new SqliteAntigravityAgentMetadataResolver({
+      filesystem: {
+        readdir: async () => ['18'],
+        readlink: async () => `/home/theman/.gemini/antigravity-cli/conversations/${convId}.db`,
+      },
+      homeDirectory: home,
+    })
+
+    const label = await resolver.labelFor(1234)
+    expect(label).toBe('Ajouter un carré de couleur sur les onglets')
   })
 
   it('falls back to preview when title is empty', async () => {

@@ -93,6 +93,13 @@ function handleAuthError(fetchError: unknown): void {
 }
 
 const {
+  agents,
+  error: agentsError,
+  refresh: refreshAgents,
+  rename: renameAgent,
+} = useTmuxAgents(handleAuthError)
+
+const {
   windows,
   editingWindowIndex,
   editingWindowName,
@@ -109,7 +116,7 @@ const {
   startWindowRename,
   cancelWindowRename,
   saveWindowRename,
-} = useTmuxWindows(activeSession, handleAuthError)
+} = useTmuxWindows(activeSession, handleAuthError, agents)
 
 const activeHistoryScopeKey = computed(() => (activeSession.value && activeWindow.value ? `${activeSession.value}:${activeWindow.value.id}:${activeWindow.value.index}` : null))
 
@@ -237,13 +244,6 @@ const {
   stopWindowRefresh,
   terminal,
 })
-
-const {
-  agents,
-  error: agentsError,
-  refresh: refreshAgents,
-  rename: renameAgent,
-} = useTmuxAgents(handleAuthError)
 
 const activeSessionId = computed(() => (
   sessions.value.find(session => session.name === activeSession.value)?.id ?? null
