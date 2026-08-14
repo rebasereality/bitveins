@@ -82,6 +82,37 @@ describe('SqliteAntigravityAgentMetadataResolver', () => {
     expect(label).toBe('Ajouter un carré de couleur sur les onglets')
   })
 
+  it('parses plain USER_INPUT without tags and ignores corrupted lines in transcript.jsonl', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bitveins-antigravity-meta-'))
+    temporaryDirectories.push(root)
+
+    const home = join(root, 'home')
+    const convId = 'c1c2c3c4-e5f6-7890-1234-56789abcdef1'
+
+    const logsDir = join(home, '.gemini', 'antigravity-cli', 'brain', convId, '.system_generated', 'logs')
+    await mkdir(logsDir, { recursive: true })
+
+    await writeFile(
+      join(logsDir, 'transcript.jsonl'),
+      [
+        'invalid json line',
+        JSON.stringify({ type: 'SYSTEM_MESSAGE', content: 'hello' }),
+        JSON.stringify({ type: 'USER_INPUT', content: 'Plain prompt without tags' }),
+      ].join('\n') + '\n',
+    )
+
+    const resolver = new SqliteAntigravityAgentMetadataResolver({
+      filesystem: {
+        readdir: async () => ['18'],
+        readlink: async () => `/home/theman/.gemini/antigravity-cli/conversations/${convId}.db`,
+      },
+      homeDirectory: home,
+    })
+
+    const label = await resolver.labelFor(1234)
+    expect(label).toBe('Plain prompt without tags')
+  })
+
   it('falls back to preview when title is empty', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bitveins-antigravity-meta-'))
     temporaryDirectories.push(root)

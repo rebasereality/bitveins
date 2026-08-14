@@ -60,4 +60,34 @@ describe('systemd user unit', () => {
 
     expect(verification.status, verification.stderr).toBe(0)
   })
+
+  it('installs, reads, and restores service unit files', async () => {
+    const { FilesystemServiceUnitRepository } = await import('../../../cli/platform/filesystem-service-unit-repository')
+    const home = await mkdtemp(join(tmpdir(), 'bitveins-repo-unit-'))
+    temporaryDirectories.push(home)
+    const layout = resolveInstallationLayout({ HOME: home })
+    await mkdir(layout.systemdDirectory, { recursive: true })
+
+    const repo = new FilesystemServiceUnitRepository(layout, home)
+
+    // Non-existent unit returns null
+    await expect(repo.readOptional()).resolves.toBeNull()
+
+    // Install unit
+    await repo.install()
+    const content = await repo.readOptional()
+    expect(content).toContain('Environment=HOST=127.0.0.1')
+
+    // Restore unit with new content
+    await repo.restore('custom-unit-content')
+    await expect(repo.readOptional()).resolves.toBe('custom-unit-content')
+
+    // Restore null removes file
+    await repo.restore(null)
+    await expect(repo.readOptional()).resolves.toBeNull()
+
+    // Non-regular file (directory) throws
+    await mkdir(layout.systemdUnit)
+    await expect(repo.readOptional()).rejects.toThrow(/must be a regular file/)
+  })
 })

@@ -22,6 +22,8 @@ describe('release metadata', () => {
   })
 
   it('rejects unsupported architectures and unsafe versions', () => {
+    expect(() => parseReleaseMetadata(null)).toThrow(/Release metadata must be an object/)
+    expect(() => parseReleaseMetadata('not-an-object')).toThrow(/Release metadata must be an object/)
     expect(() => parseReleaseMetadata({
       architecture: 'arm64',
       commit: 'unknown',

@@ -52,4 +52,21 @@ describe('CLI I/O adapters', () => {
     await expect(confirmPurge(prompt('REMOVE'))).resolves.toBe(true)
     await expect(confirmPurge(prompt('remove'))).resolves.toBe(false)
   })
+
+  it('runs terminalPrompt with readline when interactive', async () => {
+    const { createTerminalPurgeConfirmationPrompt } = await import('../../../cli/presentation/terminal-purge-confirmation')
+    const { Readable, Writable } = await import('node:stream')
+
+    const input = Readable.from(['REMOVE\n']) as any
+    input.isTTY = true
+    const output = new Writable({
+      write(_chunk, _encoding, callback) {
+        callback()
+      },
+    }) as any
+    output.isTTY = true
+
+    const prompt = createTerminalPurgeConfirmationPrompt({ input, output })
+    await expect(confirmPurge(prompt)).resolves.toBe(true)
+  })
 })

@@ -103,18 +103,23 @@ export class SqliteAntigravityAgentMetadataResolver implements AntigravityAgentM
       const lines = content.split('\n')
       for (const line of lines) {
         if (!line.trim()) continue
-        const parsed = JSON.parse(line) as { content?: string, type?: string }
-        if (parsed.type === 'USER_INPUT' && typeof parsed.content === 'string') {
-          const userRequestMatch = parsed.content.match(/<USER_REQUEST>([\s\S]*?)<\/USER_REQUEST>/u)
-          const rawText = userRequestMatch ? userRequestMatch[1]?.trim() : parsed.content.trim()
-          const firstLine = rawText?.split('\n').map(l => l.trim()).find(Boolean)
-          const label = normalizeAgentLabel(firstLine ?? null)
-          if (label) return label
+        try {
+          const parsed = JSON.parse(line) as { content?: string, type?: string }
+          if (parsed.type === 'USER_INPUT' && typeof parsed.content === 'string') {
+            const userRequestMatch = parsed.content.match(/<USER_REQUEST>([\s\S]*?)<\/USER_REQUEST>/u)
+            const rawText = userRequestMatch ? userRequestMatch[1]?.trim() : parsed.content.trim()
+            const firstLine = rawText?.split('\n').map(l => l.trim()).find(Boolean)
+            const label = normalizeAgentLabel(firstLine ?? null)
+            if (label) return label
+          }
+        }
+        catch {
+          // Ignore individual corrupted line
         }
       }
     }
     catch {
-      // Transcript unreadable or invalid JSON
+      // Transcript unreadable
     }
     return null
   }
