@@ -8,6 +8,23 @@ import {
 } from '../../../shared/contracts/terminal'
 
 describe('ws protocol', () => {
+  it('parses attach and appearance messages for terminal theme hints', () => {
+    expect(parseClientMessage(JSON.stringify({
+      action: 'attach',
+      payload: { sessionName: 'main', appearance: 'light' },
+    }))).toEqual({
+      action: 'attach',
+      payload: { sessionName: 'main', appearance: 'light' },
+    })
+    expect(parseClientMessage(JSON.stringify({
+      action: 'setAppearance',
+      payload: { appearance: 'dark' },
+    }))).toEqual({
+      action: 'setAppearance',
+      payload: { appearance: 'dark' },
+    })
+  })
+
   it('parses attach messages with optional terminal size', () => {
     expect(parseClientMessage(JSON.stringify({
       action: 'attach',

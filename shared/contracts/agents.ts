@@ -7,6 +7,7 @@ export const tmuxAgentKindSchema = z.enum([
   'copilot',
   'cursor',
   'gemini',
+  'grok',
   'hermes',
   'opencode',
   'pi',

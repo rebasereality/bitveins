@@ -42,6 +42,15 @@ function setup(options: {
 }
 
 describe('terminal input router', () => {
+  it('forwards OSC 11 color reports in async mode so Grok can read the canvas', () => {
+    const context = setup({ mode: 'async' })
+    const report = '\u001B]11;rgb:fafa/fafb/fafb\u001B\\'
+
+    context.router.onData(report)
+
+    expect(context.sendInput).toHaveBeenCalledExactlyOnceWith(report)
+  })
+
   it('routes only data produced synchronously by an async wheel event', () => {
     const context = setup()
 

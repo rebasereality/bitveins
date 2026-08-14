@@ -39,6 +39,15 @@ describe('terminal themes', () => {
     expect(lightTerminalTheme.extendedAnsi?.[230 - 16]).toBe('#713f12')
   })
 
+  it('remaps GrokNight 256-color surfaces and text for the light canvas', () => {
+    const grokLight = terminalThemeForAccent('light', 'indigo', 'grok')
+    expect(grokLight.extendedAnsi?.[233 - 16]).toBe('#f4f4f5')
+    expect(grokLight.extendedAnsi?.[234 - 16]).toBe('#eceef2')
+    expect(grokLight.extendedAnsi?.[254 - 16]).toBe('#18181b')
+    expect(lightTerminalTheme.extendedAnsi?.[233 - 16]).toBeUndefined()
+    expect(lightTerminalTheme.extendedAnsi?.[234 - 16]).toBe('#e2e8f0')
+  })
+
   it('derives cursor and selection accents without replacing semantic ANSI colors', () => {
     const amber = terminalThemeForAccent('dark', 'amber')
     expect(amber.cursor).toBe('#fbbf24')

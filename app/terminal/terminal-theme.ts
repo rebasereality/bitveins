@@ -19,6 +19,22 @@ function lightExtendedAnsi(): string[] {
   return colors
 }
 
+function grokLightExtendedAnsi(): string[] {
+  const colors = lightExtendedAnsi()
+  // GrokNight quantizes to 233-235 surfaces and near-white 251-254 text.
+  // Remap both sides so the 256-color TUI stays readable on a light canvas.
+  colors[233 - 16] = '#f4f4f5'
+  colors[234 - 16] = '#eceef2'
+  colors[235 - 16] = '#e4e4e7'
+  colors[242 - 16] = '#52525b'
+  colors[243 - 16] = '#3f3f46'
+  colors[244 - 16] = '#3f3f46'
+  colors[251 - 16] = '#3f3f46'
+  colors[252 - 16] = '#27272a'
+  colors[254 - 16] = '#18181b'
+  return colors
+}
+
 export const darkTerminalTheme: ITheme = {
   background: '#1c1f24',
   foreground: '#dfe2e8',
@@ -75,6 +91,7 @@ export const lightTerminalTheme: ITheme = {
 export function terminalThemeForAccent(
   colorScheme: AppearanceColorScheme,
   accentColor: AccentColorId,
+  application?: 'grok' | 'hermes',
 ): ITheme {
   const baseTheme = colorScheme === 'light' ? lightTerminalTheme : darkTerminalTheme
   const accent = accentColorsForScheme(accentColor, colorScheme)
@@ -82,6 +99,9 @@ export function terminalThemeForAccent(
 
   return {
     ...baseTheme,
+    ...(colorScheme === 'light' && application === 'grok'
+      ? { extendedAnsi: grokLightExtendedAnsi() }
+      : {}),
     blue: colorScheme === 'light' ? accent.strong : baseTheme.blue,
     brightBlue: accent.accent,
     cursor: accent.accent,

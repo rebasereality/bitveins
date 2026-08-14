@@ -7,8 +7,11 @@ export const tmuxSessionSchema = z.object({
   path: z.string(),
 })
 
+export const terminalApplicationSchema = z.enum(['grok', 'hermes'])
+export const terminalAppearanceSchema = z.enum(['dark', 'light'])
+
 export const tmuxWindowSchema = z.object({
-  application: z.enum(['hermes']).optional(),
+  application: terminalApplicationSchema.optional(),
   id: z.string(),
   index: z.number().int(),
   name: z.string(),
@@ -18,7 +21,7 @@ export const tmuxWindowSchema = z.object({
 })
 
 export const tmuxPaneSchema = z.object({
-  application: z.enum(['hermes']).optional(),
+  application: terminalApplicationSchema.optional(),
   id: z.string().regex(/^%\d+$/),
   index: z.number().int().nonnegative(),
   active: z.boolean(),
@@ -40,6 +43,8 @@ export const historyMessageSchema = z.object({
 export type TmuxSession = z.infer<typeof tmuxSessionSchema>
 export type TmuxWindow = z.infer<typeof tmuxWindowSchema>
 export type TmuxPane = z.infer<typeof tmuxPaneSchema>
+export type TerminalAppearance = z.infer<typeof terminalAppearanceSchema>
+export type TerminalApplication = z.infer<typeof terminalApplicationSchema>
 export type HistoryMessage = z.infer<typeof historyMessageSchema>
 
 export interface TerminalSize {
@@ -65,10 +70,15 @@ const terminalDimensionsSchema = {
   rows: z.number().finite('Terminal dimensions must be finite numbers.').optional(),
 }
 
+const terminalAppearanceField = {
+  appearance: terminalAppearanceSchema.optional(),
+}
+
 const attachSchema = z.object({
   action: z.literal('attach'),
   payload: z.object({
     sessionName: z.string().min(1, 'Attach requires a sessionName string.'),
+    ...terminalAppearanceField,
     ...terminalDimensionsSchema,
   }, { error: 'A payload object is required.' }),
 })
@@ -78,6 +88,7 @@ const attachWindowSchema = z.object({
   payload: z.object({
     sessionName: z.string().min(1, 'Attach window requires a sessionName string.'),
     windowIndex: z.number().int('Attach window requires an integer windowIndex.'),
+    ...terminalAppearanceField,
     ...terminalDimensionsSchema,
   }, { error: 'A payload object is required.' }),
 })
@@ -88,7 +99,15 @@ const attachPaneSchema = z.object({
     sessionName: z.string().min(1, 'Attach pane requires a sessionName string.'),
     windowIndex: z.number().int('Attach pane requires an integer windowIndex.'),
     paneId: z.string().regex(/^%\d+$/, 'Attach pane requires a valid paneId.'),
+    ...terminalAppearanceField,
     ...terminalDimensionsSchema,
+  }, { error: 'A payload object is required.' }),
+})
+
+const setAppearanceSchema = z.object({
+  action: z.literal('setAppearance'),
+  payload: z.object({
+    appearance: terminalAppearanceSchema,
   }, { error: 'A payload object is required.' }),
 })
 
@@ -182,6 +201,7 @@ export const clientMessageSchema = z.discriminatedUnion('action', [
   attachSchema,
   attachWindowSchema,
   attachPaneSchema,
+  setAppearanceSchema,
   inputSchema,
   reliableInputSchema,
   scrollPaneSchema,

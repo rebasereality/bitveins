@@ -19,6 +19,7 @@ interface ReliableInputDeduplicator {
 }
 
 interface TerminalSessionOperations {
+  applyClientAppearance?(sessionName: string, appearance: 'dark' | 'light'): Promise<void>
   capturePaneViewport(paneId: unknown): Promise<TmuxPaneViewport>
   createWindow(name: string): Promise<unknown>
   createWindowClientSession(name: string, index: unknown): Promise<{
@@ -111,6 +112,7 @@ export class TerminalPeerSession {
           message.payload.sessionName,
           message.payload.cols,
           message.payload.rows,
+          message.payload.appearance,
         )
         return
       case 'attachWindow':
@@ -119,6 +121,7 @@ export class TerminalPeerSession {
           message.payload.windowIndex,
           message.payload.cols,
           message.payload.rows,
+          message.payload.appearance,
         )
         return
       case 'attachPane':
@@ -128,7 +131,11 @@ export class TerminalPeerSession {
           message.payload.paneId,
           message.payload.cols,
           message.payload.rows,
+          message.payload.appearance,
         )
+        return
+      case 'setAppearance':
+        await this.applyAppearance(message.payload.appearance)
         return
       case 'input':
         await this.writeInput(this.requireAttachment(), message.payload.data)
@@ -198,9 +205,28 @@ export class TerminalPeerSession {
     }
   }
 
-  private async attachSession(sessionName: string, cols?: number, rows?: number): Promise<void> {
+  private currentSessionName: string | null = null
+
+  private async applyAppearance(appearance: 'dark' | 'light'): Promise<void> {
+    if (!this.currentSessionName || !this.options.sessions.applyClientAppearance) return
+    try {
+      await this.options.sessions.applyClientAppearance(this.currentSessionName, appearance)
+    }
+    catch {
+      // Appearance hints are optional and must not break an attach.
+    }
+  }
+
+  private async attachSession(
+    sessionName: string,
+    cols?: number,
+    rows?: number,
+    appearance?: 'dark' | 'light',
+  ): Promise<void> {
     await this.detach()
     const normalizedSessionName = normalizeSessionName(sessionName)
+    this.currentSessionName = normalizedSessionName
+    if (appearance) await this.applyAppearance(appearance)
     const attachment = this.spawnAttachment(
       normalizedSessionName,
       `tmux attach process`,
@@ -221,8 +247,12 @@ export class TerminalPeerSession {
     windowIndex: number,
     cols?: number,
     rows?: number,
+    appearance?: 'dark' | 'light',
   ): Promise<void> {
     await this.detach()
+    const normalizedSessionName = normalizeSessionName(sessionName)
+    this.currentSessionName = normalizedSessionName
+    if (appearance) await this.applyAppearance(appearance)
     await this.options.sessions.selectWindow(sessionName, windowIndex)
     const windowClient = await this.options.sessions.createWindowClientSession(sessionName, windowIndex)
     this.options.onHelperActivated(windowClient.helperSessionName)
@@ -257,9 +287,12 @@ export class TerminalPeerSession {
     paneId: string,
     cols?: number,
     rows?: number,
+    appearance?: 'dark' | 'light',
   ): Promise<void> {
     await this.detach()
     const normalizedSessionName = normalizeSessionName(sessionName)
+    this.currentSessionName = normalizedSessionName
+    if (appearance) await this.applyAppearance(appearance)
     const panes = await this.options.sessions.listPanes(normalizedSessionName, windowIndex)
     if (!panes.some(pane => pane.id === paneId)) {
       throw new Error('Tmux pane is no longer available.')
@@ -433,6 +466,7 @@ export class TerminalPeerSession {
     if (!attachment) return
 
     this.attachment = null
+    this.currentSessionName = null
     this.disposeSubscriptions(attachment)
     attachment.process.kill()
     await this.releaseAttachmentHelper(attachment)

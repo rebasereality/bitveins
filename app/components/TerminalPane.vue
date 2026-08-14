@@ -20,7 +20,7 @@ import { buildUploadDestinationPath } from '~/utils/upload-path'
 const props = defineProps<{
   active: boolean
   visible: boolean
-  application?: 'hermes'
+  application?: TmuxPane['application']
   focused: boolean
   inputMode: InputMode
   paneKey: string
@@ -61,12 +61,14 @@ const inputActive = computed(() => props.active && props.focused)
 const inputMode = computed(() => props.inputMode)
 const isLightTheme = computed(() => colorMode.value === 'light')
 const terminalOutputNormalizer = createTerminalOutputNormalizer(
-  () => props.application === 'hermes',
+  () => props.application === 'hermes'
+    || (props.application === 'grok' && isLightTheme.value),
 )
 
 const terminalTheme = computed<ITheme>(() => terminalThemeForAccent(
   isLightTheme.value ? 'light' : 'dark',
   accentColor.value,
+  props.application,
 ))
 
 function resolvePaneWindowSize({ cols, rows }: { cols: number, rows: number }) {
@@ -117,6 +119,7 @@ const terminalInputRouter = createTerminalInputRouter({
   },
   inputMode: () => props.inputMode,
   isActive: () => props.active && props.focused,
+  isAttached: () => props.active,
   isAsyncWheelEnabled: () => connectionState.value === 'attached',
   isMouseTrackingEnabled: () => terminal.value?.modes.mouseTrackingMode !== 'none',
   restoreInputMode: applyInputMode,

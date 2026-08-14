@@ -108,6 +108,10 @@ export class SessionService {
     return live?.id ?? null
   }
 
+  async applyClientAppearance(name: string, appearance: 'dark' | 'light'): Promise<void> {
+    await this.options.tmux.applyClientAppearance(normalizeSessionName(name), appearance)
+  }
+
   async createSession(name: string, path: string): Promise<TmuxSession> {
     const sessionName = normalizeSessionName(name)
     const cwd = this.normalizePath(path)

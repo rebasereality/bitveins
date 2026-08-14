@@ -1,10 +1,12 @@
 import type { InputMode } from '../types/session'
+import { isOscColorReport } from './terminal-color-report'
 import { isTerminalTouchWheelEvent } from './terminal-touch-scroll'
 
 interface TerminalInputRouterOptions {
   enableStdin: () => void
   inputMode: () => InputMode
   isActive: () => boolean
+  isAttached?: () => boolean
   isAsyncWheelEnabled: () => boolean
   isMouseTrackingEnabled: () => boolean
   restoreInputMode: () => void
@@ -39,7 +41,12 @@ export function createTerminalInputRouter(options: TerminalInputRouterOptions): 
       else options.sendWheelInput(data, 'binary')
     },
     onData(data: string): void {
-      if (disposed || !options.isActive()) return
+      if (disposed) return
+      if (isOscColorReport(data)) {
+        if (options.isAttached?.() ?? options.isActive()) options.sendInput(data)
+        return
+      }
+      if (!options.isActive()) return
       if (routingWheel) {
         if (wheelLineCount) options.sendWheelInput(data, 'utf8', wheelLineCount)
         else options.sendWheelInput(data, 'utf8')

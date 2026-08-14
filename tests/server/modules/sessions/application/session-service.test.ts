@@ -80,6 +80,7 @@ function createTmux(overrides: Partial<TmuxGateway> = {}): TmuxGateway {
     })),
     captureWindowSnapshot: vi.fn(async () => ''),
     clearSessionId: vi.fn(async () => {}),
+    applyClientAppearance: vi.fn(async () => {}),
     createSession: vi.fn(async () => {}),
     createWindow: vi.fn(async () => ({
       active: true,

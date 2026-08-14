@@ -26,6 +26,7 @@ export interface TmuxGateway {
   capturePaneViewport(paneId: unknown): Promise<TmuxPaneViewport>
   captureWindowSnapshot(name: string, index: unknown, lines?: number, paneId?: unknown): Promise<string>
   clearSessionId(name: string): Promise<void>
+  applyClientAppearance(name: string, appearance: 'dark' | 'light'): Promise<void>
   createSession(name: string, path: string): Promise<void>
   createWindow(name: string, path: string): Promise<TmuxWindow>
   createWindowClientSession(name: string, index: unknown): Promise<WindowClientSession>

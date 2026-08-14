@@ -1,6 +1,6 @@
 import type { FitAddon } from '@xterm/addon-fit'
 import type { Terminal } from '@xterm/xterm'
-import type { Ref, ShallowRef } from 'vue'
+import { watch, type Ref, type ShallowRef } from 'vue'
 import { BrowserWebSocketTransportFactory } from '~/terminal/browser-websocket-transport'
 import { BrowserConnectionEnvironment } from '~/terminal/connection-environment'
 import { BrowserScheduler } from '~/terminal/scheduler'
@@ -84,8 +84,10 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
     options.fitAddon.value?.fit()
   }
 
+  const colorMode = useColorMode()
   const controller = new TerminalConnectionController({
     environment: new BrowserConnectionEnvironment(),
+    getAppearance: () => colorMode.value === 'light' ? 'light' : 'dark',
     getSize: terminalSize,
     onAttachmentBegin() {
       options.resetOutput?.()
@@ -147,6 +149,10 @@ export function useTerminalSocket(options: TerminalSocketOptions) {
     post: message => controller.sendMessage(message),
   })
   const pendingReliableCount = reliableInput.pendingCount
+
+  watch(colorMode, (value) => {
+    controller.sendAppearance(value === 'light' ? 'light' : 'dark')
+  })
 
   async function checkAuthentication(): Promise<void> {
     try {
