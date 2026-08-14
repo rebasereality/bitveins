@@ -115,6 +115,7 @@ await mkdir(join(releaseRoot, 'docs'), { recursive: true })
 await mkdir(join(releaseRoot, 'lib'), { recursive: true })
 await mkdir(join(releaseRoot, 'runtime', 'bin'), { recursive: true })
 await mkdir(join(releaseRoot, 'share', 'bitveins'), { recursive: true })
+await mkdir(join(releaseRoot, 'share', 'bitveins', 'antigravity-hooks'), { recursive: true })
 await mkdir(join(releaseRoot, 'share', 'bitveins', 'codex-marketplace'), { recursive: true })
 await mkdir(join(releaseRoot, 'share', 'bitveins', 'hermes-plugin'), { recursive: true })
 await mkdir(join(releaseRoot, 'share', 'systemd', 'user'), { recursive: true })
@@ -146,6 +147,12 @@ for (const file of ['__init__.py', 'plugin.yaml', 'README.md', 'test_plugin.py']
   await copyFile(
     join(root, 'integrations', 'hermes-notifications', file),
     join(releaseRoot, 'share', 'bitveins', 'hermes-plugin', file),
+  )
+}
+for (const file of ['bitveins_antigravity_notifications.py', 'hooks.json', 'README.md', 'test_notifications.py']) {
+  await copyFile(
+    join(root, 'integrations', 'antigravity-notifications', file),
+    join(releaseRoot, 'share', 'bitveins', 'antigravity-hooks', file),
   )
 }
 for (const relativePath of [

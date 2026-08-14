@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 export const tmuxAgentKindSchema = z.enum([
   'aider',
+  'antigravity',
   'claude',
   'codex',
   'copilot',

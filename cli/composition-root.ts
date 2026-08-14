@@ -8,6 +8,7 @@ import { BitveinsUninstaller } from './application/bitveins-uninstaller'
 import { BitveinsUpdater } from './application/bitveins-updater'
 import { resolveInstallationLayout } from './core/installation-layout'
 import { InstallationTransaction } from './application/installation/installation-transaction'
+import { FilesystemAntigravityPluginInstaller } from './platform/filesystem-antigravity-plugin-installer'
 import { FilesystemEnvironmentRepository } from './platform/filesystem-environment-repository'
 import { FilesystemCodexPluginInstaller } from './platform/filesystem-codex-plugin-installer'
 import { FilesystemHermesPluginInstaller } from './platform/filesystem-hermes-plugin-installer'
@@ -30,6 +31,7 @@ import type { PasswordReader } from './ports/password-reader'
 import { CliApplication } from './presentation/cli-application'
 import { CommandRegistry } from './presentation/command-registry'
 import { ConsoleOutput } from './presentation/console-output'
+import { AntigravityCommand } from './presentation/commands/antigravity-command'
 import { CodexCommand } from './presentation/commands/codex-command'
 import { DoctorCommand } from './presentation/commands/doctor-command'
 import { EventCommand } from './presentation/commands/event-command'
@@ -130,6 +132,15 @@ export function createCliApplication(version: string): CliApplication {
     environment: process.env,
     output,
   }))
+  registry.register(new AntigravityCommand(
+    new FilesystemAntigravityPluginInstaller({
+      home,
+      sourceDirectory: process.env.BITVEINS_RELEASE_ROOT
+        ? join(releaseRoot, 'share', 'bitveins', 'antigravity-hooks')
+        : join(releaseRoot, 'integrations', 'antigravity-notifications'),
+    }),
+    output,
+  ))
   registry.register(new CodexCommand(
     new FilesystemCodexPluginInstaller({
       commands,

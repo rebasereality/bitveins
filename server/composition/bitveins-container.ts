@@ -1,4 +1,5 @@
 import type { TerminalPeer } from '../modules/terminal/application/terminal-peer-registry'
+import { AntigravityNotificationService } from '../modules/attention/application/antigravity-notification-service'
 import { AttentionService } from '../modules/attention/application/attention-service'
 import { CodexNotificationService } from '../modules/attention/application/codex-notification-service'
 import { HermesNotificationService } from '../modules/attention/application/hermes-notification-service'
@@ -6,7 +7,10 @@ import { CodexAgentMetadataService } from '../modules/agents/application/codex-a
 import { CodexAppServerThreadMetadataReader } from '../modules/agents/adapters/codex-app-server-thread-metadata-reader'
 import { GitCliAgentMetadataResolver } from '../modules/agents/adapters/git-cli-agent-metadata-resolver'
 import { LinuxCodexProcessInspector } from '../modules/agents/adapters/linux-codex-process-inspector'
+import { SqliteAntigravityAgentMetadataResolver } from '../modules/agents/adapters/sqlite-antigravity-agent-metadata-resolver'
+import { SqliteGrokAgentMetadataResolver } from '../modules/agents/adapters/sqlite-grok-agent-metadata-resolver'
 import { WebPushNotificationService } from '../modules/attention/application/web-push-notification-service'
+import { DrizzleAntigravityNotificationPreferenceRepository } from '../modules/attention/adapters/drizzle-antigravity-notification-preference-repository'
 import { DrizzleAttentionRepository } from '../modules/attention/adapters/drizzle-attention-repository'
 import { DrizzleCodexNotificationPreferenceRepository } from '../modules/attention/adapters/drizzle-codex-notification-preference-repository'
 import { DrizzleHermesNotificationPreferenceRepository } from '../modules/attention/adapters/drizzle-hermes-notification-preference-repository'
@@ -40,6 +44,7 @@ import { db, useDrizzle } from '../utils/db'
 import { getValidatedEnv } from '../utils/env'
 
 export interface BitveinsContainer {
+  antigravityNotifications: AntigravityNotificationService
   attention: AttentionService
   codexNotifications: CodexNotificationService
   codexThreadMetadata: CodexAppServerThreadMetadataReader
@@ -68,7 +73,9 @@ export function createBitveinsContainer(): BitveinsContainer {
   const gitViewer = new GitViewerService(new GitCliRepository({ runner: commandRunner }))
   const tmux = new TmuxCliAdapter({
     agentGitMetadata: new GitCliAgentMetadataResolver({ runner: commandRunner }),
+    antigravityAgentMetadata: new SqliteAntigravityAgentMetadataResolver(),
     codexAgentMetadata,
+    grokAgentMetadata: new SqliteGrokAgentMetadataResolver(),
     helperOwner: String(process.pid),
     runner: commandRunner,
     socketName: environment.BITVEINS_TMUX_SOCKET_NAME,
@@ -180,8 +187,18 @@ export function createBitveinsContainer(): BitveinsContainer {
     },
     windowSessions: sessions,
   })
+  const antigravityNotificationPreferences = new DrizzleAntigravityNotificationPreferenceRepository(useDrizzle())
+  const antigravityNotifications = new AntigravityNotificationService({
+    attention,
+    preferences: antigravityNotificationPreferences,
+    reportResolutionError: () => {
+      console.warn('Antigravity session resolution failed; event suppressed.')
+    },
+    windowSessions: sessions,
+  })
 
   return {
+    antigravityNotifications,
     attention,
     codexNotifications,
     codexThreadMetadata,

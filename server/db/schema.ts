@@ -88,6 +88,16 @@ export const codexNotificationPreferences = sqliteTable('codex_notification_pref
   updatedAt: integer('updated_at').notNull(),
 })
 
+export const antigravityNotificationPreferences = sqliteTable('antigravity_notification_preferences', {
+  id: integer('id').primaryKey(),
+  completedWithTools: integer('completed_with_tools', { mode: 'boolean' }).notNull().default(true),
+  completedWithoutTools: integer('completed_without_tools', { mode: 'boolean' }).notNull().default(false),
+  failed: integer('failed', { mode: 'boolean' }).notNull().default(true),
+  inputRequired: integer('input_required', { mode: 'boolean' }).notNull().default(true),
+  permissionRequired: integer('permission_required', { mode: 'boolean' }).notNull().default(true),
+  updatedAt: integer('updated_at').notNull(),
+})
+
 export type Session = typeof sessions.$inferSelect
 export type InvalidatedSessionId = typeof invalidatedSessionIds.$inferSelect
 export type NewSession = typeof sessions.$inferInsert
@@ -100,3 +110,4 @@ export type WebPushSubscriptionRow = typeof webPushSubscriptions.$inferSelect
 export type WebPushSessionMuteRow = typeof webPushSessionMutes.$inferSelect
 export type HermesNotificationPreferenceRow = typeof hermesNotificationPreferences.$inferSelect
 export type CodexNotificationPreferenceRow = typeof codexNotificationPreferences.$inferSelect
+export type AntigravityNotificationPreferenceRow = typeof antigravityNotificationPreferences.$inferSelect

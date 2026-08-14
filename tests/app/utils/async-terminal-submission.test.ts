@@ -5,25 +5,32 @@ import {
 } from '../../../app/utils/async-terminal-submission'
 
 describe('async terminal submission', () => {
-  it('separates a single-line prompt from its terminator regardless of length', () => {
+  it('wraps single-line and multiline prompts in bracketed paste mode', () => {
     const shortPrompt = 'Impressionnant. Tu peux commit/push'
     const longPrompt = 'L'.repeat(81)
+    const multilinePrompt = 'first\nsecond'
 
-    expect(asyncTerminalSubmissionChunks(shortPrompt, '\r')).toEqual([shortPrompt, '\r'])
-    expect(asyncTerminalSubmissionChunks(longPrompt, '\r')).toEqual([longPrompt, '\r'])
-  })
-
-  it('uses bracketed paste only for multiline prompts', () => {
-    const chunks = asyncTerminalSubmissionChunks('first\nsecond', '\t')
-
-    expect(chunks).toEqual([
+    expect(asyncTerminalSubmissionChunks(shortPrompt, '\r')).toEqual([
+      `\x1b[200~${shortPrompt}\x1b[201~`,
+      '\r',
+    ])
+    expect(asyncTerminalSubmissionChunks(longPrompt, '\r')).toEqual([
+      `\x1b[200~${longPrompt}\x1b[201~`,
+      '\r',
+    ])
+    expect(asyncTerminalSubmissionChunks(multilinePrompt, '\t')).toEqual([
       '\x1b[200~first\nsecond\x1b[201~',
       '\t',
     ])
-    expect(recoverAsyncTerminalPrompt(chunks)).toBe('first\nsecond')
   })
 
-  it('recovers a single-line prompt while ignoring its terminator', () => {
-    expect(recoverAsyncTerminalPrompt(['retry me', '\r'])).toBe('retry me')
+  it('recovers single-line and multiline prompts while ignoring the terminator', () => {
+    expect(recoverAsyncTerminalPrompt(['\x1b[200~retry me\x1b[201~', '\r'])).toBe('retry me')
+    expect(recoverAsyncTerminalPrompt(['\x1b[200~first\nsecond\x1b[201~', '\t'])).toBe('first\nsecond')
+    expect(recoverAsyncTerminalPrompt(['plain text', '\r'])).toBe('plain text')
+  })
+
+  it('handles empty prompt submissions without bracketed paste', () => {
+    expect(asyncTerminalSubmissionChunks('', '\r')).toEqual(['', '\r'])
   })
 })

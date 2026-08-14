@@ -1,12 +1,16 @@
 import type { TmuxPane, TmuxWindow } from '#shared/contracts/terminal'
 import type { TmuxAgent } from '#shared/contracts/agents'
 import { tmuxAgentLabelSchema } from '#shared/contracts/agents'
+import type { AntigravityAgentMetadataResolver } from '../../../agents/ports/antigravity-agent-metadata-resolver'
 import type { CodexAgentMetadataResolver } from '../../../agents/ports/codex-agent-metadata-resolver'
+import type { GrokAgentMetadataResolver } from '../../../agents/ports/grok-agent-metadata-resolver'
 import type { AgentGitMetadataResolver } from '../../../agents/ports/agent-git-metadata-resolver'
-import { classifyAgentScreenStatus, stripAgentActivityGlyph } from '../../../agents/model/agent-screen-status'
-import { detectAgentProcess, tmuxAgentDisplayName } from '../../../agents/model/agent-process-detection'
-import { normalizeTmuxAgentTitle, parseTmuxAgentPaneCandidates } from '../../../agents/adapters/tmux-agent-output'
 import { SessionError } from '../../model/session-error'
+import { listDiscoveredTmuxAgents } from './tmux-agent-lister'
+import {
+  withDetectedPanesApplications,
+  withDetectedWindowApplications,
+} from './tmux-application-detector'
 import {
   isMissingTmuxServerError,
   parseBitveinsHelperSessions,
@@ -26,18 +30,16 @@ import {
   normalizeWindowIndex,
   normalizeWindowName,
 } from '../../model/session-validation'
-import {
-  foregroundApplicationForPane,
-  parseProcessCommandSnapshot,
-} from '../../model/terminal-application'
 import type { DiscoveredTmuxSession, TmuxGateway, WindowClientSession } from '../../ports/tmux-gateway'
 import type { CommandRunner } from './command-runner'
 import { captureTmuxPaneViewport } from './tmux-pane-viewport'
 
 interface TmuxCliAdapterOptions {
   agentGitMetadata?: AgentGitMetadataResolver
+  antigravityAgentMetadata?: AntigravityAgentMetadataResolver
   clock?: () => number
   codexAgentMetadata?: CodexAgentMetadataResolver
+  grokAgentMetadata?: GrokAgentMetadataResolver
   helperOwner: string
   randomId?: () => string
   runner: CommandRunner
@@ -136,7 +138,11 @@ export class TmuxCliAdapter implements TmuxGateway {
         '-F',
         '#{window_id}|#{window_index}|#{window_name}|#{window_active}|#{pane_pid}|#{window_panes}|#{pane_current_path}',
       ]))
-      return this.withDetectedApplications(windows)
+      return withDetectedWindowApplications(windows, {
+        maxBuffer: TMUX_MAX_BUFFER,
+        runner: this.options.runner,
+        timeoutMs: TMUX_TIMEOUT_MS,
+      })
     }
     catch (error) {
       if (this.isMissingServer(error)) return []
@@ -151,75 +157,29 @@ export class TmuxCliAdapter implements TmuxGateway {
       'list-panes', '-t', `${sessionName}:${windowIndex}`, '-F',
       '#{pane_id}|#{pane_index}|#{pane_active}|#{pane_left}|#{pane_top}|#{pane_width}|#{pane_height}|#{window_width}|#{window_height}|#{pane_pid}|#{pane_current_path}',
     ]))
-    return this.withDetectedPaneApplications(panes)
+    return withDetectedPanesApplications(panes, {
+      maxBuffer: TMUX_MAX_BUFFER,
+      runner: this.options.runner,
+      timeoutMs: TMUX_TIMEOUT_MS,
+    })
   }
 
   async listAgents(): Promise<TmuxAgent[]> {
-    let candidates
     try {
-      candidates = parseTmuxAgentPaneCandidates(await this.run([
-        'list-panes', '-a', '-F',
-        '#{session_name}\t#{window_id}\t#{window_index}\t#{window_name}\t#{pane_id}\t#{pane_index}\t#{pane_pid}\t#{pane_dead}\t#{@bitveins_agent_label}\t#{@bitveins_codex_thread_id}\t#{pane_current_path}',
-      ]))
+      return await listDiscoveredTmuxAgents({
+        agentGitMetadata: this.options.agentGitMetadata,
+        antigravityAgentMetadata: this.options.antigravityAgentMetadata,
+        codexAgentMetadata: this.options.codexAgentMetadata,
+        grokAgentMetadata: this.options.grokAgentMetadata,
+        maxBuffer: TMUX_MAX_BUFFER,
+        runner: this.options.runner,
+        timeoutMs: TMUX_TIMEOUT_MS,
+      }, args => this.run(args))
     }
     catch (error) {
       if (this.isMissingServer(error)) return []
       throw error
     }
-    if (candidates.length === 0) return []
-
-    let processSnapshot = ''
-    try {
-      processSnapshot = (await this.options.runner.run(
-        'ps',
-        ['-eo', 'pid=,ppid=,pgid=,tpgid=,args='],
-        { maxBuffer: TMUX_MAX_BUFFER, timeoutMs: TMUX_TIMEOUT_MS },
-      )).stdout
-    }
-    catch {
-      return []
-    }
-
-    const detected = candidates.flatMap((candidate) => {
-      const process = detectAgentProcess(candidate.panePid, processSnapshot)
-      return process ? [{ candidate, process }] : []
-    })
-
-    const agents = await Promise.all(detected.map(async ({ candidate, process }) => {
-      const [rawTitle, screen, git] = await Promise.all([
-        this.run(['display-message', '-p', '-t', candidate.paneId, '#{pane_title}']).catch(() => ''),
-        this.run(['capture-pane', '-e', '-p', '-J', '-t', candidate.paneId]).catch(() => null),
-        this.options.agentGitMetadata?.resolve(candidate.path) ?? null,
-      ])
-      const title = stripAgentActivityGlyph(normalizeTmuxAgentTitle(rawTitle) ?? '')
-      const codexLabel = process.kind === 'codex'
-        ? await this.options.codexAgentMetadata?.labelFor(process.pid, candidate.codexThreadId)
-        : null
-      const defaultLabel = codexLabel || title || candidate.windowName || tmuxAgentDisplayName(process.kind)
-      const label = candidate.customLabel ?? defaultLabel
-      return {
-        ...(candidate.customLabel ? { customLabel: candidate.customLabel } : {}),
-        defaultLabel,
-        ...(git ? { git } : {}),
-        id: candidate.paneId,
-        kind: process.kind,
-        label,
-        paneId: candidate.paneId,
-        paneIndex: candidate.paneIndex,
-        path: candidate.path,
-        sessionName: candidate.sessionName,
-        status: classifyAgentScreenStatus(process.kind, rawTitle, screen),
-        windowId: candidate.windowId,
-        windowIndex: candidate.windowIndex,
-        windowName: candidate.windowName,
-      } satisfies TmuxAgent
-    }))
-
-    return agents.sort((left, right) => (
-      left.sessionName.localeCompare(right.sessionName)
-      || left.windowIndex - right.windowIndex
-      || left.paneIndex - right.paneIndex
-    ))
   }
 
   async selectWindow(name: string, index: unknown): Promise<void> {
@@ -494,49 +454,6 @@ export class TmuxCliAdapter implements TmuxGateway {
 
   private isMissingServer(error: unknown): boolean {
     return error instanceof SessionError && isMissingTmuxServerError(error.causeText)
-  }
-
-  private async withDetectedApplications(
-    windows: ReturnType<typeof parseTmuxWindowsWithPanePids>,
-  ): Promise<TmuxWindow[]> {
-    const applications = await this.detectApplications(windows.map(window => window.panePid))
-    return windows.map(({ panePid, window }) => {
-      const application = panePid === null ? null : applications.get(panePid)
-      return application ? { ...window, application } : window
-    })
-  }
-
-  private async withDetectedPaneApplications(
-    panes: ReturnType<typeof parseTmuxPanes>,
-  ): Promise<TmuxPane[]> {
-    const applications = await this.detectApplications(panes.map(({ panePid }) => panePid))
-    return panes.map(({ pane, panePid }) => {
-      const application = panePid === null ? undefined : applications.get(panePid)
-      return application ? { ...pane, application } : pane
-    })
-  }
-
-  private async detectApplications(
-    panePids: readonly (number | null)[],
-  ): Promise<Map<number, NonNullable<TmuxPane['application']>>> {
-    const result = new Map<number, NonNullable<TmuxPane['application']>>()
-    if (!panePids.some(pid => pid !== null)) return result
-    try {
-      const { stdout } = await this.options.runner.run('ps', ['-eo', 'pid=,tpgid=,comm='], {
-        maxBuffer: TMUX_MAX_BUFFER,
-        timeoutMs: TMUX_TIMEOUT_MS,
-      })
-      const processes = parseProcessCommandSnapshot(stdout)
-      for (const panePid of panePids) {
-        if (panePid === null) continue
-        const application = foregroundApplicationForPane(panePid, processes)
-        if (application) result.set(panePid, application)
-      }
-    }
-    catch {
-      // Application labels are an optional UI enhancement.
-    }
-    return result
   }
 
   private async ensureTruecolorPassthrough(): Promise<void> {

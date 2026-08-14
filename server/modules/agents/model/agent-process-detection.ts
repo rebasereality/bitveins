@@ -17,6 +17,15 @@ const AGENT_PATTERNS: ReadonlyArray<{
   kind: TmuxAgentKind
   patterns: RegExp[]
 }> = [
+  {
+    kind: 'antigravity',
+    patterns: [
+      /(?:^|[\s/])agy(?:[\s]|$)/iu,
+      /(?:^|[\s/])antigravity(?:[\s]|$)/iu,
+      /(?:^|[\s/])antigravity-cli(?:[\s]|$)/iu,
+      /(?:^|[\s/])\.gemini[/\\]antigravity(?:-cli)?[/\\]/iu,
+    ],
+  },
   { kind: 'hermes', patterns: [/(?:^|[\s/])hermes(?:[\s]|$)/iu, /hermes_cli\.main/iu] },
   { kind: 'claude', patterns: [/(?:^|[\s/])claude(?:[\s]|$)/iu, /claude-code/iu] },
   { kind: 'opencode', patterns: [/(?:^|[\s/])opencode(?:[\s]|$)/iu] },
@@ -114,6 +123,7 @@ function processDepth(
 export function tmuxAgentDisplayName(kind: TmuxAgentKind): string {
   return {
     aider: 'Aider',
+    antigravity: 'Antigravity',
     claude: 'Claude',
     codex: 'Codex',
     copilot: 'Copilot',

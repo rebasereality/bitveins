@@ -7,9 +7,9 @@ export function asyncTerminalSubmissionChunks(
   command: string,
   terminator: AsyncTerminalTerminator,
 ): readonly [string, AsyncTerminalTerminator] {
-  const input = command.includes('\n')
+  const input = command
     ? `${BRACKETED_PASTE_START}${command}${BRACKETED_PASTE_END}`
-    : command
+    : ''
 
   return [input, terminator]
 }

@@ -55,6 +55,7 @@ const agentStatusLabels: Record<TmuxAgentStatus, string> = {
 
 const agentKindLabels: Record<TmuxAgent['kind'], string> = {
   aider: 'Aider',
+  antigravity: 'Antigravity',
   claude: 'Claude',
   codex: 'Codex',
   copilot: 'Copilot',

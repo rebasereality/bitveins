@@ -73,12 +73,17 @@ describe('agent process detection', () => {
     ['/home/theman/.local/bin/grok --yolo', 'grok'],
     ['/home/theman/.grok/downloads/grok-linux-x86_64', 'grok'],
     ['/home/theman/.grok/bin/agent', 'grok'],
+    ['agy', 'antigravity'],
+    ['/home/theman/.local/bin/agy', 'antigravity'],
+    ['/home/theman/.gemini/antigravity-cli/bin/agy --verbose', 'antigravity'],
+    ['antigravity', 'antigravity'],
     ['/usr/local/bin/cursor-agent', 'cursor'],
   ] as const)('recognizes %s as %s', (argv, kind) => {
     expect(detectAgentKind(argv)).toBe(kind)
   })
 
   it('provides stable product labels', () => {
+    expect(tmuxAgentDisplayName('antigravity')).toBe('Antigravity')
     expect(tmuxAgentDisplayName('opencode')).toBe('OpenCode')
     expect(tmuxAgentDisplayName('codex')).toBe('Codex')
     expect(tmuxAgentDisplayName('grok')).toBe('Grok')
