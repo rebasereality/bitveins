@@ -1,6 +1,6 @@
 {
   "name": "bitveins-notifications",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Send privacy-safe Codex lifecycle notifications to a local Bitveins instance.",
   "author": {
     "name": "Rebase Reality",
