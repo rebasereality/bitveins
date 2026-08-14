@@ -253,7 +253,7 @@ const status = computed(() => {
         agent="antigravity"
         class="mt-4"
         description="Choose which Antigravity lifecycle events enter Agent Inbox and reach subscribed devices. These settings apply across devices. Sub-agents and intentional interruptions stay silent."
-        icon="i-lucide-sparkles"
+        logo-src="/icons/antigravity.webp"
         title="Antigravity Agent"
       >
         <div
