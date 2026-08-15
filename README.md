@@ -1,321 +1,187 @@
 # Bitveins
 
-Async Terminal PWA for managing local `tmux` sessions through Nuxt 4, Nitro
-WebSockets, `node-pty`, and xterm.js.
+Async-first Web Terminal and PWA for managing local `tmux` sessions on mobile and desktop, built with Nuxt 4, Nitro WebSockets, `node-pty`, and xterm.js.
 
-Bitveins is a single-user administrative tool: unlocking it grants the Unix
-permissions of the account running the service. It is not a multi-tenant
-sandbox.
+Bitveins provides a fluid mobile experience over high-latency connections, integrates with local AI coding agents (Codex, Hermes, Antigravity), and notifies you via Web Push when commands or agents need attention.
 
 <p align="center">
   <a href="https://rebasereality.com/bitveins/media/bitveins/overview-desktop.webp">
     <img src="https://rebasereality.com/bitveins/media/bitveins/overview-desktop.webp" alt="Bitveins desktop overview" width="72%">
   </a>
   <a href="https://rebasereality.com/bitveins/media/bitveins/hero-mobile-codex.webp">
-    <img src="https://rebasereality.com/bitveins/media/bitveins/hero-mobile-codex.webp" alt="Bitveins mobile Codex session" width="24%">
+    <img src="https://rebasereality.com/bitveins/media/bitveins/hero-mobile-codex.webp" alt="Bitveins mobile session" width="24%">
   </a>
 </p>
 
-## Modes
+---
 
-- **Async** is the default. Type in the native textarea and send a complete command or multi-line block with Enter. This is best for high-latency mobile links because local editing stays responsive.
-- **Live** forwards xterm keystrokes directly to the PTY. Use it for Codex `$` skill menus, `@` file pickers, shells, editors, and other interactive terminal apps.
+## Features
 
-## Agent Inbox and notifications
+- **Async Input Mode (Default)**: Type in a native multi-line textarea with full mobile editing, autocomplete, and gestures. Dispatch complete commands in one go without sluggish roundtrips over high-latency mobile networks.
+- **Multi-Device Prompt Sync**: Live WebSocket synchronization of prompt drafts across all connected devices (desktop, phone, tablet) with SQLite draft persistence per tmux window.
+- **Live Interactive Mode**: Full xterm.js terminal with direct PTY forwarding for interactive TUIs, Vim/Neovim, interactive menus, and real-time prompts.
+- **Automatic Agent Discovery & Status**: Detects AI agents (*Antigravity, Codex, Hermes, Claude, Grok, Gemini, Cursor, Copilot, Aider, Pi*) with visual state indicators (working, waiting, failed, idle) directly on tmux tabs and sidebar.
+- **Agent Inbox & Web Push**: Receive push notifications on your phone or desktop when background tasks, scripts, or AI coding agents require permissions, complete a turn, or fail. Clicking a notification brings you right back into the exact tmux window.
+- **Git Graph & Diff Viewer**: Built-in interactive SVG Git commit graph and side-by-side file diffs in the workspace explorer.
+- **Interactive Tmux Splits**: Horizontal and vertical pane layouts with drag resizing, touch scrolling, and focused pane navigation.
+- **Workspace Explorer & File Links**: Click or tap file paths in terminal output to view source code or preview images (PNG, JPEG, GIF, WebP, AVIF) directly in the browser.
+- **Installable PWA**: Install to Home Screen on iOS and Android for a fullscreen native-like experience with custom mobile keyboard and terminal controls.
+- **Secure & Loopback-Isolated**: Runs as a single-user daemon bound exclusively to `127.0.0.1`, protected by Scrypt password hashing and sealed session cookies.
 
-Agent Inbox records local attention events from commands, scripts and development
-agents. Events can report required input or permission, completion, failure or
-general information. When an event names a tmux session and stable window ID,
-opening it attaches that exact context and marks the event as read.
+---
 
-Open Settings → Agent Inbox notifications to enable Web Push for the current
-device. The permission prompt appears only after selecting **Enable
-notifications**. Notifications use a generic title and body by default so lock
-screens do not expose event details. The optional detailed mode adds the event
-title, project, source and a strictly shortened summary; it is disabled by
-default. On iPhone and iPad, install Bitveins on the Home Screen before enabling
-notifications.
+## Quick Start (Native Installation)
 
-Create an event from the VPS with the product CLI:
+### Prerequisites
 
-```bash
-bitveins event \
-  --type permission_required \
-  --source local-script \
-  --title "Permission required" \
-  --summary "Run database migrations?" \
-  --project Kouizine
-```
+- **OS**: Linux x86_64
+- **Tools**: `tmux` 3.1+ and `systemd` (user services)
 
-Inside tmux, Bitveins detects the session, stable window ID and pane ID from the
-current pane. `--session`, `--window` and `--pane` explicitly override detected
-values. The command talks only to the loopback Bitveins service with a dedicated
-integration token; it never reuses the browser password.
+### Install
 
-### Codex lifecycle integration
-
-Native Bitveins releases include an optional Codex plugin backed by Codex's
-lifecycle hooks. Install it with:
+Run the interactive installer as the Unix user who owns the tmux sessions:
 
 ```bash
-bitveins codex install
+curl -fsSL https://github.com/rebasereality/bitveins/releases/latest/download/install.sh | sh
 ```
 
-Start a new Codex session, open `/hooks`, and trust the Bitveins hook
-definition. Codex intentionally requires this review before non-managed plugin
-hooks can run and whenever their definition changes.
-
-The plugin emits the lifecycle states Codex exposes reliably: permission
-requests and completed parent turns, split by whether a local tool hook was
-observed. Codex does not currently expose distinct clarification-request or
-failed-turn hooks, so Bitveins does not guess those states from prompts,
-responses, or transcripts. Hosted tools outside the local function-tool hook
-path may not be counted as tool use. Text-only completion notifications remain
-opt-in under Settings -> Notifications.
-
-Delivery is fail-open and loopback-only. The plugin sends only a fixed typed
-lifecycle signal plus validated tmux window and pane IDs. It never sends
-prompts, responses, commands, tool inputs or outputs, model names, transcript
-paths, working directories, endpoints, or tokens. See
-[`integrations/codex-notifications/plugins/bitveins-notifications/README.md`](integrations/codex-notifications/plugins/bitveins-notifications/README.md)
-for the exact hook mapping and privacy boundaries.
-
-### Hermes lifecycle integration
-
-Native Bitveins releases include an optional Hermes Agent plugin. Install and
-enable it for the active Hermes profile with:
-
-```bash
-bitveins hermes install
-hermes gateway restart
-```
-
-This targets the `default` Hermes profile. For another existing profile, use
-`bitveins hermes install --profile <name>` and restart that profile with
-`hermes --profile <name> gateway restart`. Open a new Hermes CLI session after
-installation. The plugin sends typed lifecycle signals when Hermes requires
-input or permission, completes a parent turn, or fails without a deliberate
-interruption. Settings controls which signals create Agent Inbox events and
-Web Push notifications. The existing mapping remains enabled by default;
-text-only parent responses are available as an opt-in. Smart-mode approvals,
-deliberate interruptions and delegated child completions remain silent.
-
-Delivery is fail-open and loopback-only. The plugin never includes prompts,
-responses, commands, tool arguments, endpoints, tokens, the current working
-path or its project basename. Set `BITVEINS_NOTIFICATIONS=0` for a Hermes
-process to disable delivery from that process. See
-[`integrations/hermes-notifications/README.md`](integrations/hermes-notifications/README.md)
-for hook mappings and verification details.
-
-## Explorer and terminal file links
-
-Explorer opens text files and authenticated raster previews directly from the
-selected session workspace. Images remain in their project: Bitveins does not
-copy them to `public/` or rebuild itself to display them.
-
-Paths printed in xterm become discoverable without changing ordinary terminal
-mouse behavior:
-
-- hold `Ctrl` on Linux/Windows or `Cmd` on macOS to reveal an available path;
-- click while holding that modifier to open the file in Explorer;
-- when the same relative path exists in several nested projects, choose its
-  root explicitly;
-- optionally remember that root for the current tmux window, or change, forget
-  or clear remembered roots from the `Path links` menu;
-- on touch devices, long-press and drag to select a path, then use
-  `Open in Explorer`; paths split across terminal display lines are
-  reconstructed before resolution, and tapping the terminal never summons the
-  virtual keyboard.
-
-On mobile in Live mode, the virtual keyboard is explicit. Use the keyboard
-icon immediately after `Reorder` to open or close Gboard (or its equivalent).
-Terminal taps, text selection, modifiers and one-tap terminal controls never
-open it implicitly; modifiers and terminal controls preserve it when it is
-already open.
-
-The mobile Async drawer starts empty for every tmux window. Bitveins never
-silently restores an old draft into a different conversation; the last sent
-command remains available only through the explicit restore action.
-
-Supported previews are PNG, JPEG, GIF, WebP and AVIF up to 50 MiB. SVG and
-other active formats are never rendered as images. Text files open at the
-reported `:line[:column]` when present.
-
-## Supported platform
-
-- Linux x86_64 with kernel 4.18+ and glibc 2.34+
-- systemd with user services
-- `tmux` 3.1 or newer
-
-The native release includes its own Node runtime and compiled modules. End
-users do not need Node, pnpm, Git or native build tooling.
-
-## Native installation
-
-Download and inspect the bootstrap, then run it as the Unix user who owns the
-tmux sessions:
+*Or download and inspect the bootstrap script before running:*
 
 ```bash
 curl -fsSLO https://github.com/rebasereality/bitveins/releases/latest/download/install.sh
-less install.sh
 sh install.sh
 ```
 
-The installer downloads versioned release assets over HTTPS, verifies their
-SHA-256 checksum and Sigstore build provenance, asks for a Bitveins password
-twice without echoing it, creates the session secret, installs a systemd user
-service and checks `http://127.0.0.1:3000/api/auth/session`. If Cosign is not
-already installed, the bootstrap downloads one pinned Cosign build and verifies
-its digest before use. A missing or invalid provenance bundle stops the
-installation; the checksum is never treated as proof of origin.
+The installer will:
+1. Download and verify the authenticated standalone release package (self-contained Node runtime included — no global Node or pnpm required).
+2. Prompt you to set your administrative password.
+3. Generate session and VAPID push secrets in `~/.config/bitveins/env` (`0600`).
+4. Install and start a systemd user service at `http://127.0.0.1:3000`.
 
-For a version-pinned or fully manual installation, see
-[`docs/installation.md`](docs/installation.md).
-
-Bitveins deliberately refuses:
-
-- installation as `root`;
-- an empty or weak password;
-- production startup without authentication secrets;
-- a production bind other than `127.0.0.1`.
-
-The local UI is then available at `http://127.0.0.1:3000`. Put an authenticated
-TLS tunnel or reverse proxy in front of that loopback listener before using it
-remotely.
-
-## Product CLI
-
-```bash
-bitveins help
-bitveins install --help
-bitveins start
-bitveins stop
-bitveins status
-bitveins doctor
-bitveins event --type completed --source shell --title "Command completed"
-bitveins codex install
-bitveins hermes install
-bitveins logs --follow
-bitveins restart
-bitveins password
-bitveins update
-bitveins uninstall
-bitveins version
-```
-
-`bitveins password` rotates the Scrypt hash and revokes existing browser
-sessions. `bitveins uninstall` preserves configuration and history by default;
-`bitveins uninstall --purge` requires an additional interactive confirmation.
-Every command supports `bitveins <command> --help`. Expected failures are
-concise; append `--verbose` to include redacted diagnostic causes.
-
-A generic shell integration can preserve the original exit status:
-
-```bash
-long-running-command
-status=$?
-
-if [ "$status" -eq 0 ]; then
-  bitveins event --type completed --source shell --title "Command completed"
-else
-  bitveins event \
-    --type failed \
-    --source shell \
-    --title "Command failed" \
-    --summary "Exit code: $status"
-fi
-
-exit "$status"
-```
-
-CLI exit codes are stable:
-
-| Code | Meaning |
-| ---: | --- |
-| 0 | success |
-| 1 | unexpected operation or transaction failure |
-| 2 | invalid command or arguments |
-| 3 | `doctor` found an unhealthy installation |
-| 4 | missing prerequisite, invalid configuration or unavailable service |
-| 5 | release integrity or provenance failure |
-
-The default installation uses:
-
-```text
-~/.local/bin/bitveins
-~/.local/lib/bitveins/
-~/.config/bitveins/env
-~/.config/systemd/user/bitveins.service
-~/.local/share/bitveins/history.sqlite
-```
-
-To keep the user service running after logout, enable systemd lingering:
+To ensure the service stays running after you log out of SSH, enable systemd lingering:
 
 ```bash
 sudo loginctl enable-linger "$USER"
 ```
 
-This optional command is intentionally not executed silently by the installer.
+---
 
-## Development
+## Remote Access & PWA Setup
 
-The source checkout and pnpm commands are contributor tools, not the public
-installation path. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for local setup and
-quality gates.
+For security, Bitveins only binds to loopback (`127.0.0.1:3000`). To access it remotely from your phone or laptop, put a secure HTTPS tunnel or reverse proxy in front of it:
 
-## System Architecture
+- **Cloudflare Tunnel**:
+  ```bash
+  cloudflared tunnel --url http://127.0.0.1:3000
+  ```
+- **Tailscale**:
+  ```bash
+  tailscale serve --bg 3000
+  ```
+- **Reverse Proxy (Caddy, Nginx, Traefik)**: Forward HTTPS traffic with WebSocket support to `127.0.0.1:3000`.
 
-```mermaid
-flowchart LR
-    Client["Browser / PWA"] --> Controller["Connection controller + state machine"]
-    Controller -->|typed WebSocket messages| WSRoute["/api/ws"]
-    Client -->|REST| Routes["Nitro routes"]
-    WSRoute --> Container["Composition root"]
-    Routes --> Container
-    Container --> Dropzones["Dropzones module"]
-    Container --> Sessions["Sessions module"]
-    Container --> History["History module"]
-    Container --> Explorer["Explorer module"]
-    Container --> Terminal["Terminal peer module"]
-    Container --> Attention["Attention module"]
-    Routes --> Files["Typed file handlers"]
-    Explorer --> Files
-    Sessions --> Tmux["tmux CLI adapter"]
-    Sessions --> SQLite[("SQLite repository")]
-    Dropzones --> SQLite
-    History --> SQLite
-    Attention --> SQLite
-    Attention --> Push["Browser push services"]
-    Files --> Sessions
-    Terminal --> PTY["node-pty adapter"]
-    PTY --> TmuxServer["tmux server"]
-    Tmux --> TmuxServer
+> **Note**: HTTPS is required by browsers to enable Web Push notifications and PWA Home Screen installation.
+
+---
+
+## CLI Management
+
+Bitveins ships with a built-in CLI tool to manage your installation:
+
+```bash
+# Service lifecycle
+bitveins status          # Check service health and state
+bitveins restart         # Restart the systemd user service
+bitveins logs --follow   # Tail live daemon logs
+bitveins doctor          # Run environment and health diagnostics
+
+# Configuration & Maintenance
+bitveins update          # Atomically update to the latest release
+bitveins password        # Interactively rotate password and invalidate sessions
+bitveins uninstall       # Remove installation (use --purge to wipe database/config)
 ```
 
-The server is organized by functional module under `server/modules/`.
-Application services depend on narrow ports; concrete tmux, SQLite and PTY
-adapters are wired in `server/composition/`, while stateless file routes use
-typed handler factories. See [`ARCHITECTURE.md`](ARCHITECTURE.md) for lifecycle,
-test-isolation and dependency details.
+---
 
-## API Surface
+## Agent & Script Integrations
 
-- `GET /api/sessions` lists tmux sessions.
-- `POST /api/sessions` creates a detached tmux session with `{ "name": string, "path": string }`.
-- `DELETE /api/sessions/:name` kills a tmux session.
-- `GET /api/sessions/:name/history` lists saved async input messages for a tmux session, newest first.
-- `POST /api/sessions/:name/history` saves `{ "message": string }` to that session's async input history.
-- `GET /api/sessions/:name/files/metadata` classifies a confined workspace document.
-- `GET /api/sessions/:name/files/image` streams a confined, allowlisted raster image.
-- `POST /api/sessions/:name/files/resolve` resolves a bounded batch of terminal file references.
-- `GET /api/sessions/:name/files/roots` lists bounded project-root choices.
-- `POST /api/auth/login` unlocks the app with `{ "password": string }`.
-- `POST /api/auth/logout` clears the sealed session.
-- `GET /api/auth/session` reports whether the browser is unlocked.
-- `GET /api/attention` lists persistent Agent Inbox events.
-- `POST /api/attention` creates an authenticated event.
-- `PATCH /api/attention/:id` marks an event read or dismissed.
-- `/api/attention/push/*` manages the current device subscription and privacy preference.
-- `WS /api/ws` uses the sealed session cookie and accepts terminal attach, live input, reliable async input, resize, heartbeat, and detach actions. Reliable async inputs are acknowledged and deduplicated across reconnects.
+### AI Agent Plugins
 
-Detach only kills the local `tmux attach-session` PTY process. It leaves the underlying tmux session alive.
+Bitveins includes zero-dependency lifecycle notification plugins for AI coding agents:
+
+```bash
+# Claude / Codex lifecycle hooks
+bitveins codex install
+
+# Hermes Agent plugin
+bitveins hermes install
+
+# Antigravity CLI integration
+bitveins antigravity install
+```
+
+### Custom Shell & Script Notifications
+
+Send custom events to the Agent Inbox and phone push notifications from your own scripts or build pipelines:
+
+```bash
+# Post an event
+bitveins event \
+  --type completed \
+  --source local-script \
+  --title "Build finished" \
+  --summary "Docker image built and pushed successfully." \
+  --project MyProject
+```
+
+---
+
+## Development & Self-Hosting from Source
+
+If you want to contribute or build Bitveins from source:
+
+### Prerequisites
+
+- **Node.js**: 24+
+- **pnpm**: 10+
+- **tmux**: 3.1+
+- C++ build tools (for `node-pty` native compilation)
+
+### Setup
+
+```bash
+# 1. Clone repo & install dependencies
+git clone https://github.com/rebasereality/bitveins.git
+cd bitveins
+pnpm install
+
+# 2. Configure environment
+cp .env.example .env
+pnpm build:cli
+
+# 3. Generate credentials
+pnpm bitveins hash-password
+node -e "console.log(require('node:crypto').randomBytes(48).toString('base64url'))"
+# Fill BITVEINS_AUTH_PASSWORD_HASH and NUXT_SESSION_PASSWORD into .env
+
+# 4. Start development server
+pnpm dev
+```
+
+Open `http://127.0.0.1:3000` to start developing.
+
+---
+
+## Documentation
+
+- [Detailed Installation & Verification Guide](docs/installation.md)
+- [System Architecture](ARCHITECTURE.md)
+- [Threat Model & Security](docs/threat-model.md)
+- [Contributing Guidelines](CONTRIBUTING.md)
+- [Changelog](CHANGELOG.md)
+
+---
+
+## License
+
+[MIT](LICENSE)
