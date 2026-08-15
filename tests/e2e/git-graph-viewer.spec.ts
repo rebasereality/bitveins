@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { promisify } from 'node:util'
 import { expect, test } from '@playwright/test'
@@ -26,6 +26,7 @@ async function commit(message: string): Promise<string> {
 
 test('opens a resizable Git graph and sends a selected file diff to Explorer', async ({ page }) => {
   const stableLines = Array.from({ length: 80 }, (_, index) => `export const stable${index} = ${index}`).join('\n')
+  await rm(workspace, { force: true, recursive: true })
   await mkdir(workspace, { recursive: true })
   await git('init', '-b', 'main')
   await git('config', 'user.name', 'Git Graph E2E')

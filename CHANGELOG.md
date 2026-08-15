@@ -4,6 +4,17 @@ All notable changes to Bitveins are documented here. The project follows
 [Semantic Versioning](https://semver.org/) and keeps an `Unreleased` section
 until a release is tagged.
 
+## 1.6.1 - 2026-08-15
+
+### Changed
+
+- README documentation overhaul: streamlined to be concise, human-readable, and focused on installation, key capabilities, and daily usage without clutter.
+
+### Fixed
+
+- agent process tree traversal and status classification: improved delimiter handling and working-state detection across nested subprocesses;
+- E2E test isolation: cleaned test workspace prior to Git initialization in `git-graph-viewer.spec.ts` so retries run idempotently.
+
 ## 1.6.0 - 2026-08-14
 
 ### Added
