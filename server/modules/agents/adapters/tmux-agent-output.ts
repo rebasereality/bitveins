@@ -29,6 +29,7 @@ export function parseTmuxAgentPaneCandidates(stdout: string): TmuxAgentPaneCandi
   const candidates: TmuxAgentPaneCandidate[] = []
   for (const line of stdout.split('\n')) {
     if (!line.trim()) continue
+    const separator = line.includes('\t') ? '\t' : (line.includes('\\t') ? '\\t' : '|')
     const [
       sessionName = '',
       windowId = '',
@@ -41,7 +42,7 @@ export function parseTmuxAgentPaneCandidates(stdout: string): TmuxAgentPaneCandi
       customLabelText = '',
       codexThreadIdText = '',
       ...pathParts
-    ] = line.split('\t')
+    ] = line.split(separator)
     const windowIndex = nonnegativeInteger(windowIndexText)
     const paneIndex = nonnegativeInteger(paneIndexText)
     const panePid = positiveInteger(panePidText)
@@ -63,7 +64,7 @@ export function parseTmuxAgentPaneCandidates(stdout: string): TmuxAgentPaneCandi
       paneId,
       paneIndex,
       panePid,
-      path: pathParts.join('\t') || '~',
+      path: pathParts.join(separator) || '~',
       sessionName,
       windowId,
       windowIndex,
