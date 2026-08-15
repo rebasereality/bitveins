@@ -41,7 +41,7 @@ const AGENT_PATTERNS: ReadonlyArray<{
   { kind: 'cursor', patterns: [/(?:^|[\s/])cursor-agent(?:[\s]|$)/iu] },
   { kind: 'copilot', patterns: [/(?:^|[\s/])copilot(?:[\s]|$)/iu, /github-copilot-cli/iu] },
   { kind: 'aider', patterns: [/(?:^|[\s/])aider(?:[\s]|$)/iu] },
-  { kind: 'codex', patterns: [/(?:^|[\s/])codex(?:[\s]|$)/iu, /@openai[/\\]codex/iu] },
+  { kind: 'codex', patterns: [/(?:^|[\s/])codex(?:-[\w-]+)?(?:[\s]|$)/iu, /@openai[/\\]codex/iu] },
   { kind: 'pi', patterns: [/(?:^|[\s/])pi(?:[\s]|$)/u] },
 ]
 
@@ -80,6 +80,17 @@ export function detectAgentProcess(panePid: number, processSnapshot: string): De
   if (paneProcess.foregroundProcessGroupId > 0) {
     for (const process of processes.values()) {
       if (process.processGroupId === paneProcess.foregroundProcessGroupId) candidates.set(process.pid, process)
+    }
+  }
+
+  const queue = [paneProcess.pid]
+  while (queue.length > 0) {
+    const parentId = queue.shift()!
+    for (const process of processes.values()) {
+      if (process.parentPid === parentId && !candidates.has(process.pid)) {
+        candidates.set(process.pid, process)
+        queue.push(process.pid)
+      }
     }
   }
 

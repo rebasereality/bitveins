@@ -38,7 +38,7 @@ export async function listDiscoveredTmuxAgents(
 ): Promise<TmuxAgent[]> {
   const candidates = parseTmuxAgentPaneCandidates(await runTmux([
     'list-panes', '-a', '-F',
-    '#{session_name}\t#{window_id}\t#{window_index}\t#{window_name}\t#{pane_id}\t#{pane_index}\t#{pane_pid}\t#{pane_dead}\t#{@bitveins_agent_label}\t#{@bitveins_codex_thread_id}\t#{pane_current_path}',
+    '#{session_name}|#{window_id}|#{window_index}|#{window_name}|#{pane_id}|#{pane_index}|#{pane_pid}|#{pane_dead}|#{@bitveins_agent_label}|#{@bitveins_codex_thread_id}|#{pane_current_path}',
   ]))
 
   if (candidates.length === 0) return []

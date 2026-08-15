@@ -24,11 +24,12 @@ const FAILURE_PATTERNS = [
 ]
 
 const WORKING_FOOTER_PATTERNS = [
-  /(?:^|\n)\s*(?:esc|escape|ctrl\+c)\s+to\s+(?:interrupt|cancel|abort|stop)/iu,
-  /(?:^|\n)\s*(?:press|hit)\s+(?:esc|escape|ctrl\+c)\s+to/iu,
-  /(?:^|\n)\s*cancel\s+with\s+(?:esc|escape|ctrl\+c)/iu,
-  /(?:^|\n)\s*[\u2800-\u28FF✻✽✢]\s+(?:working|thinking|generating|running|analyzing|executing|searching|viewing|editing)(?:\.{3}|…|\s|\(|$)/iu,
+  /(?:^|\n|\s|[•·(])(?:esc|escape|ctrl\+c)\s+to\s+(?:interrupt|cancel|abort|stop)/iu,
+  /(?:^|\n|\s|[•·(])(?:press|hit)\s+(?:esc|escape|ctrl\+c)\s+to/iu,
+  /(?:^|\n|\s|[•·(])cancel\s+with\s+(?:esc|escape|ctrl\+c)/iu,
+  /(?:^|\n|\s|[•·])(?:[\u2022\u2800-\u28FF✻✽✢·])\s*(?:working|thinking|generating|running|analyzing|executing|searching|viewing|editing)(?:\.{3}|…|\s|\(|$)/iu,
   /(?:^|\n)\s*(?:running|calling|executing)\s+tool(?::|\s)/iu,
+  /(?:^|\s|·)working\s*·/iu,
 ]
 
 function stripAnsi(text: string): string {
