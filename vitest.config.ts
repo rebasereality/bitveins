@@ -17,6 +17,7 @@ export default defineConfig({
       reporter: ['text', 'json-summary'],
       include: [
         'cli/core/**/*.ts',
+        'app/editor/**/*.ts',
         'app/terminal/**/*.ts',
         'app/utils/**/*.ts',
         'shared/contracts/**/*.ts',

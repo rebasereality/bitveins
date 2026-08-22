@@ -215,7 +215,7 @@ defineExpose({
     </div>
 
     <!-- Tree list scrollable container -->
-    <div class="flex-1 overflow-auto p-1">
+    <div class="flex-1 overflow-auto p-1 bitveins-scrollbar">
       <!-- We render the root children directly to simulate a top-level workspace tree -->
       <template v-if="rootNode.children && rootNode.children.length > 0">
         <FileTreeItem

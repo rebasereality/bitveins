@@ -208,4 +208,34 @@ watch(() => colorMode.value, () => {
 .cm-editor {
   height: 100% !important;
 }
+
+.cm-editor .cm-scroller {
+  scrollbar-color: var(--bitveins-shell-border-strong) var(--bitveins-terminal-chrome);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.cm-editor .cm-scroller::-webkit-scrollbar {
+  display: block;
+  width: 10px;
+  height: 10px;
+}
+
+.cm-editor .cm-scroller::-webkit-scrollbar-track {
+  background: var(--bitveins-terminal-chrome);
+}
+
+.cm-editor .cm-scroller::-webkit-scrollbar-thumb {
+  border: 2px solid var(--bitveins-terminal-chrome);
+  border-radius: 999px;
+  background: var(--bitveins-shell-border-strong);
+}
+
+.cm-editor .cm-scroller::-webkit-scrollbar-thumb:hover {
+  background: var(--bitveins-shell-text-subtle);
+}
+
+.cm-editor .cm-scroller::-webkit-scrollbar-corner {
+  background: var(--bitveins-terminal-chrome);
+}
 </style>
