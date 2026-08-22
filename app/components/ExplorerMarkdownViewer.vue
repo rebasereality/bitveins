@@ -29,7 +29,7 @@ function handleClick(event: MouseEvent): void {
 </script>
 
 <template>
-  <div class="h-full overflow-auto bg-[var(--bitveins-terminal-bg)]">
+  <div class="h-full overflow-auto bg-[var(--bitveins-terminal-bg)] bitveins-scrollbar">
     <!-- markdown-it escapes raw HTML and rejects unsafe link protocols. -->
     <!-- eslint-disable vue/no-v-html -->
     <article

@@ -173,6 +173,43 @@ body {
   display: none;
 }
 
+.bitveins-scrollbar,
+.cm-editor .cm-scroller {
+  scrollbar-color: var(--bitveins-shell-border-strong) var(--bitveins-terminal-chrome);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.bitveins-scrollbar::-webkit-scrollbar,
+.cm-editor .cm-scroller::-webkit-scrollbar {
+  display: block;
+  width: 10px;
+  height: 10px;
+}
+
+.bitveins-scrollbar::-webkit-scrollbar-track,
+.cm-editor .cm-scroller::-webkit-scrollbar-track {
+  background: var(--bitveins-terminal-chrome);
+}
+
+.bitveins-scrollbar::-webkit-scrollbar-thumb,
+.cm-editor .cm-scroller::-webkit-scrollbar-thumb {
+  border: 2px solid var(--bitveins-terminal-chrome);
+  border-radius: 999px;
+  background: var(--bitveins-shell-border-strong);
+}
+
+.bitveins-scrollbar::-webkit-scrollbar-thumb:hover,
+.cm-editor .cm-scroller::-webkit-scrollbar-thumb:hover {
+  background: var(--bitveins-shell-text-subtle);
+}
+
+.bitveins-scrollbar::-webkit-scrollbar-corner,
+.cm-editor .cm-scroller::-webkit-scrollbar-corner {
+  background: var(--bitveins-terminal-chrome);
+}
+
+
 .xterm {
   height: 100%;
   padding: 0;
