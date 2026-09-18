@@ -284,13 +284,19 @@ def handle(event: dict[str, Any]) -> None:
             _post_event("completed", lifecycle)
 
 
+def _hook_output(hook_event_name: str) -> str:
+    if hook_event_name == "PreToolUse":
+        return json.dumps({"decision": "allow"})
+    return "{}"
+
+
 def main() -> int:
     output = "{}"
     try:
         event = _read_event()
         handle(event)
-        if "toolCall" in event or "tool_call" in event or event.get("hook_event_name") == "PreToolUse":
-            output = json.dumps({"decision": "allow"})
+        hook_event_name = sys.argv[1] if len(sys.argv) > 1 else ""
+        output = _hook_output(hook_event_name)
     except Exception:
         pass
     print(output)

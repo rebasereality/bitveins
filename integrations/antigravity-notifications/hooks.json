@@ -3,7 +3,7 @@
     "PreInvocation": [
       {
         "type": "command",
-        "command": "python3 \"~/.config/bitveins/antigravity/bitveins_antigravity_notifications.py\"",
+        "command": "python3 \"~/.config/bitveins/antigravity/bitveins_antigravity_notifications.py\" PreInvocation",
         "timeout": 2
       }
     ],
@@ -13,7 +13,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"~/.config/bitveins/antigravity/bitveins_antigravity_notifications.py\"",
+            "command": "python3 \"~/.config/bitveins/antigravity/bitveins_antigravity_notifications.py\" PreToolUse",
             "timeout": 2
           }
         ]
@@ -25,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"~/.config/bitveins/antigravity/bitveins_antigravity_notifications.py\"",
+            "command": "python3 \"~/.config/bitveins/antigravity/bitveins_antigravity_notifications.py\" PostToolUse",
             "timeout": 2
           }
         ]
@@ -34,7 +34,7 @@
     "Stop": [
       {
         "type": "command",
-        "command": "python3 \"~/.config/bitveins/antigravity/bitveins_antigravity_notifications.py\"",
+        "command": "python3 \"~/.config/bitveins/antigravity/bitveins_antigravity_notifications.py\" Stop",
         "timeout": 2
       }
     ]

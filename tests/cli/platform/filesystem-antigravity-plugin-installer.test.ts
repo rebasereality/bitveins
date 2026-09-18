@@ -59,7 +59,16 @@ describe('FilesystemAntigravityPluginInstaller', () => {
     expect(scriptContent).toBe('# test script\n')
 
     const hooksJson = JSON.parse(await readFile(hooksPath, 'utf8')) as Record<string, unknown>
-    expect(hooksJson['bitveins-notifications']).toBeDefined()
+    const hooks = hooksJson['bitveins-notifications'] as {
+      PostToolUse: Array<{ hooks: Array<{ command: string }> }>
+      PreInvocation: Array<{ command: string }>
+      PreToolUse: Array<{ hooks: Array<{ command: string }> }>
+      Stop: Array<{ command: string }>
+    }
+    expect(hooks.PreInvocation[0]?.command).toBe(`python3 "${scriptPath}" PreInvocation`)
+    expect(hooks.PreToolUse[0]?.hooks[0]?.command).toBe(`python3 "${scriptPath}" PreToolUse`)
+    expect(hooks.PostToolUse[0]?.hooks[0]?.command).toBe(`python3 "${scriptPath}" PostToolUse`)
+    expect(hooks.Stop[0]?.command).toBe(`python3 "${scriptPath}" Stop`)
   })
 
   it('preserves existing hooks in hooks.json while adding bitveins-notifications', async () => {
