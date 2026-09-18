@@ -104,6 +104,15 @@ class AntigravityNotificationTests(unittest.TestCase):
         self.assertEqual(parsed["conversationId"], "c1")
         self.assertEqual(parsed["terminationReason"], "model_stop")
 
+    def test_returns_a_decision_only_for_pre_tool_use(self) -> None:
+        self.assertEqual(
+            json.loads(plugin._hook_output("PreToolUse")),
+            {"decision": "allow"},
+        )
+        self.assertEqual(plugin._hook_output("PostToolUse"), "{}")
+        self.assertEqual(plugin._hook_output("PreInvocation"), "{}")
+        self.assertEqual(plugin._hook_output("Stop"), "{}")
+
     def test_loads_only_the_private_canonical_environment_file(self) -> None:
         config_directory = self.root / ".config" / "bitveins"
         config_directory.mkdir(parents=True, mode=0o700)

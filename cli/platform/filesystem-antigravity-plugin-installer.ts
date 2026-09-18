@@ -149,7 +149,7 @@ export class FilesystemAntigravityPluginInstaller {
       existingHooks['bitveins-notifications'] = {
         PreInvocation: [
           {
-            command: `python3 "${targetScriptPath}"`,
+            command: `python3 "${targetScriptPath}" PreInvocation`,
             timeout: 2,
             type: 'command',
           },
@@ -158,7 +158,7 @@ export class FilesystemAntigravityPluginInstaller {
           {
             hooks: [
               {
-                command: `python3 "${targetScriptPath}"`,
+                command: `python3 "${targetScriptPath}" PreToolUse`,
                 timeout: 2,
                 type: 'command',
               },
@@ -170,7 +170,7 @@ export class FilesystemAntigravityPluginInstaller {
           {
             hooks: [
               {
-                command: `python3 "${targetScriptPath}"`,
+                command: `python3 "${targetScriptPath}" PostToolUse`,
                 timeout: 2,
                 type: 'command',
               },
@@ -180,7 +180,7 @@ export class FilesystemAntigravityPluginInstaller {
         ],
         Stop: [
           {
-            command: `python3 "${targetScriptPath}"`,
+            command: `python3 "${targetScriptPath}" Stop`,
             timeout: 2,
             type: 'command',
           },
