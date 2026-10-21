@@ -66,7 +66,7 @@
     "crossws": "^0.4.10",
     "drizzle-orm": "^0.45.2",
     "h3": "^1.15.11",
-    "markdown-it": "^15.0.0",
+    "markdown-it": "^15.0.3",
     "node-pty": "^1.1.0",
     "nuxt": "^4.5.2",
     "nuxt-auth-utils": "^0.5.30",
