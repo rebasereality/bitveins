@@ -78,7 +78,7 @@
     "vue": "^3.5.41",
     "vue-router": "^5.2.0",
     "web-push": "3.6.7",
-    "zod": "^4.4.3"
+    "zod": "^4.6.6"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
